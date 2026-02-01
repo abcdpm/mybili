@@ -126,6 +126,8 @@ class VideoService implements VideoServiceInterface
                 'id'         => $videoPart['cid'],
                 'part'       => $videoPart['page'],
                 'url'        => $urlPath,
+                // 【新增】必须手动加上这一行，前端才能收到移动端地址！
+                'mobile_url' => $videoPart['mobile_url'],
                 'title'      => $videoPart['part'] ?? 'P' . $videoPart['page'],
                 'downloaded' => $videoPart['video_download_path'] ? true : false,
             ];

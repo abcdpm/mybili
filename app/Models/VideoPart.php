@@ -11,7 +11,7 @@ class VideoPart extends Model
 
 
     protected $appends = [
-        'video_download_url',
+        'video_download_url', 'mobile_url'
     ];
 
     public function video()
@@ -27,5 +27,15 @@ class VideoPart extends Model
     public function getVideoDownloadUrlAttribute()
     {
         return $this->video_download_path ? Storage::url($this->video_download_path) : null;
+    }
+
+    // 新增访问器
+    public function getMobileUrlAttribute()
+    {
+        if ($this->mobile_download_path && Storage::disk('public')->exists($this->mobile_download_path)) {
+            return Storage::url($this->mobile_download_path);
+        }
+        // 如果没有兼容版，返回 null，前端会自动降级播放原版
+        return null;
     }
 }

@@ -20,6 +20,7 @@ const emit = defineEmits<{
 const props = defineProps<{
     danmaku: any[]
     url: string
+    mobileUrl?: string // 【新增】接收移动端地址
 }>()
 
 /**
@@ -59,30 +60,56 @@ const saveDanmakuConfig = (config: DanmakuOption) => {
     }
 }
 
-const switchVideo = (param: { url: string, danmaku: any[] }) => {
+const switchVideo = (param: { url: string, mobileUrl?: string, danmaku: any[] }) => {
     if (art.value) {
         (art.value.plugins as any).artplayerPluginDanmuku.config({
             danmuku: param.danmaku
         });
         (art.value.plugins as any).artplayerPluginDanmuku.load()
-        art.value.url = param.url
+
+        // 【修改】使用同样的通用判断
+        const isSmallScreen = document.documentElement.clientWidth < 768
+        const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) 
+                               || (navigator.userAgent.includes('Mac') && navigator.maxTouchPoints > 0);
+        
+        const useCompatibleSource = isSmallScreen || isMobileDevice
+        
+        let targetUrl = param.url
+        if (useCompatibleSource && param.mobileUrl) {
+            targetUrl = param.mobileUrl
+        }
+        
+        art.value.url = targetUrl
         art.value.play()
     }
 }
 
 onMounted(async () => {
-    const isMobile = document.documentElement.clientWidth < 768
-    const volume = isMobile ? 1 : 0.5
-    const fullscreenWeb = isMobile ? false : true
+    // 1. 布局判断：仅用于 UI (是否显示大字体等)
+    const isSmallScreen = document.documentElement.clientWidth < 768
+
+    // 2. 兼容性判断：核心逻辑
+    // 检测是否为移动端设备 (包含 Android, iPhone, iPad, Mac触屏版)
+    const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) 
+                           || (navigator.userAgent.includes('Mac') && navigator.maxTouchPoints > 0); // iPadOS 13+ 伪装成 Mac
+    
+    // 只要是小屏，或者被识别为移动设备(Android/iOS)，就强制使用兼容源
+    const useCompatibleSource = isSmallScreen || isMobileDevice
+
+    // 3. 自动播放策略：移动端声音为1 PC端声音为0.5
+    const volume = useCompatibleSource ? 1 : 0.5 
+
+    // 平板(iPad/Android Tablet)保留网页全屏功能，只有手机禁用
+    const fullscreenWeb = isSmallScreen ? false : true
 
     // 默认配置
     const defaultDanmakuOption = {
-        speed: isMobile ? 4 : 7.5,
+        speed: isSmallScreen ? 4 : 7.5,
         antiOverlap: true,
         synchronousPlayback: false,
-        fontSize: isMobile ? 14 : 25,
+        fontSize: isSmallScreen ? 14 : 25,
         theme: "light",
-        margin: isMobile ? [10, '75%'] as [number | `${number}%`, number | `${number}%`] : [10, 10] as [number | `${number}%`, number | `${number}%`],
+        margin: isSmallScreen ? [10, '75%'] as [number | `${number}%`, number | `${number}%`] : [10, 10] as [number | `${number}%`, number | `${number}%`],
         modes: [0, 1, 2],
     } as Option
 
@@ -101,19 +128,26 @@ onMounted(async () => {
     const plugins: any[] = [
         artplayerPluginDanmuku(presetDanmakuOption),
     ]
+
+    // 【新增】智能选源逻辑
+    let playUrl = props.url
+    if (useCompatibleSource && props.mobileUrl) {
+        console.log('Mobile/Tablet device detected, using compatible video source.');
+        playUrl = props.mobileUrl
+    }
+
     art.value = new Artplayer({
         container: $container.value as HTMLDivElement,
         fullscreen: true,
-        fullscreenWeb: fullscreenWeb,
+        fullscreenWeb: fullscreenWeb, // 大屏平板可以使用网页全屏
         autoOrientation: true,
-        url: props.url,
+        url: playUrl,
         setting: true,
         volume: volume,
         flip: true,
         playbackRate: true,
         theme: "#e749a0",
         miniProgressBar: true,
-
         plugins: plugins
     })
     // 监听弹幕配置变化并保存

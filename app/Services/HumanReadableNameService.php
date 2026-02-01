@@ -138,13 +138,47 @@ class HumanReadableNameService
      */
     protected function createVideoLink(string $sourcePath, string $sanitizedFavoriteName, string $seriesName, string $fileName): void
     {
+        // ==========================
+        // 1. 处理原画质视频 (Original)
+        // ==========================
         $targetPath = $this->buildTargetPath($sanitizedFavoriteName, $seriesName, $fileName);
 
+        // 如果目标存在，先删除旧的，防止冲突
         if (is_file($targetPath)) {
             unlink($targetPath);
         }
 
+        // 创建原画质硬链接
         $this->createLink($sourcePath, $targetPath);
+
+
+        // ==========================
+        // 2. 处理移动端兼容视频 (Mobile)
+        // ==========================
+        
+        // 构造移动端源文件路径: 假设源文件是 xxx.mp4，移动端为 xxx_mobile.mp4
+        // 注意：这里使用传入的 $sourcePath
+        $mobileSourcePath = str_replace('.mp4', '_mobile.mp4', $sourcePath);
+
+        // 只有当移动端源文件实际存在时，才创建链接
+        if (is_file($mobileSourcePath)) {
+            // 构造移动端目标文件名: 假设原名为 "Title.mp4", 移动端名为 "Title - Mobile.mp4"
+            // 加上 " - Mobile" 后缀方便 Emby/Plex 识别为不同版本
+            $mobileFileName = str_replace('.mp4', ' - Mobile.mp4', $fileName);
+            
+            // 使用辅助方法构建完整目标路径
+            $mobileTargetPath = $this->buildTargetPath($sanitizedFavoriteName, $seriesName, $mobileFileName);
+
+            // 如果目标存在，先删除
+            if (is_file($mobileTargetPath)) {
+                unlink($mobileTargetPath);
+            }
+
+            // 创建移动端硬链接
+            $this->createLink($mobileSourcePath, $mobileTargetPath);
+            
+            Log::info("Created mobile link: {$mobileTargetPath}");
+        }
     }
 
     /**

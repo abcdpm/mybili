@@ -349,10 +349,12 @@ const playPart = (partId: number) => {
         getVideoDanmaku(part.id).then(danmaku => {
             console.log('playPart switchVideo', {
                 url: part.url,
+                mobileUrl: part.mobile_url, // 【新增】传入切换参数
                 danmaku: danmaku,
             })
             playerRef.value?.switchVideo({
                 url: part.url,
+                mobileUrl: part.mobile_url, // 【新增】传入切换参数
                 danmaku: danmaku,
             })
         })

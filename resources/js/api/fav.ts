@@ -21,6 +21,8 @@ export interface VideoPartType {
     title: string
     part: number
     downloaded: boolean
+    // 【新增】添加 mobile_url 字段定义
+    mobile_url?: string
 }
 
 export interface Video {

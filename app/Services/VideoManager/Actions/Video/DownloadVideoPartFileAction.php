@@ -10,6 +10,7 @@ use App\Services\BilibiliSuspendService;
 use App\Services\DownloadFilterService;
 use App\Services\DownloadVideoService;
 use App\Services\SettingsService;
+use App\Jobs\TranscodeVideoJob;// 引入 Job
 use Carbon\Carbon;
 use Log;
 
@@ -82,6 +83,12 @@ class DownloadVideoPartFileAction
             Log::info('download video output', ['video_id' => $video->id, 'part' => $videoPart->page, 'output' => $output]);
             Log::info('download video success', ['video_id' => $video->id, 'part' => $videoPart->page, 'savePath' => $savePath]);
             $this->updateVideoPartDownloaded($videoPart, $savePath);
+
+            // === 【新增】投递转码任务 ===
+            // 放入队列执行，不卡住当前下载进程
+            Log::info('Dispatching transcode job', ['video_id' => $video->id]);
+            dispatch(new TranscodeVideoJob($videoPart)); 
+            // ==========================
 
             event(new VideoPartDownloaded($videoPart));
         }
