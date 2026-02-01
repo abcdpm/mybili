@@ -1,0 +1,88 @@
+# 构建基础镜像命令:
+# docker build -f Dockerfile.base -t mybili-base:1 .
+
+# === 阶段 1: 下载工具链 (使用 Debian 环境以便复用原有脚本) ===
+ARG NODE_VERSION=22
+FROM node:${NODE_VERSION}-bullseye-slim AS downloader
+
+WORKDIR /downloads
+
+# 定义参数
+ARG TARGETPLATFORM
+
+# 安装下载工具
+RUN apt update && apt install -y xz-utils curl wget tar
+
+# 1. 下载 FFMPEG
+# [复用源代码中的逻辑]
+RUN PLATFORM="${TARGETPLATFORM:-linux/$(uname -m)}" && \
+    case "${PLATFORM}" in \
+        "linux/amd64"|"linux/x86_64") FFMPEG_URL="https://www.johnvansickle.com/ffmpeg/old-releases/ffmpeg-6.0.1-amd64-static.tar.xz" ;; \
+        "linux/arm64"|"linux/aarch64") FFMPEG_URL="https://www.johnvansickle.com/ffmpeg/old-releases/ffmpeg-6.0.1-arm64-static.tar.xz" ;; \
+        *) echo "Unsupported platform: ${PLATFORM}" && exit 1 ;; \
+    esac && \
+    curl -L ${FFMPEG_URL} -o ffmpeg.tar.xz && \
+    xz -d ffmpeg.tar.xz && \
+    tar -xf ffmpeg.tar --strip-components=1 && \
+    chmod +x ffmpeg ffprobe
+
+# 2. 下载 yt-dlp
+# [复用源代码中的逻辑]
+RUN PLATFORM="${TARGETPLATFORM:-linux/$(uname -m)}" && \
+    case "${PLATFORM}" in \
+        "linux/amd64"|"linux/x86_64") YT_DLP_ARCH="yt-dlp_linux" ;; \
+        "linux/arm64"|"linux/aarch64") YT_DLP_ARCH="yt-dlp_linux_aarch64" ;; \
+        *) echo "Unsupported platform: ${PLATFORM}" && exit 1 ;; \
+    esac && \
+    wget -O yt-dlp_linux "https://github.com/grqz/yt-dlp/releases/download/ie%2Fbilibili%2Fpi_fallbk/${YT_DLP_ARCH}" && \
+    chmod 775 yt-dlp_linux
+
+# 3. 下载 FrankenPHP
+# [复用源代码中的逻辑]
+RUN PLATFORM="${TARGETPLATFORM:-linux/$(uname -m)}" && \
+    case "${PLATFORM}" in \
+        "linux/amd64"|"linux/x86_64") FRANKENPHP_ARCH="frankenphp-linux-x86_64" ;; \
+        "linux/arm64"|"linux/aarch64") FRANKENPHP_ARCH="frankenphp-linux-aarch64" ;; \
+        *) echo "Unsupported platform: ${PLATFORM}" && exit 1 ;; \
+    esac && \
+    wget -O frankenphp "https://github.com/dunglas/frankenphp/releases/download/v1.2.5/${FRANKENPHP_ARCH}" && \
+    chmod 775 frankenphp
+
+# 4. 下载 Supervisord
+# [复用源代码中的逻辑]
+RUN PLATFORM="${TARGETPLATFORM:-linux/$(uname -m)}" && \
+    case "${PLATFORM}" in \
+        "linux/amd64"|"linux/x86_64") SUPERVISORD_URL="https://github.com/ochinchina/supervisord/releases/download/v0.7.3/supervisord_0.7.3_Linux_64-bit.tar.gz" ;; \
+        "linux/arm64"|"linux/aarch64") SUPERVISORD_URL="https://github.com/ochinchina/supervisord/releases/download/v0.7.3/supervisord_0.7.3_Linux_ARM64.tar.gz" ;; \
+        *) echo "Unsupported platform: ${PLATFORM}" && exit 1 ;; \
+    esac && \
+    curl -L ${SUPERVISORD_URL} -o supervisord.tar.gz && \
+    tar -xzf supervisord.tar.gz --strip-components=1 && \
+    chmod +x supervisord
+
+# === 阶段 2: 构建最终基础镜像 (Alpine) ===
+FROM phpswoole/swoole:php8.3-alpine
+
+ENV PHPRC=/etc/php.ini
+ENV COMPOSER_ALLOW_SUPERUSER=1
+
+# 安装 Composer
+COPY --from=composer/composer:2-bin /composer /usr/bin/composer
+
+# 安装 PHP 扩展 (耗时操作)
+RUN docker-php-ext-install pcntl
+
+# 从下载阶段复制二进制文件到系统路径
+COPY --from=downloader /downloads/ffmpeg /usr/local/bin/ffmpeg
+COPY --from=downloader /downloads/ffprobe /usr/local/bin/ffprobe
+COPY --from=downloader /downloads/yt-dlp_linux /usr/local/bin/yt-dlp_linux
+COPY --from=downloader /downloads/frankenphp /usr/local/bin/frankenphp
+COPY --from=downloader /downloads/supervisord /usr/local/bin/supervisord
+
+# 赋予正确的权限
+RUN chown root:root /usr/local/bin/yt-dlp_linux /usr/local/bin/frankenphp
+
+# 此时，这个镜像已经包含了运行项目所需的所有环境和工具，但不包含任何业务代码
+# 构建基础镜像
+# 建议给它一个固定的 tag，例如 mybili-base:v1
+# docker build -f Dockerfile.base -t mybili-base:v1 .
