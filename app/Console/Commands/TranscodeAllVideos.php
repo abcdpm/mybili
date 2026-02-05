@@ -24,7 +24,8 @@ class TranscodeAllVideos extends Command
         $query->chunk(100, function ($parts) {
             foreach ($parts as $part) {
                 $this->info("加入转码队列: {$part->title} (CID: {$part->cid})");
-                dispatch(new TranscodeVideoJob($part));
+                // 确保 TranscodeVideoJob 在发布时被推送到 slow 队列
+                dispatch(new TranscodeVideoJob($part))->onQueue('slow');
             }
         });
 

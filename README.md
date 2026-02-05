@@ -1,3 +1,31 @@
+
+同步收藏夹信息 更新收藏夹本身的元数据（如标题、媒体数量等）：
+php artisan app:update-fav --update-fav
+php artisan app:update-fav --update-fav=1
+更新收藏夹封面图：
+php artisan app:scan-cover-image --target=favorite
+
+同步收藏夹视频信息：
+php artisan app:update-fav --update-fav-videos=1
+php artisan app:update-fav --update-fav-videos
+查看收藏夹视频信息数据量：
+php artisan tinker --execute="echo App\Models\VideoPart::count();"
+
+扫描数据库中已有的记录去下载文件：
+php artisan app:update-fav --download-video-part=1
+
+手动全量视频转码：
+php artisan app:transcode-all
+php artisan app:transcode-all --force
+
+手动全量视频可读文件名：
+php artisan app:make-human-readable-names
+
+删除Redis脏数据：
+php artisan tinker
+\Illuminate\Support\Facades\Redis::del('video_list');
+
+
 ## 🎥 Mybili
 
 **bilibili 收藏夹下载工具** - 你的NAS中必不可少的程序

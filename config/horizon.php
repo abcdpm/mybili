@@ -180,9 +180,10 @@ return [
     */
 
     'defaults' => [
-        'supervisor-1' => [
+        // 专门处理常规任务
+        'supervisor-general' => [
             'connection' => 'redis',
-            'queue' => ['fast', 'default', 'slow'],
+            'queue' => ['fast', 'default'],
             'balance' => 'auto',
             'autoScalingStrategy' => 'time',
             'maxProcesses' => 10,
@@ -193,28 +194,57 @@ return [
             'timeout' => 1600,
             'nice' => 0,
         ],
+        // 专门处理转码任务 (slow 队列)
+        'supervisor-transcode' => [
+            'connection' => 'redis',
+            'queue' => ['slow'],
+            'balance' => 'simple', 
+            'processes' => 2,       // 限制同时转码的数量，防止服务器 CPU 爆表
+            'tries' => 1,           // 转码失败通常不需要立即重试
+            'timeout' => 3600,      // 确保超时时间足够长
+        ],
     ],
 
     'environments' => [
         'production' => [
-            'supervisor-1' => [
+            // 专门处理常规任务
+            'supervisor-general' => [
                 'connection' => 'redis',
-                'queue' => ['fast', 'default', 'slow'],
+                'queue' => ['fast', 'default'],
                 'balance' => 'auto',
                 'processes' => 10,
                 'tries' => 3,
-                'timeout' => 60,
+                'timeout' => 1800,
+            ],
+            // 专门处理转码任务 (slow 队列)
+            'supervisor-transcode' => [
+                'connection' => 'redis',
+                'queue' => ['slow'],
+                'balance' => 'simple', 
+                'processes' => 2,       // 限制同时转码的数量，防止服务器 CPU 爆表
+                'tries' => 1,           // 转码失败通常不需要立即重试
+                'timeout' => 3600,      // 确保超时时间足够长
             ],
         ],
 
         'local' => [
-            'supervisor-1' => [
+            // 专门处理常规任务
+            'supervisor-general' => [
                 'connection' => 'redis',
-                'queue' => ['fast', 'default', 'slow'],
+                'queue' => ['fast', 'default'],
                 'balance' => 'auto',
                 'processes' => 10,
                 'tries' => 3,
-                'timeout' => 60,
+                'timeout' => 1800,
+            ],
+            // 专门处理转码任务 (slow 队列)
+            'supervisor-transcode' => [
+                'connection' => 'redis',
+                'queue' => ['slow'],
+                'balance' => 'simple', 
+                'processes' => 2,       // 限制同时转码的数量，防止服务器 CPU 爆表
+                'tries' => 1,           // 转码失败通常不需要立即重试
+                'timeout' => 3600,      // 确保超时时间足够长
             ],
         ],
     ],

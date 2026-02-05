@@ -45,6 +45,12 @@ fi
 echo "Running database migrations..."
 php artisan migrate --force
 
+# === 【新增】执行数据填充 (应用默认设置) ===
+# --force 标志用于在生产环境强制运行
+# DatabaseSeeder 里的 firstOrCreate 保证了不会重复覆盖
+echo "Seeding default data..."
+php artisan db:seed --force
+
 # === 3. 启动主进程 ===
 # 执行 Dockerfile 原本的启动命令 (supervisord)
 echo "Starting Supervisord..."

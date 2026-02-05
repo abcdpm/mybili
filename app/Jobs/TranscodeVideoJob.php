@@ -25,45 +25,59 @@ class TranscodeVideoJob implements ShouldQueue
     {
         $part = $this->videoPart;
 
-        // 1. 检查源文件是否存在
-        if (empty($part->video_download_path) || !Storage::disk('public')->exists($part->video_download_path)) {
-            Log::warning("转码失败：源文件不存在", ['id' => $part->id]);
+        // 【新增】定义一个基于视频分P CID 的唯一锁
+        $lockKey = 'locking:transcode:' . $part->cid;
+        // 尝试加锁，有效期 1 小时
+       $lock = redis()->set($lockKey, 1, ['NX', 'EX' => 3600]);
+        if (!$lock) {
+        Log::info("该视频正在被另一个进程转码，跳过本次任务", ['cid' => $part->cid]);
             return;
         }
 
-        // 2. 检查是否已经转码过
-        if (!empty($part->mobile_download_path) && Storage::disk('public')->exists($part->mobile_download_path)) {
-            return;
+        try {
+            // 1. 检查源文件是否存在
+            if (empty($part->video_download_path) || !Storage::disk('public')->exists($part->video_download_path)) {
+                Log::warning("转码失败：源文件不存在", ['id' => $part->id]);
+                return;
+            }
+
+            // 2. 检查是否已经转码过
+            if (!empty($part->mobile_download_path) && Storage::disk('public')->exists($part->mobile_download_path)) {
+                return;
+            }
+
+            $sourcePath = Storage::disk('public')->path($part->video_download_path);
+            // 生成兼容版文件名 (例: video.mp4 -> video_mobile.mp4)
+            $targetPath = preg_replace('/\.(\w+)$/', '_mobile.mp4', $sourcePath);
+            
+            // 3. 开始转码 (H.264 + AAC)
+            // -c:v libx264: 视频编码器
+            // -crf 26: 压缩质量 (23-28 适合移动端，越小越清晰文件越大)
+            // -preset veryfast: 转码速度优先
+            // -c:a aac: 音频编码器
+            $command = sprintf(
+                'ffmpeg -y -i %s -c:v libx264 -crf 26 -preset veryfast -c:a aac -b:a 128k -movflags +faststart %s',
+                escapeshellarg($sourcePath),
+                escapeshellarg($targetPath)
+            );
+
+            Log::info("开始转码任务", ['id' => $part->id, 'cmd' => $command]);
+            
+            exec($command . ' 2>&1', $output, $resultCode);
+
+            if ($resultCode !== 0) {
+                Log::error("转码失败", ['output' => $output]);
+                return;
+            }
+
+            // 4. 更新数据库
+            $part->mobile_download_path = get_relative_path($targetPath); // 确保存入相对路径
+            $part->save();
+
+            Log::info("转码成功", ['id' => $part->id, 'path' => $part->mobile_download_path]);
+        } finally {
+            // 【新增】任务结束（无论成功失败）务必释放锁
+            redis()->del($lockKey);
         }
-
-        $sourcePath = Storage::disk('public')->path($part->video_download_path);
-        // 生成兼容版文件名 (例: video.mp4 -> video_mobile.mp4)
-        $targetPath = preg_replace('/\.(\w+)$/', '_mobile.mp4', $sourcePath);
-        
-        // 3. 开始转码 (H.264 + AAC)
-        // -c:v libx264: 视频编码器
-        // -crf 26: 压缩质量 (23-28 适合移动端，越小越清晰文件越大)
-        // -preset veryfast: 转码速度优先
-        // -c:a aac: 音频编码器
-        $command = sprintf(
-            'ffmpeg -y -i %s -c:v libx264 -crf 26 -preset veryfast -c:a aac -b:a 128k -movflags +faststart %s',
-            escapeshellarg($sourcePath),
-            escapeshellarg($targetPath)
-        );
-
-        Log::info("开始转码任务", ['id' => $part->id, 'cmd' => $command]);
-        
-        exec($command . ' 2>&1', $output, $resultCode);
-
-        if ($resultCode !== 0) {
-            Log::error("转码失败", ['output' => $output]);
-            return;
-        }
-
-        // 4. 更新数据库
-        $part->mobile_download_path = get_relative_path($targetPath); // 确保存入相对路径
-        $part->save();
-
-        Log::info("转码成功", ['id' => $part->id, 'path' => $part->mobile_download_path]);
     }
 }

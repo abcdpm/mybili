@@ -5,6 +5,7 @@ use App\Enums\SettingKey;
 use App\Services\BilibiliService;
 use App\Services\CookieControlService;
 use App\Services\SettingsService;
+use App\Jobs\UpdateFavListJob; // <--- 1. 新增引入 Job
 use Illuminate\Http\Request;
 
 class CookieController extends Controller
@@ -34,6 +35,8 @@ class CookieController extends Controller
                 $isValid = $this->bilibiliService->checkCookieExpired($jar);
                 if($isValid) {
                     $this->cookieControlService->clearCookieExpiredNotification();
+                    // <--- 2. 新增逻辑：Cookie 有效则立即触发收藏夹同步
+                    dispatch(new UpdateFavListJob());
                 }
                 
                 return response()->json([
