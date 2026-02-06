@@ -12,10 +12,10 @@
             </template>
         </Breadcrumbs>
 
-        <div class="grid grid-cols-1 md:grid-cols-4 w-full gap-4">
+        <div class="grid grid-cols-1 md:grid-cols-5 w-full gap-4">
             <div class="flex flex-col relative" v-for="item in showVideoList">
                 <RouterLink :to="{ name: 'favlist-video-id', params: { id: id, video_id: item.id } }">
-                    <Image class="rounded-lg w-full h-auto md:w-96 md:h-56 hover:scale-105 transition-all duration-300"
+                    <Image class="rounded-lg w-full h-auto aspect-video object-cover hover:scale-105 transition-all duration-300"
                         :src="item.cover_info?.image_url ?? '/assets/images/notfound.webp'" :title="item.title" />
                 </RouterLink>
                 <div class="absolute top-4 left-4" v-if="item.frozen == 1">💾</div>

@@ -66,11 +66,21 @@ FROM phpswoole/swoole:php8.3-alpine
 ENV PHPRC=/etc/php.ini
 ENV COMPOSER_ALLOW_SUPERUSER=1
 
+# 1. 安装系统依赖库 (Alpine)
+# libpng, libjpeg-turbo, libwebp, freetype 是 GD 库的底层依赖
+RUN apk add --no-cache \
+    libpng libpng-dev \
+    libjpeg-turbo libjpeg-turbo-dev \
+    libwebp libwebp-dev \
+    freetype freetype-dev
+
 # 安装 Composer
 COPY --from=composer/composer:2-bin /composer /usr/bin/composer
 
-# 安装 PHP 扩展 (耗时操作)
-RUN docker-php-ext-install pcntl
+# 2. 配置并安装 PHP 扩展
+# 增加 gd 扩展的安装，并开启 jpg/webp/freetype 支持
+RUN docker-php-ext-configure gd --with-freetype --with-jpeg --with-webp \
+    && docker-php-ext-install -j$(nproc) gd pcntl
 
 # 从下载阶段复制二进制文件到系统路径
 COPY --from=downloader /downloads/ffmpeg /usr/local/bin/ffmpeg
