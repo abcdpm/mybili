@@ -81,4 +81,9 @@ class Video extends Model
     {
         return $this->coverImage()->first();
     }
+
+    public function comments(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(Comment::class)->where('root', 0)->orderBy('like', 'desc');
+    }
 }

@@ -52,16 +52,28 @@ class CoverService extends DownloadImageService
             $imageInfo = $this->getImageInfo($finalPath);
             
             // 3.4 创建封面记录
-            $cover = Cover::create([
-                'url'       => $url,
-                'type'      => $type,
-                'filename'  => $finalFilename, // 存入的是最终文件名
-                'path'      => get_relative_path($finalPath),
-                'mime_type' => $imageInfo['mime_type'],
-                'size'      => $imageInfo['size'],
-                'width'     => $imageInfo['width'],
-                'height'    => $imageInfo['height'],
-            ]);
+            // 关键：防止并发插入导致的 Unique constraint failed
+            try {
+                $cover = Cover::firstOrCreate(
+                    ['filename' => $finalFilename], // 以文件名为唯一键查找
+                    [
+                        'url'       => $url,
+                        'type'      => $type,
+                        'path'      => get_relative_path($finalPath),
+                        'mime_type' => $imageInfo['mime_type'],
+                        'size'      => $imageInfo['size'],
+                        'width'     => $imageInfo['width'],
+                        'height'    => $imageInfo['height'],
+                    ]
+                );
+            } catch (\Illuminate\Database\QueryException $e) {
+                // 如果并发插入失败（错误码 23000），则重新查询一次
+                if ($e->getCode() === '23000') {
+                    $cover = Cover::where('filename', $finalFilename)->firstOrFail();
+                } else {
+                    throw $e;
+                }
+            }
         }
         
         // 4. 创建或更新关联关系

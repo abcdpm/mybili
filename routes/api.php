@@ -25,3 +25,6 @@ Route::apiResource('/subscription', SubscriptionController::class)->only(['index
 
 // 显示系统校准信息
 Route::get('/system/info', [SystemController::class, 'getSystemInfo']);
+
+// 获取视频评论
+Route::get('/videos/{id}/comments', [App\Http\Controllers\VideoController::class, 'comments']);

@@ -25,6 +25,9 @@ php artisan app:make-human-readable-names
 php artisan tinker
 \Illuminate\Support\Facades\Redis::del('video_list');
 
+触发全量视频评论备份：
+php artisan app:download-all-comment
+
 
 ## 🎥 Mybili
 

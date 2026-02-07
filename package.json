@@ -26,6 +26,7 @@
     "dependencies": {
         "artplayer": "^5.3.0",
         "artplayer-plugin-danmuku": "^5.2.0",
+        "photoswipe": "^5.4.4",
         "virtua": "^0.46.4",
         "vue-i18n": "^11.1.7",
         "vue-virtual-sortable": "^3.0.3"

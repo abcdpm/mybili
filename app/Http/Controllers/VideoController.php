@@ -6,6 +6,7 @@ use App\Services\VideoManager\Contracts\DanmakuServiceInterface;
 use App\Services\VideoManager\Contracts\FavoriteServiceInterface;
 use App\Services\VideoManager\Contracts\VideoServiceInterface;
 use Illuminate\Http\Request;
+use App\Models\Comment;
 
 class VideoController extends Controller
 {
@@ -126,5 +127,22 @@ class VideoController extends Controller
             'code' => 0,
             'data' => $convertedData,
         ]);
+    }
+
+    // 获取评论的接口
+    public function comments($id)
+    {
+        $comments = \App\Models\Comment::where('video_id', $id)
+            ->where('root', 0) // 只查主评论
+            ->with(['replies' => function($query) {
+                $query->orderBy('like', 'desc'); 
+            }])
+            // 【关键修改】优先按 is_top 倒序 (true=1 在前)，然后按点赞倒序
+            ->orderBy('is_top', 'desc')
+            ->orderBy('like', 'desc')
+            ->limit(50) 
+            ->get();
+
+        return response()->json($comments);
     }
 }

@@ -152,6 +152,12 @@ class UpdateFavoriteVideosAction
                     'title' => $item['title'],
                 ]);
             }
+            
+            // 【新增】无论视频是否更新，只要有效，都尝试下载/更新评论
+            // 这样可以确保旧视频也能补全评论
+            if ($video->invalid == 0) {
+                 dispatch(new \App\Jobs\DownloadCommentsJob($video));
+            }
 
             Log::info('Update video success', ['id' => $item['id'], 'title' => $item['title']]);
         }

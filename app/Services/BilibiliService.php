@@ -793,4 +793,166 @@ class BilibiliService
         }
         return false;
     }
+
+    /**
+     * 获取视频热评及子评论
+     * @param int $oid 稿件ID (av号)
+     * @param int $minCount 最少获取多少条主评论
+     */
+    public function getVideoComments(int $oid, int $minCount = 20): array
+    {
+        $allComments = [];
+        // 获取主评论 (按热度排序 mode=3)
+        $url = "https://api.bilibili.com/x/v2/reply/main?next=0&type=1&oid={$oid}&mode=3&ps=20";
+        
+        try {
+            $client = $this->getClient();
+            $response = $client->get($url);
+            $data = json_decode($response->getBody()->getContents(), true);
+            
+            if (!isset($data['data'])) {
+                return [];
+            }
+
+            // ==========================================
+            // 修复点：置顶评论路径修正
+            // 原错误路径: ['data']['upper']['top']
+            // 正确路径:   ['data']['top']['upper']
+            // ==========================================
+            $upperTop = $data['data']['top']['upper'] ?? null;
+            
+            if ($upperTop && isset($upperTop['rpid'])) {
+                // 转换为标准格式
+                $topComment = $this->formatCommentData($upperTop, $oid, 0);
+                $topComment['is_top'] = true; // 标记置顶
+                $allComments[] = $topComment;
+
+                // 获取置顶评论的子评论
+                if (isset($upperTop['rcount']) && $upperTop['rcount'] > 0) {
+                    $subComments = $this->getAllSubComments($oid, $upperTop['rpid']);
+                    $allComments = array_merge($allComments, $subComments);
+                }
+            }
+            
+            // 处理普通评论
+            if (isset($data['data']['replies'])) {
+                foreach ($data['data']['replies'] as $reply) {
+                    // 去重：如果置顶评论也在 replies 里，跳过
+                    $isDuplicate = false;
+                    foreach ($allComments as $c) {
+                        if ($c['rpid'] == $reply['rpid']) {
+                            $isDuplicate = true; 
+                            break;
+                        }
+                    }
+                    if ($isDuplicate) continue;
+
+                    $allComments[] = $this->formatCommentData($reply, $oid, 0);
+
+                    if ($reply['rcount'] > 0) {
+                        $subComments = $this->getAllSubComments($oid, $reply['rpid']);
+                        $allComments = array_merge($allComments, $subComments);
+                    }
+                }
+            }
+
+            return $allComments;
+
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error("获取评论失败: " . $e->getMessage());
+            return [];
+        }
+    }
+
+    private function processReply($reply, $oid, $rootId = 0) {
+        return $this->formatCommentData($reply, $oid, $rootId);
+    }
+
+    private function getAllSubComments(int $oid, int $rootId): array
+    {
+        $subComments = [];
+        $page = 1;
+        $pageSize = 20; // 子评论每页数量
+        
+        // 限制只取前 5 页子评论，防止死循环或请求过多
+        $maxPages = 5; 
+
+        // 预先获取客户端实例
+        $client = $this->getClient();
+
+        do {
+            $url = "https://api.bilibili.com/x/v2/reply/reply?oid={$oid}&type=1&root={$rootId}&ps={$pageSize}&pn={$page}";
+            try {
+                // 稍微休眠一下避免触发风控
+                usleep(200000); 
+                
+                // 使用 $client 变量
+                $response = $client->get($url);
+                $data = json_decode($response->getBody()->getContents(), true);
+                
+                if (empty($data['data']['replies'])) {
+                    break;
+                }
+
+                foreach ($data['data']['replies'] as $reply) {
+                    $subComments[] = $this->formatCommentData($reply, $oid, $rootId);
+                }
+                
+                // 检查是否有下一页
+                $total = $data['data']['page']['count'] ?? 0;
+                if ($page * $pageSize >= $total) {
+                    break;
+                }
+                $page++;
+
+            } catch (\Exception $e) {
+                break;
+            }
+        } while ($page <= $maxPages);
+
+        return $subComments;
+    }
+
+    // 复用之前的 getAllSubComments，但内部调用 processReply
+    // 注意：需要确保 getAllSubComments 里使用的是 $this->getClient()
+    private function formatCommentData(array $reply, int $oid, int $rootId): array
+    {
+        // 提取图片
+        $pictures = [];
+        if (isset($reply['content']['pictures'])) {
+            foreach ($reply['content']['pictures'] as $pic) {
+                $pictures[] = $pic['img_src'];
+            }
+        }
+
+        // 【核心修复】优先获取动图链接 webp_url > gif_url > url
+        $emotes = [];
+        if (isset($reply['content']['emote'])) {
+            foreach ($reply['content']['emote'] as $key => $value) {
+                if (isset($value['webp_url']) && !empty($value['webp_url'])) {
+                    $emotes[$key] = $value['webp_url'];
+                } elseif (isset($value['gif_url']) && !empty($value['gif_url'])) {
+                    $emotes[$key] = $value['gif_url'];
+                } else {
+                    $emotes[$key] = $value['url'];
+                }
+            }
+        }
+
+        return [
+            'rpid' => $reply['rpid'],
+            'oid' => $oid,
+            'mid' => $reply['mid'],
+            'uname' => $reply['member']['uname'],
+            'avatar' => $reply['member']['avatar'],
+            'content' => $reply['content']['message'],
+            'like' => $reply['like'],
+            'root' => $rootId,
+            'parent' => $reply['parent'],
+            'ctime' => date('Y-m-d H:i:s', $reply['ctime']),
+            'pictures' => $pictures, // 新增
+            'emotes' => $emotes,     // 新增
+            'is_top' => false,       // 默认为 false
+        ];
+    }
 }
