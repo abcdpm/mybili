@@ -140,7 +140,7 @@ class VideoController extends Controller
             // 【关键修改】优先按 is_top 倒序 (true=1 在前)，然后按点赞倒序
             ->orderBy('is_top', 'desc')
             ->orderBy('like', 'desc')
-            ->limit(50) 
+            // ->limit(50) // [修改] 去掉限制
             ->get();
 
         return response()->json($comments);

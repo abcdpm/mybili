@@ -6,7 +6,15 @@ services:
         volumes:
             - ./storage/app/public:/app/storage/app/public
             - ./storage/db-data:/data
-
+        # devices:
+        #     - /dev/dri:/dev/dri  # 硬件加速 (Intel QSV)
+        deploy:
+          resources:
+            reservations:
+              devices:
+                - driver: nvidia
+                  count: 1
+                  capabilities: [gpu]
         environment:
             REDIS_HOST: redis
             REDIS_DB: 3

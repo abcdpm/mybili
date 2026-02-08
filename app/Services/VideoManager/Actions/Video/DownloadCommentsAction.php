@@ -15,16 +15,27 @@ class DownloadCommentsAction
         protected CommentImageService $imageService // [新增]
     ) {}
 
-    public function execute(Video $video, ?int $customLimit = null): void
+    // [修改] 接收 sleep 参数，默认值为 3
+    public function execute(Video $video, ?int $customLimit = null, int $sleep = 3): void
     {
         // [新增] 增加随机延时，平滑 API 请求峰值
         // 建议休眠 2-5 秒，根据你的队列并发数调整。并发越高，这里需要睡得越久。
-        sleep(rand(2, 5));
+        // sleep(rand(2, 5));
+        // [修改] 使用传入的休眠时间
+        sleep($sleep);
 
-        Log::info("开始下载评论: {$video->title}");
+        // [修改] 统一日志格式：固定消息 + ID上下文
+        Log::info('Start downloading comments', [
+            'video_id' => $video->id,
+            'title'    => $video->title,
+            'bvid'     => $video->bvid,
+            'sleep_interval' => $sleep
+        ]);
 
         $videoInfo = $this->bilibiliService->getVideoInfo($video->bvid);
         if (!$videoInfo) {
+            // [建议] 增加失败日志
+            Log::warning('Failed to fetch video info for comments', ['bvid' => $video->bvid]);
             return;
         }
         $aid = $videoInfo['aid'];
@@ -33,7 +44,8 @@ class DownloadCommentsAction
         // [新增] 优先使用自定义数量
         if ($customLimit !== null) {
             $targetCount = $customLimit;
-             Log::info("使用自定义评论数量: {$targetCount}");
+            // [修改] 统一日志格式
+            Log::info('Using custom comment limit', ['count' => $targetCount]);
         } else {
             // -------------------------------------------------------------
             // 需求 2: 自适应数量 (数学模型)
@@ -48,17 +60,23 @@ class DownloadCommentsAction
 
             $baseCount = 20;
             
-            $viewScore = $viewCount > 0 ? min(20, floor(log10($viewCount) * 2)) : 0;
-            $replyScore = $replyCount > 0 ? min(20, floor(log10($replyCount) * 3)) : 0;
+            $viewScore = $viewCount > 0 ? min(40, floor(log10($viewCount) * 2)) : 0;
+            $replyScore = $replyCount > 0 ? min(40, floor(log10($replyCount) * 3)) : 0;
             
-            $targetCount = min(60, $baseCount + $viewScore + $replyScore);
+            $targetCount = min(100, $baseCount + $viewScore + $replyScore);
             
-            Log::info("自适应评论数量: {$targetCount} (View: {$viewCount}, Reply: {$replyCount})");
+            // [修改] 统一日志格式：将计算参数放入 Context
+            Log::info('Adaptive comment count calculated', [
+                'target_count' => $targetCount,
+                'view_count'   => $viewCount,
+                'reply_count'  => $replyCount
+            ]);
         }
         // 获取评论数据
         $commentsData = $this->bilibiliService->getVideoComments($aid, $targetCount);
 
         if (empty($commentsData)) {
+            Log::info('No comments found', ['bvid' => $video->bvid]);
             return;
         }
 
@@ -84,6 +102,11 @@ class DownloadCommentsAction
         }
         unset($data); // 解除引用
 
-        Log::info("评论下载完成: {$video->title}");
+        // [修改] 统一日志格式
+        Log::info('Comments download completed', [
+            'video_id' => $video->id,
+            'title'    => $video->title,
+            'count'    => count($commentsData)
+        ]);
     }
 }
