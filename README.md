@@ -17,6 +17,9 @@ php artisan app:update-fav --download-video-part=1
 手动全量视频转码：
 php artisan app:transcode-all
 php artisan app:transcode-all --force
+php artisan app:transcode-all --force --hwaccel=qsv
+php artisan app:transcode-all --force --hwaccel=nvenc
+php artisan app:transcode-all --status
 
 手动全量视频可读文件名：
 php artisan app:make-human-readable-names
@@ -28,6 +31,9 @@ php artisan tinker
 触发全量视频评论备份：
 php artisan app:download-all-comment
 php artisan app:download-all-comment --limit=60 --force
+php artisan app:download-all-comment --limit=80 --force --sleep=5
+php artisan app:download-all-comment --limit=60 --force 115936803686117
+php artisan app:download-all-comment --status
 
 清空积压的 Job：
 php artisan horizon:clear

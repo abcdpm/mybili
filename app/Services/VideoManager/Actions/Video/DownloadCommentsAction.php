@@ -15,17 +15,21 @@ class DownloadCommentsAction
         protected CommentImageService $imageService // [新增]
     ) {}
 
-    public function execute(Video $video, ?int $customLimit = null): void
+    // [修改] 接收 sleep 参数，默认值为 3
+    public function execute(Video $video, ?int $customLimit = null, int $sleep = 3): void
     {
         // [新增] 增加随机延时，平滑 API 请求峰值
         // 建议休眠 2-5 秒，根据你的队列并发数调整。并发越高，这里需要睡得越久。
-        sleep(rand(2, 5));
+        // sleep(rand(2, 5));
+        // [修改] 使用传入的休眠时间
+        sleep($sleep);
 
         // [修改] 统一日志格式：固定消息 + ID上下文
         Log::info('Start downloading comments', [
             'video_id' => $video->id,
             'title'    => $video->title,
-            'bvid'     => $video->bvid
+            'bvid'     => $video->bvid,
+            'sleep_interval' => $sleep
         ]);
 
         $videoInfo = $this->bilibiliService->getVideoInfo($video->bvid);
