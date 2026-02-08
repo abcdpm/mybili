@@ -155,7 +155,13 @@ class UpdateFavoriteVideosAction
             
             // 【新增】无论视频是否更新，只要有效，都尝试下载/更新评论
             // 这样可以确保旧视频也能补全评论
-            if ($video->invalid == 0) {
+            // if ($video->invalid == 0) {
+            //      dispatch(new \App\Jobs\DownloadCommentsJob($video));
+            // }
+            // [修改] 仅当视频是“新创建”的时候，才自动下载一次评论
+            // 存量视频的评论更新交由 app:download-all-comments 命令或专门的定时任务去处理
+            if ($video->wasRecentlyCreated && $video->invalid == 0) {
+                 Log::info('New video detected, dispatching initial comment download', ['id' => $video->id]);
                  dispatch(new \App\Jobs\DownloadCommentsJob($video));
             }
 

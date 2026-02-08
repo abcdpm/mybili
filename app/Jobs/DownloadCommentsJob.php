@@ -14,11 +14,15 @@ class DownloadCommentsJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    public function __construct(public Video $video)
-    {}
+    // [修改] 增加 limit 属性
+    public function __construct(
+        public Video $video,
+        public ?int $limit = null 
+    ) {}
 
     public function handle(DownloadCommentsAction $action): void
     {
-        $action->execute($this->video);
+        // [修改] 将 limit 传给 Action
+        $action->execute($this->video, $this->limit);
     }
 }

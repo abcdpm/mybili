@@ -175,7 +175,17 @@ class UpdateVideoPartsAction
         try {
             $this->retryOperation(function () use ($video) {
                 $video->video_downloaded_at = now();
-                $video->save();
+                // [修改] 使用 saveQuietly 避免再次触发 VideoUpdated 事件，防止死循环
+                // 原 $video->save() 默认会再次触发 VideoUpdated 事件。于是：事件 -> Action -> Save -> 事件 -> Action... 形成死循环
+                // $video->save();
+                if (method_exists($video, 'saveQuietly')) {
+                    $video->saveQuietly(); // Laravel 8+ 支持
+                } else {
+                    // 如果 Laravel 版本较老，使用 withoutEvents
+                    \App\Models\Video::withoutEvents(function () use ($video) {
+                        $video->save();
+                    });
+                }
             });
         } catch (\Exception $e) {
             Log::error('Failed to update video downloaded_at', [

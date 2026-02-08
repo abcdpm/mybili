@@ -15,8 +15,12 @@ class DownloadCommentsAction
         protected CommentImageService $imageService // [新增]
     ) {}
 
-    public function execute(Video $video): void
+    public function execute(Video $video, ?int $customLimit = null): void
     {
+        // [新增] 增加随机延时，平滑 API 请求峰值
+        // 建议休眠 2-5 秒，根据你的队列并发数调整。并发越高，这里需要睡得越久。
+        sleep(rand(2, 5));
+
         Log::info("开始下载评论: {$video->title}");
 
         $videoInfo = $this->bilibiliService->getVideoInfo($video->bvid);
@@ -24,28 +28,33 @@ class DownloadCommentsAction
             return;
         }
         $aid = $videoInfo['aid'];
-        
-        // -------------------------------------------------------------
-        // 需求 2: 自适应数量 (数学模型)
-        // -------------------------------------------------------------
-        // 模型逻辑：
-        // 基础 20 条
-        // 播放量加成：每 log10(播放量) * 2，上限 15
-        // 评论数加成：每 log10(评论数) * 3，上限 15
-        // 总上限：50
-        
-        $viewCount = $videoInfo['stat']['view'] ?? 0;
-        $replyCount = $videoInfo['stat']['reply'] ?? 0;
 
-        $baseCount = 20;
-        
-        $viewScore = $viewCount > 0 ? min(15, floor(log10($viewCount) * 2)) : 0;
-        $replyScore = $replyCount > 0 ? min(15, floor(log10($replyCount) * 3)) : 0;
-        
-        $targetCount = min(50, $baseCount + $viewScore + $replyScore);
-        
-        Log::info("自适应评论数量: {$targetCount} (View: {$viewCount}, Reply: {$replyCount})");
 
+        // [新增] 优先使用自定义数量
+        if ($customLimit !== null) {
+            $targetCount = $customLimit;
+             Log::info("使用自定义评论数量: {$targetCount}");
+        } else {
+            // -------------------------------------------------------------
+            // 需求 2: 自适应数量 (数学模型)
+            // -------------------------------------------------------------
+            // 模型逻辑：
+            // 基础 20 条
+            // 播放量加成：每 log10(播放量) * 2，上限 20
+            // 评论数加成：每 log10(评论数) * 3，上限 20
+            // 总上限：60
+            $viewCount = $videoInfo['stat']['view'] ?? 0;
+            $replyCount = $videoInfo['stat']['reply'] ?? 0;
+
+            $baseCount = 20;
+            
+            $viewScore = $viewCount > 0 ? min(20, floor(log10($viewCount) * 2)) : 0;
+            $replyScore = $replyCount > 0 ? min(20, floor(log10($replyCount) * 3)) : 0;
+            
+            $targetCount = min(60, $baseCount + $viewScore + $replyScore);
+            
+            Log::info("自适应评论数量: {$targetCount} (View: {$viewCount}, Reply: {$replyCount})");
+        }
         // 获取评论数据
         $commentsData = $this->bilibiliService->getVideoComments($aid, $targetCount);
 

@@ -801,67 +801,106 @@ class BilibiliService
      */
     public function getVideoComments(int $oid, int $minCount = 20): array
     {
+        // 使用 rpid 作为键名，方便自动去重
         $allComments = [];
-        // 获取主评论 (按热度排序 mode=3)
-        $url = "https://api.bilibili.com/x/v2/reply/main?next=0&type=1&oid={$oid}&mode=3&ps=20";
-        
-        try {
-            $client = $this->getClient();
-            $response = $client->get($url);
-            $data = json_decode($response->getBody()->getContents(), true);
-            
-            if (!isset($data['data'])) {
-                return [];
-            }
+        $next = 0;      // 游标，初始为 0
+        $pageCount = 0; // 安全计数器，防止死循环
+        $maxPages = 20; // 最大页数限制（根据需要调整，20页*20条=400条主评论）
 
-            // ==========================================
-            // 修复点：置顶评论路径修正
-            // 原错误路径: ['data']['upper']['top']
-            // 正确路径:   ['data']['top']['upper']
-            // ==========================================
-            $upperTop = $data['data']['top']['upper'] ?? null;
-            
-            if ($upperTop && isset($upperTop['rpid'])) {
-                // 转换为标准格式
-                $topComment = $this->formatCommentData($upperTop, $oid, 0);
-                $topComment['is_top'] = true; // 标记置顶
-                $allComments[] = $topComment;
+        // 创建客户端实例
+        $client = $this->getClient();
 
-                // 获取置顶评论的子评论
-                if (isset($upperTop['rcount']) && $upperTop['rcount'] > 0) {
-                    $subComments = $this->getAllSubComments($oid, $upperTop['rpid']);
-                    $allComments = array_merge($allComments, $subComments);
+        do {
+            // 构建 URL，动态填入 next 游标
+            $url = "https://api.bilibili.com/x/v2/reply/main?next={$next}&type=1&oid={$oid}&mode=3&ps=20";
+            
+            try {
+                // 如果不是第一页，稍微休眠一下避免触发风控 (412/429)
+                if ($pageCount > 0) {
+                    usleep(300000); // 300ms
                 }
-            }
-            
-            // 处理普通评论
-            if (isset($data['data']['replies'])) {
-                foreach ($data['data']['replies'] as $reply) {
-                    // 去重：如果置顶评论也在 replies 里，跳过
-                    $isDuplicate = false;
-                    foreach ($allComments as $c) {
-                        if ($c['rpid'] == $reply['rpid']) {
-                            $isDuplicate = true; 
-                            break;
+
+                $response = $client->get($url);
+                $data = json_decode($response->getBody()->getContents(), true);
+                
+                if (!isset($data['data'])) {
+                    break;
+                }
+
+                $responseData = $data['data'];
+
+                // -------------------------------------------------
+                // 1. 处理置顶评论 (仅在第一页处理)
+                // -------------------------------------------------
+                if ($next === 0) {
+                    $upperTop = $responseData['top']['upper'] ?? null;
+                    if ($upperTop && isset($upperTop['rpid'])) {
+                        // 格式化并加入集合
+                        $topComment = $this->formatCommentData($upperTop, $oid, 0);
+                        $topComment['is_top'] = true;
+                        $allComments[$topComment['rpid']] = $topComment;
+
+                        // 获取置顶评论的子评论
+                        if (($upperTop['rcount'] ?? 0) > 0) {
+                            $subComments = $this->getAllSubComments($oid, $upperTop['rpid']);
+                            foreach ($subComments as $sub) {
+                                $allComments[$sub['rpid']] = $sub;
+                            }
                         }
                     }
-                    if ($isDuplicate) continue;
-
-                    $allComments[] = $this->formatCommentData($reply, $oid, 0);
-
-                    if ($reply['rcount'] > 0) {
-                        $subComments = $this->getAllSubComments($oid, $reply['rpid']);
-                        $allComments = array_merge($allComments, $subComments);
-                    }
                 }
+                
+                // -------------------------------------------------
+                // 2. 处理普通评论列表
+                // -------------------------------------------------
+                if (isset($responseData['replies']) && is_array($responseData['replies'])) {
+                    foreach ($responseData['replies'] as $reply) {
+                        // 格式化主评论
+                        $formatted = $this->formatCommentData($reply, $oid, 0);
+                        // 存入数组（自动去重，因为 key 是 rpid）
+                        $allComments[$formatted['rpid']] = $formatted;
+
+                        // 获取子评论
+                        if (($reply['rcount'] ?? 0) > 0) {
+                            $subComments = $this->getAllSubComments($oid, $reply['rpid']);
+                            foreach ($subComments as $sub) {
+                                $allComments[$sub['rpid']] = $sub;
+                            }
+                        }
+                    }
+                } else {
+                    // 没有更多评论了
+                    break;
+                }
+
+                // -------------------------------------------------
+                // 3. 循环控制逻辑
+                // -------------------------------------------------
+                
+                // A. 检查数量是否达标
+                if (count($allComments) >= $minCount) {
+                    break;
+                }
+
+                // B. 检查游标状态
+                $cursor = $responseData['cursor'] ?? null;
+                // is_end 为 false 且存在 next 值时，继续下一页
+                if ($cursor && isset($cursor['is_end']) && !$cursor['is_end'] && isset($cursor['next'])) {
+                    $next = $cursor['next'];
+                    $pageCount++;
+                } else {
+                    break; // 也就是最后一页
+                }
+
+            } catch (\Exception $e) {
+                \Illuminate\Support\Facades\Log::error("获取评论失败 [OID:{$oid}]: " . $e->getMessage());
+                break; // 出错则终止循环，返回已获取的数据
             }
 
-            return $allComments;
+        } while ($pageCount < $maxPages);
 
-        } catch (\Exception $e) {
-            \Illuminate\Support\Facades\Log::error("获取评论失败: " . $e->getMessage());
-            return [];
-        }
+        // 重置数组索引并返回
+        return array_values($allComments);
     }
 
     private function processReply($reply, $oid, $rootId = 0) {

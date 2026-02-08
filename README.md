@@ -27,6 +27,11 @@ php artisan tinker
 
 触发全量视频评论备份：
 php artisan app:download-all-comment
+php artisan app:download-all-comment --limit=60 --force
+
+清空积压的 Job：
+php artisan horizon:clear
+php artisan queue:flush
 
 
 ## 🎥 Mybili
