@@ -474,7 +474,10 @@ class BilibiliService
             Log::error("通过网页获取视频分P信息失败: " . $e->getMessage());
             try {
                 $parsedParts = $this->getVideoPartFromApi($strId);
-                Log::info("通过API获取视频分P信息成功: " . $strId, ['parsedParts' => $parsedParts]);
+                Log::info("Successfully fetched video parts via API", [
+                    'str_id' => $strId, 
+                    'parts_count' => count($parsedParts ?? [])
+                ]);
             } catch (\Exception $e) {
                 Log::error("通过API获取视频分P信息失败: " . $e->getMessage());
                 throw new \Exception("获取视频分P信息失败: " . $e->getMessage());
@@ -549,7 +552,7 @@ class BilibiliService
 
         while (true) {
             $url = self::API_HOST . "/x/v3/fav/resource/list?media_id=$favId&pn=$pn&ps={$this->favVideosPageSize}&keyword=&order=mtime&type=0&tid=0&platform=web";
-            Log::info("pullFavVideoList fetch $url");
+            Log::info("Fetch fav video list", ['url' => $url, 'fav_id' => $favId, 'page' => $pn]);
 
             try {
                 $response = $client->request('GET', $url);
@@ -893,7 +896,10 @@ class BilibiliService
                 }
 
             } catch (\Exception $e) {
-                \Illuminate\Support\Facades\Log::error("获取评论失败 [OID:{$oid}]: " . $e->getMessage());
+                \Illuminate\Support\Facades\Log::error("Failed to fetch video comments", [
+                    'oid' => $oid, 
+                    'error' => $e->getMessage()
+                ]);
                 break; // 出错则终止循环，返回已获取的数据
             }
 

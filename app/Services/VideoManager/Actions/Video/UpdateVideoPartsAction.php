@@ -105,7 +105,10 @@ class UpdateVideoPartsAction
                         $insertedCount += count($chunk);
                     });
                 }
-                Log::info("Batch inserted {$insertedCount} video parts", ['video_id' => $video->id]);
+                Log::info("Batch inserted video parts", [
+                    'count' => $insertedCount, 
+                    'video_id' => $video->id
+                ]);
             } catch (\Exception $e) {
                 // 批量插入失败，可能是重复，逐个插入
                 Log::warning('Batch insert failed, trying one by one', [
@@ -168,7 +171,10 @@ class UpdateVideoPartsAction
                     ]);
                 }
             }
-            Log::info("Updated {$updatedCount} video parts", ['video_id' => $video->id]);
+            Log::info("Updated video parts", [
+                'count' => $updatedCount, 
+                'video_id' => $video->id
+            ]);
         }
 
         // 第四步：更新视频的下载时间
