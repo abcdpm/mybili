@@ -800,7 +800,7 @@ class BilibiliService
     /**
      * 获取视频热评及子评论
      * @param int $oid 稿件ID (av号)
-     * @param int $minCount 最少获取多少条主评论
+     * @param int $minCount 最少获取多少条主评论 (不包含子评论)
      */
     public function getVideoComments(int $oid, int $minCount = 20): array
     {
@@ -809,6 +809,7 @@ class BilibiliService
         $next = 0;      // 游标，初始为 0
         $pageCount = 0; // 安全计数器，防止死循环
         $maxPages = 20; // 最大页数限制（根据需要调整，20页*20条=400条主评论）
+        $fetchedRootCount = 0; // [新增] 专门统计主评论数量
 
         // 创建客户端实例
         $client = $this->getClient();
@@ -842,12 +843,14 @@ class BilibiliService
                         $topComment = $this->formatCommentData($upperTop, $oid, 0);
                         $topComment['is_top'] = true;
                         $allComments[$topComment['rpid']] = $topComment;
+                        $fetchedRootCount++; // 置顶也是主评论
 
                         // 获取置顶评论的子评论
                         if (($upperTop['rcount'] ?? 0) > 0) {
                             $subComments = $this->getAllSubComments($oid, $upperTop['rpid']);
                             foreach ($subComments as $sub) {
                                 $allComments[$sub['rpid']] = $sub;
+                                // 子评论不计入 fetchedRootCount
                             }
                         }
                     }
@@ -860,8 +863,14 @@ class BilibiliService
                     foreach ($responseData['replies'] as $reply) {
                         // 格式化主评论
                         $formatted = $this->formatCommentData($reply, $oid, 0);
-                        // 存入数组（自动去重，因为 key 是 rpid）
-                        $allComments[$formatted['rpid']] = $formatted;
+
+                        // 只有当这个主评论没被收录过时，才增加计数
+                        if (!isset($allComments[$formatted['rpid']])) {
+                            // 存入数组（自动去重，因为 key 是 rpid）
+                            $allComments[$formatted['rpid']] = $formatted;
+                            // [关键] 增加主评论计数
+                            $fetchedRootCount++; 
+                        }
 
                         // 获取子评论
                         if (($reply['rcount'] ?? 0) > 0) {
@@ -880,8 +889,9 @@ class BilibiliService
                 // 3. 循环控制逻辑
                 // -------------------------------------------------
                 
-                // A. 检查数量是否达标
-                if (count($allComments) >= $minCount) {
+                // A. 检查数量是否达标 只检查主评论数量
+                if ($fetchedRootCount >= $minCount) {
+                    Log::info("Reached target root comment count", ['target' => $minCount, 'current' => $fetchedRootCount]);
                     break;
                 }
 
@@ -896,7 +906,7 @@ class BilibiliService
                 }
 
             } catch (\Exception $e) {
-                \Illuminate\Support\Facades\Log::error("Failed to fetch video comments", [
+                Log::error("Failed to fetch video comments", [
                     'oid' => $oid, 
                     'error' => $e->getMessage()
                 ]);

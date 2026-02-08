@@ -56,10 +56,10 @@ class DownloadCommentsAction
 
             $baseCount = 20;
             
-            $viewScore = $viewCount > 0 ? min(20, floor(log10($viewCount) * 2)) : 0;
-            $replyScore = $replyCount > 0 ? min(20, floor(log10($replyCount) * 3)) : 0;
+            $viewScore = $viewCount > 0 ? min(40, floor(log10($viewCount) * 2)) : 0;
+            $replyScore = $replyCount > 0 ? min(40, floor(log10($replyCount) * 3)) : 0;
             
-            $targetCount = min(60, $baseCount + $viewScore + $replyScore);
+            $targetCount = min(100, $baseCount + $viewScore + $replyScore);
             
             // [修改] 统一日志格式：将计算参数放入 Context
             Log::info('Adaptive comment count calculated', [
