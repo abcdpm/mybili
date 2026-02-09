@@ -20,6 +20,7 @@ php artisan app:transcode-all --force
 php artisan app:transcode-all --force --hwaccel=qsv
 php artisan app:transcode-all --force --hwaccel=nvenc
 php artisan app:transcode-all --status
+php artisan app:transcode-all --hwaccel=nvenc
 
 手动全量视频可读文件名：
 php artisan app:make-human-readable-names
@@ -38,7 +39,15 @@ php artisan app:download-all-comment --status
 清空积压的 Job：
 php artisan horizon:clear
 php artisan queue:flush
+redis-cli flushall
 
+docker build --build-arg APP_VERSION=1.0.2 -t llllalex/mybili:1.0.2 . --no-cache
+docker push llllalex/mybili:1.0.2
+docker tag llllalex/mybili:1.0.2 llllalex/mybili:latest
+docker push llllalex/mybili:latest
+
+扫描磁盘上已存在的手机版视频并同步到数据库
+php artisan app:sync-mobile-videos
 
 ## 🎥 Mybili
 
