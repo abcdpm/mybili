@@ -77,8 +77,7 @@ Schedule::call(function () {
 ->name('make-human-readable-names')
 ->withoutOverlapping()
 // ->everyTenMinutes();
-->dailyAt('6:00')
-->runInBackground();
+->dailyAt('6:00');
 
 
 Schedule::call(function () {
