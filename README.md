@@ -46,6 +46,9 @@ docker push llllalex/mybili:1.0.2
 docker tag llllalex/mybili:1.0.2 llllalex/mybili:latest
 docker push llllalex/mybili:latest
 
+扫描磁盘上已存在的手机版视频并同步到数据库
+php artisan app:sync-mobile-videos
+
 ## 🎥 Mybili
 
 **bilibili 收藏夹下载工具** - 你的NAS中必不可少的程序
