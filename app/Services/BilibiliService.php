@@ -804,50 +804,80 @@ class BilibiliService
      */
     public function getVideoComments(int $oid, int $minCount = 20): array
     {
-        // 使用 rpid 作为键名，方便自动去重
         $allComments = [];
-        $next = 0;      // 游标，初始为 0
-        $pageCount = 0; // 安全计数器，防止死循环
-        $maxPages = 20; // 最大页数限制（根据需要调整，20页*20条=400条主评论）
-        $fetchedRootCount = 0; // [新增] 专门统计主评论数量
+        $next = 0;      
+        $pageCount = 0; 
+        $maxPages = 20; 
+        $fetchedRootCount = 0;
 
-        // 创建客户端实例
         $client = $this->getClient();
+        $cookies = parse_netscape_cookie_content($this->settingsService->get(SettingKey::COOKIES_CONTENT));
+
+        // 1. 获取 WBI Keys
+        $keys = $this->getWbiKeys($client, $cookies);
+        if (!$keys) {
+            Log::error("Skipping comments download due to missing WBI keys");
+            return [];
+        }
+        list($imgKey, $subKey) = $keys;
 
         do {
-            // 构建 URL，动态填入 next 游标
-            $url = "https://api.bilibili.com/x/v2/reply/main?next={$next}&type=1&oid={$oid}&mode=3&ps=20";
+            // 2. 增加随机延迟 (关键防风控手段)
+            // 第一页不睡，后续页数随机休眠 1.5秒 - 3.5秒
+            if ($pageCount > 0) {
+                $sleepTime = rand(1500000, 3500000); 
+                usleep($sleepTime);
+            }
+
+            // 3. 构建参数并签名
+            $params = [
+                'oid' => $oid,
+                'type' => 1,
+                'mode' => 3, // 3=热度排序, 2=时间排序 (建议用3)
+                'ps' => 20,
+                'next' => $next,
+                'wts' => time(), // 必须包含时间戳
+            ];
+
+            // 使用 encWbi 生成 query 字符串 (包含 w_rid)
+            $query = $this->encWbi($params, $imgKey, $subKey);
+
+            // 4. 使用 WBI 接口
+            $url = self::API_HOST . "/x/v2/reply/wbi/main?" . $query;
             
             try {
-                // 如果不是第一页，稍微休眠一下避免触发风控 (412/429)
-                if ($pageCount > 0) {
-                    usleep(300000); // 300ms
-                }
-
-                $response = $client->get($url);
+                $response = $client->get($url, ['cookies' => $cookies]); // 显式传递 cookies
                 $data = json_decode($response->getBody()->getContents(), true);
                 
+                // 检查 API 错误
+                if (($data['code'] ?? 0) !== 0) {
+                    Log::warning("Comment API Error: " . ($data['message'] ?? 'Unknown'), ['code' => $data['code']]);
+                    // 如果遇到 412 或特定风控 code，直接终止本视频下载
+                    if (in_array($data['code'], [-412, 412])) {
+                        $this->bilibiliSuspendService->setSuspend(); // 触发全局熔断
+                        throw new \Exception("Triggered Risk Control (412)");
+                    }
+                    break;
+                }
+
                 if (!isset($data['data'])) {
                     break;
                 }
 
                 $responseData = $data['data'];
 
-                // -------------------------------------------------
-                // 1. 处理置顶评论 (仅在第一页处理)
-                // -------------------------------------------------
+                // --- 处理置顶评论 (仅第一页) ---
                 if ($next === 0) {
                     $upperTop = $responseData['top']['upper'] ?? null;
                     if ($upperTop && isset($upperTop['rpid'])) {
-                        // 格式化并加入集合
                         $topComment = $this->formatCommentData($upperTop, $oid, 0);
                         $topComment['is_top'] = true;
                         $allComments[$topComment['rpid']] = $topComment;
-                        $fetchedRootCount++; // 置顶也是主评论
+                        $fetchedRootCount++;
 
-                        // 获取置顶评论的子评论
                         if (($upperTop['rcount'] ?? 0) > 0) {
-                            $subComments = $this->getAllSubComments($oid, $upperTop['rpid']);
+                            // 子评论也需要传递 keys 以便后续优化（目前子评论接口暂无WBI，但传递client保持会话）
+                            $subComments = $this->getAllSubComments($oid, $upperTop['rpid'], $client);
                             foreach ($subComments as $sub) {
                                 $allComments[$sub['rpid']] = $sub;
                                 // 子评论不计入 fetchedRootCount
@@ -856,66 +886,47 @@ class BilibiliService
                     }
                 }
                 
-                // -------------------------------------------------
-                // 2. 处理普通评论列表
-                // -------------------------------------------------
+                // --- 处理普通评论 ---
                 if (isset($responseData['replies']) && is_array($responseData['replies'])) {
                     foreach ($responseData['replies'] as $reply) {
-                        // 格式化主评论
                         $formatted = $this->formatCommentData($reply, $oid, 0);
 
-                        // 只有当这个主评论没被收录过时，才增加计数
                         if (!isset($allComments[$formatted['rpid']])) {
-                            // 存入数组（自动去重，因为 key 是 rpid）
                             $allComments[$formatted['rpid']] = $formatted;
-                            // [关键] 增加主评论计数
                             $fetchedRootCount++; 
                         }
 
-                        // 获取子评论
                         if (($reply['rcount'] ?? 0) > 0) {
-                            $subComments = $this->getAllSubComments($oid, $reply['rpid']);
+                            $subComments = $this->getAllSubComments($oid, $reply['rpid'], $client);
                             foreach ($subComments as $sub) {
                                 $allComments[$sub['rpid']] = $sub;
                             }
                         }
                     }
                 } else {
-                    // 没有更多评论了
                     break;
                 }
 
-                // -------------------------------------------------
-                // 3. 循环控制逻辑
-                // -------------------------------------------------
-                
-                // A. 检查数量是否达标 只检查主评论数量
+                // --- 循环控制 ---
                 if ($fetchedRootCount >= $minCount) {
-                    Log::info("Reached target root comment count", ['target' => $minCount, 'current' => $fetchedRootCount]);
                     break;
                 }
 
-                // B. 检查游标状态
                 $cursor = $responseData['cursor'] ?? null;
-                // is_end 为 false 且存在 next 值时，继续下一页
                 if ($cursor && isset($cursor['is_end']) && !$cursor['is_end'] && isset($cursor['next'])) {
                     $next = $cursor['next'];
                     $pageCount++;
                 } else {
-                    break; // 也就是最后一页
+                    break;
                 }
 
             } catch (\Exception $e) {
-                Log::error("Failed to fetch video comments", [
-                    'oid' => $oid, 
-                    'error' => $e->getMessage()
-                ]);
-                break; // 出错则终止循环，返回已获取的数据
+                Log::error("Failed to fetch comments", ['oid' => $oid, 'error' => $e->getMessage()]);
+                break; 
             }
 
         } while ($pageCount < $maxPages);
 
-        // 重置数组索引并返回
         return array_values($allComments);
     }
 
@@ -923,25 +934,24 @@ class BilibiliService
         return $this->formatCommentData($reply, $oid, $rootId);
     }
 
-    private function getAllSubComments(int $oid, int $rootId): array
+    // [修改] 增加 Client 参数复用连接
+    private function getAllSubComments(int $oid, int $rootId, Client $client = null): array
     {
         $subComments = [];
         $page = 1;
-        $pageSize = 20; // 子评论每页数量
-        
-        // 限制只取前 5 页子评论，防止死循环或请求过多
-        $maxPages = 5; 
+        $pageSize = 20; 
+        $maxPages = 3; // [建议] 降低子评论页数，子评论翻页由于没有 wbi 很容易触发风控，取前3页通常够了
 
-        // 预先获取客户端实例
-        $client = $this->getClient();
+        if (!$client) {
+            $client = $this->getClient();
+        }
 
         do {
             $url = "https://api.bilibili.com/x/v2/reply/reply?oid={$oid}&type=1&root={$rootId}&ps={$pageSize}&pn={$page}";
             try {
-                // 稍微休眠一下避免触发风控
-                usleep(200000); 
+                // [修改] 大幅增加子评论休眠时间 (1s - 2s)
+                usleep(rand(1000000, 2000000)); 
                 
-                // 使用 $client 变量
                 $response = $client->get($url);
                 $data = json_decode($response->getBody()->getContents(), true);
                 
@@ -953,7 +963,6 @@ class BilibiliService
                     $subComments[] = $this->formatCommentData($reply, $oid, $rootId);
                 }
                 
-                // 检查是否有下一页
                 $total = $data['data']['page']['count'] ?? 0;
                 if ($page * $pageSize >= $total) {
                     break;
@@ -961,6 +970,7 @@ class BilibiliService
                 $page++;
 
             } catch (\Exception $e) {
+                // 子评论失败不影响主流程，静默跳出
                 break;
             }
         } while ($page <= $maxPages);
@@ -1009,5 +1019,35 @@ class BilibiliService
             'emotes' => $emotes,     // 新增
             'is_top' => false,       // 默认为 false
         ];
+    }
+
+    /**
+     * [新增] 获取 WBI 签名所需的 img_key 和 sub_key
+     */
+    private function getWbiKeys(Client $client, $cookies)
+    {
+        // 尝试从缓存获取（可选优化），这里先保持实时获取以确保准确性
+        // 获取 WBI keys
+        try {
+            $navResponse = $client->request('GET', self::API_HOST . '/x/web-interface/nav', [
+                'cookies' => $cookies,
+            ]);
+            $navData = json_decode($navResponse->getBody()->getContents(), true);
+    
+            if (! isset($navData['data']['wbi_img'])) {
+                Log::warning('无法获取 WBI keys');
+                return null;
+            }
+    
+            $imgUrl = $navData['data']['wbi_img']['img_url'];
+            $subUrl = $navData['data']['wbi_img']['sub_url'];
+            $imgKey = substr($imgUrl, strrpos($imgUrl, '/') + 1, -4);
+            $subKey = substr($subUrl, strrpos($subUrl, '/') + 1, -4);
+            
+            return [$imgKey, $subKey];
+        } catch (\Exception $e) {
+            Log::error("Get WBI Keys failed: " . $e->getMessage());
+            return null;
+        }
     }
 }

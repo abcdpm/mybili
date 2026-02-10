@@ -49,6 +49,175 @@ docker push llllalex/mybili:latest
 扫描磁盘上已存在的手机版视频并同步到数据库
 php artisan app:sync-mobile-videos
 
+## 所有控制台 PHP 命令 (php artisan ...) 及其参数汇总
+### 1. 视频与评论管理
+#### 下载/更新所有评论
+app:download-all-comments
+
+批量下载或更新视频的评论区数据。
+
+参数:
+
+video_id (可选): 指定单个视频的 ID (数据库 ID)。
+
+选项:
+
+--force: 强制重新下载（即使评论已存在）。
+
+--limit=: 自定义下载的评论数量。
+
+--sleep=3: 每次 API 请求后的休眠时间（秒），默认为 3 秒。
+
+--status: 查看当前评论下载进度的统计信息（不执行下载任务）。
+
+#### 视频转码 (移动端兼容)
+app:transcode-all
+
+将已下载的视频转码为移动端（手机/Web）兼容的格式 (通常是 H.264/AAC)。
+
+参数:
+
+video_id (可选): 指定单个视频的 ID。
+
+选项:
+
+--force: 强制重新转码，即使目标文件已存在。
+
+--hwaccel=cpu: 指定硬件加速模式。支持值：
+
+cpu (默认): 使用 CPU 软解。
+
+qsv: Intel 核显加速 (需设备映射 /dev/dri)。
+
+nvenc: Nvidia 显卡加速 (需配置 NVIDIA Runtime)。
+
+--status: 查看当前转码进度的统计信息。
+
+#### 同步手机版视频
+app:sync-mobile-videos
+
+扫描磁盘上已存在的手机版转码视频，并将信息同步到数据库中。
+
+无参数
+
+#### 更新无分P信息的视频
+app:update-no-parts-valid-video
+
+扫描并修复数据库中状态正常但缺少分P（Video Parts）信息的视频。
+
+选项:
+
+--id=: 指定单个视频 ID。
+
+--force: 强制更新。
+
+### 2. 收藏夹与订阅管理
+#### 更新收藏夹 (核心同步命令)
+app:update-fav
+
+处理收藏夹的元数据同步、视频列表更新及分P信息拉取。
+
+选项 (通常组合使用):
+
+--update-fav=true: 仅更新收藏夹本身的元数据（标题、封面、数量）。
+
+--update-fav-videos=true: 扫描收藏夹内的视频列表，发现新视频。
+
+--update-fav-videos-page=: 仅更新指定页码的视频列表。
+
+--update-video-parts=true: 拉取视频的分P（子视频）详情。
+
+--update-video-parts-video-id=: 仅拉取指定视频 ID 的分P。
+
+--download-video-part=true: 触发分P视频文件的下载任务。
+
+--fix-invalid-fav-videos=true: 检查并修复收藏夹中的失效视频。
+
+--fix-invalid-fav-videos-page=: 修复指定页码的失效视频。
+
+### 3. 文件与系统维护
+#### 生成人类可读文件名
+app:make-human-readable-names
+
+基于视频标题创建硬链接或符号链接，生成 Emby/Plex 友好的目录结构。
+
+无参数
+
+#### 扫描视频文件
+app:scan-video-file
+
+扫描本地磁盘，检查数据库记录的视频文件是否存在。
+
+选项:
+
+--video-id=: 指定视频 ID。
+
+--force: 强制扫描。
+
+--download: 如果文件缺失，触发重新下载。
+
+#### 扫描/下载封面图
+app:scan-cover-image
+
+扫描并下载缺失的封面图片。
+
+选项:
+
+--target=: 扫描目标，支持 favorite (收藏夹) 或 subscription (订阅)。
+
+--id=: 指定特定的收藏夹或订阅 ID。
+
+#### Redis 数据迁移
+app:upgrade-redis-to-sqlite
+
+将旧版本存储在 Redis 中的数据迁移到 SQLite/MySQL 数据库。
+
+选项:
+
+--all: 迁移所有数据（推荐）。
+
+--favorite-list: 仅迁移收藏夹列表。
+
+--video: 仅迁移视频信息。
+
+--video-part: 仅迁移分P信息。
+
+--danmaku: 仅迁移弹幕。
+
+--settings: 仅迁移设置。
+
+#### 频率限制状态
+scheduled-rate-limit:status
+
+查看或重置任务调度器的频率限制状态。
+
+选项:
+
+--list: 列出所有限制键。
+
+--schedule=KEY: 查看指定键的调度情况。
+
+--reset=KEY: 重置指定键的限制。
+
+发送统计信息
+stats:send
+
+手动触发发送匿名使用统计数据（程序版本、环境信息等）。
+
+无参数
+
+### 4. 其他工具
+#### 下载弹幕
+app:danmaku-download
+
+下载指定视频的弹幕到文件。
+
+参数:
+
+id: 视频 ID (通常是数据库 ID 或 Bilibili ID)。
+
+filename: 保存的文件名。
+
 ## 🎥 Mybili
 
 **bilibili 收藏夹下载工具** - 你的NAS中必不可少的程序
