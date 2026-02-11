@@ -111,7 +111,8 @@ class SubscriptionService
             $subscription           = Subscription::query()->where('media_id', $mediaId)->firstOrNew();
             $subscription->type     = 'favorite';
             $subscription->media_id = $mediaId;
-            $subscription->title    = $info['title']; // 使用收藏夹标题作为订阅名
+            $subscription->mid      = $info['mid'];
+            $subscription->name     = $info['title']; // 使用收藏夹标题作为订阅名
             $subscription->cover    = $info['cover'] ?? '';
             $subscription->url      = $url;
             // 如果表中有 upper_id 字段，建议存入创建者 mid
