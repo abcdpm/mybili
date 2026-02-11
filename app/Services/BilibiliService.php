@@ -1021,6 +1021,30 @@ class BilibiliService
     }
 
     /**
+     * [新增] 获取收藏夹元数据 (用于添加订阅时获取标题和封面)
+     */
+    public function getFavoriteFolderInfo($mediaId)
+    {
+        // 这里的 media_id 对应收藏夹 URL 中的 fid
+        $url = self::API_HOST . "/x/v3/fav/folder/info?media_id={$mediaId}";
+        
+        try {
+            $response = $this->getClient()->get($url);
+            $data = json_decode($response->getBody()->getContents(), true);
+
+            if (($data['code'] ?? -1) !== 0) {
+                Log::error("获取收藏夹信息失败: " . ($data['message'] ?? 'Unknown error'));
+                return null;
+            }
+
+            return $data['data']; // 包含 title, cover, upper 等信息
+        } catch (\Exception $e) {
+            Log::error("Bilibili API Error: " . $e->getMessage());
+            return null;
+        }
+    }
+    
+    /**
      * [新增] 获取 WBI 签名所需的 img_key 和 sub_key
      */
     private function getWbiKeys(Client $client, $cookies)
