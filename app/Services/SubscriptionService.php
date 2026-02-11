@@ -473,6 +473,8 @@ class SubscriptionService
                 SubscriptionVideo::firstOrCreate([
                     'subscription_id' => $subscription->id,
                     'video_id'        => $video->id
+                ], [
+                    'bvid' => $item['bvid'],   // <--- 确保这里有传 bvid
                 ]);
 
                 // 派发下载详情任务
