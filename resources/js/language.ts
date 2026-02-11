@@ -391,6 +391,7 @@ const messages = {
             upMaster: 'UP主',
             series: '系列',
             seasons: '合集',
+            favorite: '收藏夹', // [新增]
             status: '状态',
             enabled: '启用',
             disabled: '关闭',
@@ -808,6 +809,7 @@ const messages = {
             upMaster: 'UP Master',
             series: 'Series',
             seasons: 'Seasons',
+            favorite: 'Favorite List', // [新增]
             status: 'Status',
             enabled: 'Enabled',
             disabled: 'Disabled',
