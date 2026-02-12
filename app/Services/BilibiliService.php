@@ -880,6 +880,7 @@ class BilibiliService
                             $subComments = $this->getAllSubComments($oid, $upperTop['rpid'], $client);
                             foreach ($subComments as $sub) {
                                 $allComments[$sub['rpid']] = $sub;
+                                // 子评论不计入 fetchedRootCount
                             }
                         }
                     }
