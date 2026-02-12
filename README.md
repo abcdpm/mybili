@@ -10,6 +10,8 @@ php artisan app:update-fav --update-fav-videos=1
 php artisan app:update-fav --update-fav-videos
 查看收藏夹视频信息数据量：
 php artisan tinker --execute="echo App\Models\VideoPart::count();"
+视频封面缺失：
+php artisan app:scan-cover-image --target=video
 
 扫描数据库中已有的记录去下载文件：
 php artisan app:update-fav --download-video-part=1
@@ -34,11 +36,12 @@ php artisan app:download-all-comment
 php artisan app:download-all-comment --limit=60 --force
 php artisan app:download-all-comment --limit=80 --force --sleep=10
 php artisan app:download-all-comment --limit=60 --force 115936803686117
-php artisan app:download-all-comment --sleep=10
+php artisan app:download-all-comment --sleep=15
 php artisan app:download-all-comment --status
 
 清空积压的 Job：
 php artisan horizon:clear
+php artisan horizon:clear --queue=fast
 php artisan queue:flush
 redis-cli flushall
 
@@ -56,7 +59,7 @@ php artisan tinker
 执行统计脚本
 
 // --- 复制开始 ---
-$queueName = 'default'; // 如果想查默认队列，改为 'default' 'slow' 'fast'
+$queueName = 'fast'; // 如果想查默认队列，改为 'default' 'slow' 'fast'
 $connection = 'redis';
 
 // 获取 Redis 实例
@@ -67,7 +70,7 @@ $prefix = config('database.redis.options.prefix', '');
 $queueKey = 'queues:' . $queueName;
 
 // 抽样取出前 10000 条任务 (不会删除任务)
-$jobs = $redis->lrange($queueKey, 0, 10000);
+$jobs = $redis->lrange($queueKey, 0, 100000);
 
 $stats = [];
 foreach ($jobs as $jobJson) {
