@@ -15,8 +15,20 @@ fi
 
 # 确保图片/封面目录存在 (对应 CoverService/DownloadImageService)
 if [ ! -d "/app/storage/app/public/images" ]; then
-    echo "📁 Creating image storage directory..."
+    echo "📁 Creating images storage directory..."
     mkdir -p /app/storage/app/public/images
+fi
+
+# 确保表情包目录存在
+if [ ! -d "/app/storage/app/public/emotes" ]; then
+    echo "📁 Creating emotes storage directory..."
+    mkdir -p /app/storage/app/public/emotes
+fi
+
+# 确保评论区图片目录存在
+if [ ! -d "/app/storage/app/public/comments" ]; then
+    echo "📁 Creating comment images storage directory..."
+    mkdir -p /app/storage/app/public/comments
 fi
 
 # ⚠️ 权限修正：确保所有 storage 目录不仅存在，而且可写

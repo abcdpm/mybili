@@ -81,6 +81,49 @@ class SubscriptionService
         if(preg_match("#https://b23.tv#", $url)){
             $url = $this->getRedirectURL($url);
         }
+
+        // [新增] 订阅类型 收藏夹 逻辑
+        if ($type == 'favorite') {
+            $mediaId = null;
+            // 1. 尝试从 URL 中提取 fid (https://space.bilibili.com/xxx/favlist?fid=123)
+            if (preg_match('/fid=(\d+)/', $url, $matches)) {
+                $mediaId = $matches[1];
+            } 
+            // 2. 尝试提取 ml id (https://www.bilibili.com/medialist/detail/ml123)
+            elseif (preg_match('/ml(\d+)/', $url, $matches)) {
+                $mediaId = $matches[1];
+            } 
+            // 3. 支持直接输入纯数字 ID
+            elseif (is_numeric($url)) {
+                $mediaId = $url;
+            }
+
+            if (!$mediaId) {
+                throw new \Exception('invalid favorite url or id');
+            }
+
+            // 获取收藏夹标题和封面 (需要 BilibiliService 支持 getFavoriteFolderInfo)
+            $info = $this->bilibiliService->getFavoriteFolderInfo($mediaId);
+            if (empty($info)) {
+                throw new \Exception('无法获取收藏夹信息，请确认ID正确且公开');
+            }
+
+            $subscription           = Subscription::query()->where('media_id', $mediaId)->firstOrNew();
+            $subscription->type     = 'favorite';
+            $subscription->media_id = $mediaId;
+            $subscription->mid      = $info['mid'];
+            $subscription->name     = $info['title']; // 使用收藏夹标题作为订阅名
+            $subscription->cover    = $info['cover'] ?? '';
+            $subscription->url      = $url;
+            // 如果表中有 upper_id 字段，建议存入创建者 mid
+            if (isset($subscription->upper_id) && isset($info['upper']['mid'])) {
+                $subscription->upper_id = $info['upper']['mid'];
+            }
+            $subscription->save();
+
+            UpdateSubscriptionJob::dispatch($subscription, true);
+            return $subscription;
+        }
         
         if ($type == 'seasons') {
             if (! preg_match('#/(\d+)/lists/(\d+)#', $url, $matches)) {
@@ -112,6 +155,7 @@ class SubscriptionService
             UpdateSubscriptionJob::dispatch($subscription, true);
             return $subscription;
         } else {
+            // 订阅类型UP主逻辑
             if (! preg_match('#/(\d+)/upload#', $url, $matches) && !preg_match('#https://space.bilibili.com/(\d+)#', $url, $matches)) {
                 throw new \Exception('invalid up url');
             }
@@ -160,7 +204,7 @@ class SubscriptionService
 
     public function updateSubscription(Subscription $subscription, bool $pullAll = false)
     {
-        if ($subscription->type == 'seasons') {
+        if ($subscription->type == 'seasons' || $subscription->type == 'series') {
             if (! $this->lockSubscription($subscription->mid, $subscription->list_id)) {
                 return;
             }
@@ -169,7 +213,20 @@ class SubscriptionService
             } finally {
                 $this->unlockSubscription($subscription->mid, $subscription->list_id);
             }
-        } else if ($subscription->type == 'up') {
+        } 
+        // [新增] 收藏夹更新调度
+        else if ($subscription->type == 'favorite') {
+            // 使用 media_id 作为锁的标识
+            if (! $this->lockSubscription('favorite', $subscription->media_id)) {
+                return;
+            }
+            try {
+                $this->updateFavoriteVideos($subscription, $pullAll);
+            } finally {
+                $this->unlockSubscription('favorite', $subscription->media_id);
+            }
+        }
+        else if ($subscription->type == 'up') {
             if (! $this->lockSubscription($subscription->mid)) {
                 return;
             }
@@ -360,6 +417,104 @@ class SubscriptionService
         $subscription->last_check_at = now();
         $subscription->save();
         event(new SubscriptionUpdated($oldSubscription, $subscription->toArray()));
+        return $subscription;
+    }
+
+    /**
+     * 更新收藏夹订阅 (参考 updateUpVideos 风格)
+     */
+    protected function updateFavoriteVideos(Subscription $subscription, bool $pullAll = false)
+    {
+        // 1. 记录更新前的状态，用于最后触发事件对比
+        $oldSubscription = $subscription->toArray();
+        $loaded = 0;
+        $page = 1;
+
+        while (true) {
+            // 调用 BilibiliService 获取列表
+            // 第二个参数传 $page，明确控制分页
+            $videos = $this->bilibiliService->pullFavVideoList((int)$subscription->media_id, $page);
+
+            // 如果结果为空，直接跳出
+            if (empty($videos)) {
+                break;
+            }
+
+            foreach ($videos as $item) {
+                $aid = $item['id'];
+                
+                // 查找或新建视频
+                $video = Video::query()->where('id', $aid)->firstOrNew();
+                
+                // 填充视频数据
+                $video->fill([
+                    'id'       => $aid,
+                    'upper_id' => $item['upper']['mid'] ?? 0,
+                    'bvid'     => $item['bvid'],
+                    'title'    => $item['title'],
+                    'cover'    => $item['cover'],
+                    'duration' => $item['duration'] ?? 0,
+                    'pubtime'  => date('Y-m-d H:i:s', $item['ctime'] ?? time()),
+                    'link'     => "https://www.bilibili.com/video/" . $item['bvid'],
+                    'intro'    => $item['intro'] ?? '',
+                ]);
+                $video->save();
+
+                // 如果视频被软删除了，恢复它
+                if ($video->trashed()) {
+                    $video->restore();
+                }
+
+                // 触发视频更新事件
+                event(new VideoUpdated([], $video->getAttributes()));
+
+                // 【重要】绑定订阅关系 (写入 subscription_videos 中间表)
+                // 使用 firstOrCreate 防止重复插入
+                SubscriptionVideo::firstOrCreate([
+                    'subscription_id' => $subscription->id,
+                    'video_id'        => $video->id
+                ], [
+                    'bvid' => $item['bvid'],   // <--- 确保这里有传 bvid
+                ]);
+
+                // 派发下载详情任务
+                PullVideoInfoJob::dispatchWithRateLimit($item['bvid']);
+            }
+
+            $loaded += count($videos);
+
+            // 逻辑控制：如果是增量更新 (!pullAll)，只抓第一页就结束
+            if (! $pullAll) {
+                break;
+            }
+
+            // 逻辑控制：如果取回的数量少于每页大小（通常20），说明是最后一页了
+            // 这里硬编码 20 或者读取配置 config('services.bilibili.fav_videos_page_size')
+            if (count($videos) < 20) {
+                break;
+            }
+
+            // 继续下一页
+            $page++;
+            
+            // 简单休眠防止风控
+            usleep(1000000); 
+        }
+
+        // 更新订阅状态
+        // 注意：收藏夹API一般不直接返回总数 total，或者需要单独调 info 接口
+        // 这里暂时用 $loaded 更新 total 可能会导致总数变少（如果是增量更新）
+        // 建议仅在 pullAll 为 true 时更新 total，或者保留原值
+        if ($pullAll) {
+            $subscription->total = $loaded;
+        }
+        
+        $subscription->last_check_at = now();
+        $subscription->save();
+
+        // 触发订阅更新事件
+        event(new SubscriptionUpdated($oldSubscription, $subscription->toArray()));
+
         return $subscription;
     }
 

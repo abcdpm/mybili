@@ -10,6 +10,8 @@ php artisan app:update-fav --update-fav-videos=1
 php artisan app:update-fav --update-fav-videos
 查看收藏夹视频信息数据量：
 php artisan tinker --execute="echo App\Models\VideoPart::count();"
+视频封面缺失：
+php artisan app:scan-cover-image --target=video
 
 扫描数据库中已有的记录去下载文件：
 php artisan app:update-fav --download-video-part=1
@@ -32,22 +34,64 @@ php artisan tinker
 触发全量视频评论备份：
 php artisan app:download-all-comment
 php artisan app:download-all-comment --limit=60 --force
-php artisan app:download-all-comment --limit=80 --force --sleep=5
+php artisan app:download-all-comment --limit=80 --force --sleep=10
 php artisan app:download-all-comment --limit=60 --force 115936803686117
+php artisan app:download-all-comment --sleep=15
 php artisan app:download-all-comment --status
 
 清空积压的 Job：
 php artisan horizon:clear
+php artisan horizon:clear --queue=fast
 php artisan queue:flush
 redis-cli flushall
 
-docker build --build-arg APP_VERSION=1.0.2 -t llllalex/mybili:1.0.2 . --no-cache
-docker push llllalex/mybili:1.0.2
-docker tag llllalex/mybili:1.0.2 llllalex/mybili:latest
+docker build --build-arg APP_VERSION=1.0.3 -t llllalex/mybili:1.0.3 . --no-cache
+docker push llllalex/mybili:1.0.3
+docker tag llllalex/mybili:1.0.3 llllalex/mybili:latest
 docker push llllalex/mybili:latest
 
 扫描磁盘上已存在的手机版视频并同步到数据库
 php artisan app:sync-mobile-videos
+
+
+查看堆积的任务类型
+php artisan tinker
+执行统计脚本
+
+// --- 复制开始 ---
+$queueName = 'fast'; // 如果想查默认队列，改为 'default' 'slow' 'fast'
+$connection = 'redis';
+
+// 获取 Redis 实例
+$redis = app('queue')->connection($connection)->getRedis()->connection();
+
+// 获取队列全名 (Laravel 自动处理前缀)
+$prefix = config('database.redis.options.prefix', '');
+$queueKey = 'queues:' . $queueName;
+
+// 抽样取出前 10000 条任务 (不会删除任务)
+$jobs = $redis->lrange($queueKey, 0, 100000);
+
+$stats = [];
+foreach ($jobs as $jobJson) {
+    $job = json_decode($jobJson, true);
+    $commandName = $job['displayName'] ?? 'Unknown';
+
+    // 简化类名显示
+    $parts = explode('\\', $commandName);
+    $shortName = end($parts);
+
+    if (!isset($stats[$shortName])) {
+        $stats[$shortName] = 0;
+    }
+    $stats[$shortName]++;
+}
+
+// 按数量降序排列
+arsort($stats);
+print_r($stats);
+// --- 复制结束 ---
+
 
 ## 所有控制台 PHP 命令 (php artisan ...) 及其参数汇总
 ### 1. 视频与评论管理

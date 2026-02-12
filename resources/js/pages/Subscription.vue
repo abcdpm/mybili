@@ -79,7 +79,11 @@
 
                         <!-- 类型标签 - 统一位置 -->
                         <div class="absolute top-2 left-2">
-                            <span :class="subscription.type === 'up' ? 'bg-blue-500' : 'bg-orange-500'"
+                            <span :class="{
+                                    'bg-blue-500': subscription.type === 'up',
+                                    'bg-pink-500': subscription.type === 'favorite',
+                                    'bg-orange-500': ['series', 'seasons'].includes(subscription.type)
+                                }"
                                 class="text-white text-xs px-2 py-1 rounded-full select-none shadow-md">
                                 {{ subscription.type === 'up' ? t('subscription.upMaster') : t('subscription.' + subscription.type) }}
                             </span>
@@ -153,6 +157,7 @@
                             <option value="up">{{ t('subscription.upMaster') }}</option>
                             <option value="series">{{ t('subscription.series') }}</option>
                             <option value="seasons">{{ t('subscription.seasons') }}</option>
+                            <option value="favorite">{{ t('subscription.favorite') }}</option>
                         </select>
                     </div>
 
@@ -197,7 +202,7 @@ const subscriptionList = ref<Subscription[]>([]);
 const showCreateModal = ref(false);
 const deleteMode = ref(false);
 const newSubscription = ref({
-    type: 'up' as 'up' | 'seasons',
+    type: 'up' as 'up' | 'seasons' | 'series' | 'favorite',
     url: ''
 });
 
