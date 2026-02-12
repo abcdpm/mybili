@@ -50,6 +50,46 @@ docker push llllalex/mybili:latest
 扫描磁盘上已存在的手机版视频并同步到数据库
 php artisan app:sync-mobile-videos
 
+
+查看堆积的任务类型
+php artisan tinker
+执行统计脚本
+
+// --- 复制开始 ---
+$queueName = 'default'; // 如果想查默认队列，改为 'default' 'slow' 'fast'
+$connection = 'redis';
+
+// 获取 Redis 实例
+$redis = app('queue')->connection($connection)->getRedis()->connection();
+
+// 获取队列全名 (Laravel 自动处理前缀)
+$prefix = config('database.redis.options.prefix', '');
+$queueKey = 'queues:' . $queueName;
+
+// 抽样取出前 10000 条任务 (不会删除任务)
+$jobs = $redis->lrange($queueKey, 0, 10000);
+
+$stats = [];
+foreach ($jobs as $jobJson) {
+    $job = json_decode($jobJson, true);
+    $commandName = $job['displayName'] ?? 'Unknown';
+
+    // 简化类名显示
+    $parts = explode('\\', $commandName);
+    $shortName = end($parts);
+
+    if (!isset($stats[$shortName])) {
+        $stats[$shortName] = 0;
+    }
+    $stats[$shortName]++;
+}
+
+// 按数量降序排列
+arsort($stats);
+print_r($stats);
+// --- 复制结束 ---
+
+
 ## 所有控制台 PHP 命令 (php artisan ...) 及其参数汇总
 ### 1. 视频与评论管理
 #### 下载/更新所有评论
