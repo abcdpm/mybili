@@ -38,6 +38,7 @@ php artisan app:download-all-comment --limit=80 --force --sleep=10
 php artisan app:download-all-comment --limit=60 --force 115936803686117
 php artisan app:download-all-comment --sleep=15
 php artisan app:download-all-comment --status
+php artisan app:download-all-comments --incremental=20 --sleep=5 --max-videos=3000
 
 清空积压的 Job：
 php artisan horizon:clear

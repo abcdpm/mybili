@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Models\Video;
 use App\Models\Comment; // 引入 Comment 模型
+use Carbon\Carbon;
 use App\Jobs\DownloadCommentsJob;
 use Illuminate\Console\Command;
 
