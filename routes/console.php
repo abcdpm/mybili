@@ -133,3 +133,10 @@ Schedule::command('app:update-no-parts-valid-video')->hourly();
 // 作用：专门下载收藏夹及其视频缺失的封面图片。
 // 频率：每小时执行一次
 Schedule::command('app:scan-cover-image', ['--target=favorite'])->hourly();
+
+// ==========================================================================
+// 11. 增量更新视频评论
+// ==========================================================================
+// 作用：启动轮询，对最久未更新评论的 3000 个视频，追加获取 20 条评论
+// 频率：每天凌晨 3:00执行一次
+Schedule::command('app:download-all-comments --incremental=20 --sleep=5 --max-videos=3000')->dailyAt('3:00');
