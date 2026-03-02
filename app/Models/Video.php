@@ -10,7 +10,11 @@ class Video extends Model
     use SoftDeletes;
 
     protected $table      = 'videos';
-    protected $fillable   = ['id', 'link', 'title', 'intro', 'cover', 'bvid', 'pubtime', 'duration', 'attr', 'invalid', 'frozen', 'page', 'fav_time', 'danmaku_downloaded_at', 'video_downloaded_at','upper_id'];
+    protected $fillable   = [
+        'id', 'link', 'title', 'intro', 'cover', 'bvid', 'pubtime', 'duration',
+        'attr', 'invalid', 'frozen', 'page', 'fav_time', 'danmaku_downloaded_at',
+        'video_downloaded_at', 'upper_id', 'comments_updated_at'
+    ];
     protected $primaryKey = 'id';
 
     protected $casts = [
