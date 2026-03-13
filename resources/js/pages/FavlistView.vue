@@ -13,7 +13,7 @@
         </Breadcrumbs>
 
         <div class="grid grid-cols-1 md:grid-cols-5 w-full gap-4">
-            <div class="flex flex-col relative" v-for="item in showVideoList">
+            <div class="flex flex-col relative" v-for="item in displayedVideoList" :key="item.id">
                 <RouterLink :to="{ name: 'favlist-video-id', params: { id: id, video_id: item.id } }">
                     <Image class="rounded-lg w-full h-auto aspect-video object-cover hover:scale-105 transition-all duration-300"
                         :src="item.cover_info?.image_url ?? '/assets/images/notfound.webp'" :title="item.title"
@@ -32,10 +32,14 @@
                         item.page }}</span>
             </div>
         </div>
+        <div ref="sentinel" class="w-full h-12 mt-6 flex justify-center items-center">
+            <span v-if="displayCount < showVideoList.length" class="text-gray-400 text-sm animate-pulse">正在加载更多...</span>
+            <span v-else-if="showVideoList.length > 0" class="text-gray-400 text-sm">- 到底了 -</span>
+        </div>
     </div>
 </template>
 <script lang="ts" setup>
-import { computed, ref } from 'vue';
+import { computed, ref, onMounted, onUnmounted, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import Image from '@/components/Image.vue';
@@ -67,6 +71,36 @@ const showVideoList = computed(() => {
     })
 })
 
+// === 【新增】前端切片懒加载逻辑 ===
+const displayCount = ref(50); // 默认首次只渲染 50 个
+const displayedVideoList = computed(() => {
+    return showVideoList.value.slice(0, displayCount.value);
+});
+
+const sentinel = ref<HTMLElement | null>(null);
+let observer: IntersectionObserver | null = null;
+
+// 【新增】当用户切换"仅看已下载"开关时，重置显示数量，防止渲染过多导致卡顿
+watch(isFilterDownloaded, () => {
+    displayCount.value = 50;
+});
+
+onMounted(() => {
+    observer = new IntersectionObserver((entries) => {
+        // 当触底且还有未渲染的数据时，追加 40 个
+        if (entries[0].isIntersecting && displayCount.value < showVideoList.value.length) {
+            displayCount.value += 40;
+        }
+    }, { rootMargin: '400px' }); // 提前 400px 触发，让用户无感加载
+
+    if (sentinel.value) {
+        observer.observe(sentinel.value);
+    }
+});
+
+onUnmounted(() => {
+    if (observer) observer.disconnect();
+});
 
 getFavDetail(Number(id)).then((result) => {
     favorite.value = result

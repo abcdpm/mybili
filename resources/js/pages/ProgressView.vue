@@ -236,12 +236,35 @@
                     </div>
                 </div>
 
-                <virtualList :sortable="false" :draggable="''" class="scroller-container" v-model="groupedDataList"
+                <div class="grid grid-cols-1 md:grid-cols-5 w-full gap-4 pb-4">
+                    <div class="flex flex-col relative" v-for="video in displayedVideos" :key="video.id" :data-video-id="video.id">
+                        <RouterLink :to="{ name: 'video-id', params: { id: video.id } }">
+                            <div class="image-container rounded-lg overflow-hidden" :style="{ aspectRatio: '4/3' }">
+                                <Image class="w-full h-full object-cover hover:scale-105 transition-all duration-300"
+                                    :src="video.cover_info?.image_url ?? '/assets/images/notfound.webp'"
+                                    :class="{ 'grayscale-image': video.video_downloaded_num == 0 && video.audio_downloaded_num == 0 }" :title="video.title" />
+                            </div>
+                        </RouterLink>
+                        <span class="mt-4 text-center h-12 line-clamp-2" :title="video.title">{{ video.title }}</span>
+                        <div class="mt-2 flex justify-between text-xs text-gray-400 px-1">
+                            <span>{{ t('progress.published') }}: {{ formatTimestamp(video.pubtime, "yyyy.mm.dd") }}</span>
+                            <span v-if="video.fav_time > 0">{{ t('progress.favorited') }}: {{ formatTimestamp(video.fav_time, "yyyy.mm.dd") }}</span>
+                        </div>
+                        <span v-if="video.page > 1" class="text-sm text-white bg-gray-600 rounded-lg w-10 text-center absolute top-2 right-2">{{ video.page }}</span>
+                    </div>
+                </div>
+
+                <div ref="sentinel" class="w-full h-12 mt-2 flex justify-center items-center">
+                    <span v-if="displayCount < dataList.length" class="text-gray-400 text-sm animate-pulse">正在加载更多...</span>
+                    <span v-else-if="dataList.length > 0" class="text-gray-400 text-sm">- 到底了 -</span>
+                </div>
+
+                <!-- <virtualList :sortable="false" :draggable="''" class="scroller-container" v-model="groupedDataList"
                     data-key="'id'" :keeps=60 :size=340>
                     <template v-slot:item="{ record, index, dataKey }">
                         <ProgressVideoRow :source="record" :key="index" />
                     </template>
-                </virtualList>
+                </virtualList> -->
             </div>
 
         </div>
@@ -252,9 +275,12 @@ import { computed, ref, onMounted, onUnmounted, watch, nextTick } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import type { Cover } from '../api/cover';
-import ProgressVideoRow from '../components/ProgressVideoRow.vue';
-// @ts-ignore 缺少类型声明，按行忽略类型检查
-import VirtualList from 'vue-virtual-sortable';
+// import ProgressVideoRow from '../components/ProgressVideoRow.vue';
+// // @ts-ignore 缺少类型声明，按行忽略类型检查
+// import VirtualList from 'vue-virtual-sortable';
+
+import Image from '@/components/Image.vue'; 
+import { formatTimestamp } from '../lib/helper';
 
 const { t } = useI18n();
 const route = useRoute();
@@ -373,28 +399,56 @@ const dataList = computed(() => {
     return list
 })
 
-// 将数据按行分组，用于虚拟列表
-// 注意：不再固定列数，使用响应式 grid 布局（grid-cols-1 md:grid-cols-4）
-const groupedDataList = computed(() => {
-    const list = dataList.value;
-    const cols = 5; // 固定的分组数，实际渲染由 CSS grid 控制
-    const grouped = [];
+// // 将数据按行分组，用于虚拟列表
+// // 注意：不再固定列数，使用响应式 grid 布局（grid-cols-1 md:grid-cols-4）
+// const groupedDataList = computed(() => {
+//     const list = dataList.value;
+//     const cols = 5; // 固定的分组数，实际渲染由 CSS grid 控制
+//     const grouped = [];
+//     for (let i = 0; i < list.length; i += cols) {
+//         grouped.push({
+//             id: `row-${i}`, // 为每行生成唯一ID
+//             videos: list.slice(i, i + cols)
+//         });
+//     }
+//     return grouped;
+// })
 
-    for (let i = 0; i < list.length; i += cols) {
-        grouped.push({
-            id: `row-${i}`, // 为每行生成唯一ID
-            videos: list.slice(i, i + cols)
-        });
+// === 【新增】前端切片懒加载逻辑 ===
+const displayCount = ref(50);
+const displayedVideos = computed(() => {
+    return dataList.value.slice(0, displayCount.value);
+});
+
+const sentinel = ref<HTMLElement | null>(null);
+let scrollObserver: IntersectionObserver | null = null;
+
+const setupScrollObserver = () => {
+    if (scrollObserver) scrollObserver.disconnect();
+    scrollObserver = new IntersectionObserver((entries) => {
+        if (entries[0].isIntersecting && displayCount.value < dataList.value.length) {
+            displayCount.value += 50; // 每次追加 50 条
+        }
+    }, { rootMargin: '600px' });
+
+    if (sentinel.value) {
+        scrollObserver.observe(sentinel.value);
     }
+};
 
-    return grouped;
-})
+// 监听过滤和搜索变动，重置懒加载状态和搜索索引
+watch(() => filter.value.class, () => { displayCount.value = 50; });
+watch(searchQuery, () => { 
+    currentSearchIndex.value = -1;
+    displayCount.value = 50; 
+});
 
 // 监听路由变化，更新过滤器状态
 watch(() => route.query.filter, () => {
     initFilterFromUrl();
 }, { immediate: true });
 
+// === UI与交互逻辑 ===
 // 使用 IntersectionObserver 监测筛选器是否离开可视区（仅移动端）
 let filterObserver: IntersectionObserver | null = null;
 const setupFilterObserver = () => {
@@ -441,7 +495,8 @@ onMounted(() => {
     // 添加键盘事件监听（搜索功能）
     document.addEventListener('keydown', handleKeyDown);
     // 初始同步一次（避免首次闪烁）
-    nextTick(setupFilterObserver);
+    // 【新增】启动触底监听
+    nextTick(setupScrollObserver);
 });
 
 onUnmounted(() => {
@@ -450,6 +505,8 @@ onUnmounted(() => {
         filterObserver.disconnect();
         filterObserver = null;
     }
+    // 【新增】断开触底监听
+    if (scrollObserver) { scrollObserver.disconnect(); scrollObserver = null; }
     // 移除窗口大小变化监听
     window.removeEventListener('resize', setupFilterObserver);
     // 移除键盘事件监听
@@ -587,65 +644,33 @@ const navigateToPrevResult = () => {
 
 // 滚动到搜索结果
 const scrollToSearchResult = () => {
-    if (currentSearchIndex.value < 0 || currentSearchIndex.value >= searchResults.value.length) {
-        return
+    if (currentSearchIndex.value < 0 || currentSearchIndex.value >= searchResults.value.length) return;
+
+    const targetVideo = searchResults.value[currentSearchIndex.value];
+    if (!targetVideo) return;
+
+    const videoIndex = dataList.value.findIndex(v => v.id === targetVideo.id);
+    if (videoIndex === -1) return;
+
+    // 【核心修复】如果目标元素还未渲染（在切片外），立刻扩大显示范围将其包入 DOM 中！
+    if (videoIndex >= displayCount.value) {
+        displayCount.value = videoIndex + 20;
     }
 
-    const targetVideo = searchResults.value[currentSearchIndex.value]
-    if (!targetVideo) return
-
-    // 在 dataList 中找到目标视频的索引
-    const videoIndex = dataList.value.findIndex(v => v.id === targetVideo.id)
-    if (videoIndex === -1) return
-
-    // 计算目标视频所在的行（每行5个视频）
-    const targetRow = Math.floor(videoIndex / 5)
-
-    // 使用 nextTick 确保 DOM 已更新，并等待虚拟列表渲染
+    // 等待 DOM 渲染完成后平滑滚动过去
     nextTick(() => {
         setTimeout(() => {
-            // 在虚拟列表中查找包含目标视频的元素
-            const videoElements = document.querySelectorAll(`[data-video-id="${targetVideo.id}"]`)
-            if (videoElements.length > 0) {
-                const element = videoElements[0] as HTMLElement
-                // 滚动到元素
-                element.scrollIntoView({
-                    behavior: 'smooth',
-                    block: 'center'
-                })
+            const elements = document.querySelectorAll(`[data-video-id="${targetVideo.id}"]`);
+            if (elements.length > 0) {
+                const el = elements[0] as HTMLElement;
+                el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                
                 // 添加高亮效果
-                element.classList.add('search-highlight')
-                setTimeout(() => {
-                    element.classList.remove('search-highlight')
-                }, 2000)
-            } else {
-                // 如果元素还没渲染，尝试滚动到对应的行
-                const scroller = document.querySelector('.scroller-container') as HTMLElement
-                if (scroller) {
-                    const rowHeight = 340 // 估算的行高
-                    scroller.scrollTo({
-                        top: targetRow * rowHeight,
-                        behavior: 'smooth'
-                    })
-                    // 延迟后再尝试定位具体元素
-                    setTimeout(() => {
-                        const elements = document.querySelectorAll(`[data-video-id="${targetVideo.id}"]`)
-                        console.log(elements)
-                        if (elements.length > 0) {
-                            (elements[0] as HTMLElement).scrollIntoView({
-                                behavior: 'smooth',
-                                block: 'center'
-                            })
-                            elements[0].classList.add('search-highlight')
-                            setTimeout(() => {
-                                elements[0].classList.remove('search-highlight')
-                            }, 2000)
-                        }
-                    }, 300)
-                }
+                el.classList.add('search-highlight');
+                setTimeout(() => { el.classList.remove('search-highlight'); }, 2000);
             }
-        }, 100)
-    })
+        }, 150); // 稍微延迟等待 Vue 创建完图像节点
+    });
 }
 
 // 监听搜索结果变化，重置索引
