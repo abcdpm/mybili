@@ -1,5 +1,5 @@
 <template>
-    <div class="virtual-row grid grid-cols-1 md:grid-cols-4 w-full gap-4 pb-4">
+    <div class="virtual-row grid grid-cols-1 md:grid-cols-5 w-full gap-4 pb-4">
         <div class="flex flex-col relative" v-for="video in source.videos" :key="video.id" :data-video-id="video.id">
             <RouterLink :to="{ name: 'video-id', params: { id: video.id } }">
                 <div class="image-container rounded-lg overflow-hidden" :style="{

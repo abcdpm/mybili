@@ -377,7 +377,7 @@ const dataList = computed(() => {
 // 注意：不再固定列数，使用响应式 grid 布局（grid-cols-1 md:grid-cols-4）
 const groupedDataList = computed(() => {
     const list = dataList.value;
-    const cols = 4; // 固定的分组数，实际渲染由 CSS grid 控制
+    const cols = 5; // 固定的分组数，实际渲染由 CSS grid 控制
     const grouped = [];
 
     for (let i = 0; i < list.length; i += cols) {
@@ -598,8 +598,8 @@ const scrollToSearchResult = () => {
     const videoIndex = dataList.value.findIndex(v => v.id === targetVideo.id)
     if (videoIndex === -1) return
 
-    // 计算目标视频所在的行（每行4个视频）
-    const targetRow = Math.floor(videoIndex / 4)
+    // 计算目标视频所在的行（每行5个视频）
+    const targetRow = Math.floor(videoIndex / 5)
 
     // 使用 nextTick 确保 DOM 已更新，并等待虚拟列表渲染
     nextTick(() => {

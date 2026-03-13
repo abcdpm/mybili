@@ -12,7 +12,7 @@
         </template>
     </Breadcrumbs>
 
-    <div class="grid grid-cols-1 md:grid-cols-4 w-full gap-4">
+    <div class="grid grid-cols-1 md:grid-cols-5 w-full gap-4">
         <div class="flex flex-col relative" v-for="item in showVideoList">
             <RouterLink :to="{ name: 'subscription-video-id', params: { id: id, video_id: item.id } }">
                 <Image class="rounded-lg w-full h-auto md:w-96 md:h-56 hover:scale-105 transition-all duration-300"
