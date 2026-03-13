@@ -91,10 +91,10 @@
                     </div>
                 </div>
 
-                <div v-if="comment.replies.length > 3" class="mt-3 text-xs text-gray-500 select-none">
+                <div v-if="totalReplyCount > 3" class="mt-3 text-xs text-gray-500 select-none">
                     <div v-if="!isExpanded">
                         <span class="cursor-pointer hover:text-blue-500" @click="expandReplies">
-                            共{{ comment.replies.length }}条回复，点击查看
+                            共{{ totalReplyCount }}条回复，点击查看
                         </span>
                     </div>
                     <div v-else class="flex flex-wrap items-center gap-2">
@@ -121,6 +121,7 @@ import { computed, ref, onMounted, onUnmounted } from 'vue';
 // 引入 PhotoSwipe
 import PhotoSwipeLightbox from 'photoswipe/lightbox';
 import 'photoswipe/style.css';
+import axios from 'axios'; // 确保顶部引入了 axios
 
 // 判断是否为长图 (高宽比 > 2.5)
 const isLongImage = (index: number) => {
@@ -177,6 +178,31 @@ const getReplyImageHeight = (rpid: number, index: number) => replyImageSizes.val
 let lightbox: PhotoSwipeLightbox | null = null;
 let replyLightboxes: PhotoSwipeLightbox[] = [];
 
+// 【新增】封装一个专门初始化子评论图片的函数
+const initReplyLightboxes = (replies: any[]) => {
+    // 1. 先销毁并清空旧的子评论画廊实例，防止内存泄漏
+    replyLightboxes.forEach(lb => {
+        try { lb.destroy(); } catch (e) {}
+    });
+    replyLightboxes = [];
+
+    // 2. 为当前展示的子评论重新绑定放大镜事件
+    if (!replies) return;
+    replies.forEach((reply: any) => {
+        if (reply.pictures && reply.pictures.length > 0) {
+            const lb = new PhotoSwipeLightbox({
+                gallery: '#gallery-' + reply.rpid,
+                children: 'a',
+                pswpModule: () => import('photoswipe'),
+                bgOpacity: 0.8, // 保持 B站 风格的半透明背景
+                showHideOpacity: true,
+            });
+            lb.init();
+            replyLightboxes.push(lb);
+        }
+    });
+};
+
 onMounted(() => {
     // 初始化主评论画廊
     if (props.comment.pictures && props.comment.pictures.length > 0) {
@@ -193,19 +219,8 @@ onMounted(() => {
     // 初始化子评论画廊 (如果有)
     // 注意：如果是无感滚动加载的，这里只初始化当前已存在的。
     // 如果展开更多子评论，可能需要重新初始化，但这里简化处理。
-    if (props.comment.replies) {
-         props.comment.replies.forEach((reply: any) => {
-             if (reply.pictures && reply.pictures.length > 0) {
-                 const lb = new PhotoSwipeLightbox({
-                    gallery: '#gallery-' + reply.rpid,
-                    children: 'a',
-                    pswpModule: () => import('photoswipe')
-                });
-                lb.init();
-                replyLightboxes.push(lb);
-             }
-         });
-    }
+    // 【修改】调用封装好的函数初始化首屏子评论的图片
+    initReplyLightboxes(props.comment.replies);
 });
 
 onUnmounted(() => {
@@ -266,16 +281,30 @@ const formatCustomTime = (timeStr: string) => {
     }
 };
 
-// ... 分页逻辑 ...
+// ---------------- 分页与加载逻辑 ----------------
 const isExpanded = ref(false);
 const currentPage = ref(1);
 const pageSize = 10;
-const totalPages = computed(() => Math.ceil(props.comment.replies.length / pageSize));
-const displayedReplies = computed(() => {
-    if (!isExpanded.value) return props.comment.replies.slice(0, 3);
-    const start = (currentPage.value - 1) * pageSize;
-    return props.comment.replies.slice(start, start + pageSize);
+const isLoadingReplies = ref(false);
+
+// 【新增】用来存储后端 API 真实返回的精确总数
+const backendTotal = ref<number | null>(null);
+
+// 【新增】读取后端传来的真实回复总数
+// 【修复1】智能获取总数：优先用后端 AJAX 查出的最新 total，其次尝试 B站 原生 rcount 字段，最后降级为数组长度
+const totalReplyCount = computed(() => {
+    if (backendTotal.value !== null) {
+        return backendTotal.value;
+    }
+    return props.comment.rcount || props.comment.replies_count || props.comment.replies?.length || 0;
 });
+
+// 总页数基于真实总数计算
+const totalPages = computed(() => Math.ceil(totalReplyCount.value / pageSize));
+
+// 把 displayedReplies 从计算属性变成 ref，初始装载首屏预加载的3条
+const displayedReplies = ref([...(props.comment.replies || [])]);
+
 const paginationDisplay = computed(() => {
     let pages = [];
     const total = totalPages.value;
@@ -293,9 +322,55 @@ const paginationDisplay = computed(() => {
     }
     return pages.filter(p => typeof p === 'number');
 });
-const expandReplies = () => { isExpanded.value = true; };
-const collapseReplies = () => { isExpanded.value = false; currentPage.value = 1; };
-const changePage = (p: any) => { if (typeof p === 'number') currentPage.value = p; };
+
+// 【新增】负责真正去后端拿某一页数据的函数
+const fetchRepliesPage = async (page: number) => {
+    isLoadingReplies.value = true;
+    try {
+        const response = await axios.get(`/api/comments/${props.comment.rpid}/replies`, {
+            params: { page: page, per_page: pageSize }
+        });
+
+        // 【修复】每次请求，都用后端数据库真实 count() 的总数来校准前端的页码！
+        if (response.data.total !== undefined) {
+            backendTotal.value = response.data.total;
+        }
+
+        // paginate() 返回的数据在 .data.data 里
+        displayedReplies.value = response.data.data;
+        currentPage.value = page;
+        
+        // 【新增】等 Vue 把新数据渲染成 HTML 后，立刻为新图片绑定 PhotoSwipe
+        nextTick(() => {
+            initReplyLightboxes(displayedReplies.value);
+        });
+    } catch (e) {
+        console.error("加载子评论失败", e);
+    } finally {
+        isLoadingReplies.value = false;
+    }
+};
+
+const expandReplies = () => { 
+    // 展开时，直接去拉取完整的第 1 页（10条数据），覆盖掉首屏的5条
+    fetchRepliesPage(1).then(() => {
+        isExpanded.value = true; 
+    });
+};
+
+const collapseReplies = () => { 
+    isExpanded.value = false; 
+    currentPage.value = 1; 
+    // 收起时，恢复使用首屏自带的初始数据
+    displayedReplies.value = [...(props.comment.replies || [])];
+};
+
+const changePage = (p: any) => { 
+    if (typeof p === 'number' && p !== currentPage.value) {
+        fetchRepliesPage(p);
+    } 
+};
+
 </script>
 
 <style scoped>

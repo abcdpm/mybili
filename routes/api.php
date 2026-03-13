@@ -29,6 +29,8 @@ Route::get('/system/info', [SystemController::class, 'getSystemInfo']);
 
 // 获取视频评论
 Route::get('/videos/{id}/comments', [App\Http\Controllers\VideoController::class, 'comments']);
+// 获取指定主评论下的追加子评论
+Route::get('/comments/{rootId}/replies', [App\Http\Controllers\VideoController::class, 'replies']);
 
 // 下载队列管理
 Route::get('/download-queue', [DownloadQueueController::class, 'index']);

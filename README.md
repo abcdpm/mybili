@@ -1,20 +1,34 @@
 
 同步收藏夹信息 更新收藏夹本身的元数据（如标题、媒体数量等）：
-php artisan app:update-fav --update-fav
-php artisan app:update-fav --update-fav=1
-更新收藏夹封面图：
-php artisan app:scan-cover-image --target=favorite
+php artisan app:sync-media --fav-list
 
-同步收藏夹视频信息：
-php artisan app:update-fav --update-fav-videos=1
-php artisan app:update-fav --update-fav-videos
+同步「指定」收藏夹视频信息：
+php artisan app:sync-media --fav-videos --fav=1
+同步「所有」收藏夹视频信息：
+php artisan app:sync-media --fav-videos
 查看收藏夹视频信息数据量：
 php artisan tinker --execute="echo App\Models\VideoPart::count();"
-视频封面缺失：
-php artisan app:scan-cover-image --target=video
 
-扫描数据库中已有的记录去下载文件：
-php artisan app:update-fav --download-video-part=1
+通过统一调度触发排队下载
+下载指定视频：
+php artisan app:sync-media --download --video-id=1
+扫描并下载全部未下载的视频：
+php artisan app:sync-media --download
+
+通过扫描文件指令触发下载
+检查指定视频文件并下载：
+php artisan app:scan-video-file --video-id=1 --download
+扫描全部缺失文件并下载：
+php artisan app:scan-video-file --download
+
+「视频」封面图缺失：
+php artisan app:scan-cover-image --target=video
+「收藏夹」封面图缺失：
+php artisan app:scan-cover-image --target=favorite
+「订阅」封面图缺失：
+php artisan app:scan-cover-image --target=subscription
+「UP主」头像图缺失：
+php artisan app:scan-cover-image --target=upper
 
 手动全量视频转码：
 php artisan app:transcode-all
@@ -46,9 +60,9 @@ php artisan horizon:clear --queue=fast
 php artisan queue:flush
 redis-cli flushall
 
-docker build --build-arg APP_VERSION=1.0.6 -t llllalex/mybili:1.0.6 . --no-cache
-docker push llllalex/mybili:1.0.6
-docker tag llllalex/mybili:1.0.6 llllalex/mybili:latest
+docker build --build-arg APP_VERSION=1.0.7 -t llllalex/mybili:1.0.7 . --no-cache
+docker push llllalex/mybili:1.0.7
+docker tag llllalex/mybili:1.0.7 llllalex/mybili:latest
 docker push llllalex/mybili:latest
 
 扫描磁盘上已存在的手机版视频并同步到数据库

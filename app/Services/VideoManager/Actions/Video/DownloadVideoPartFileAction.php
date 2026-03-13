@@ -10,7 +10,8 @@ use App\Services\BilibiliSuspendService;
 use App\Services\DownloadFilterService;
 use App\Services\DownloadVideoService;
 use App\Services\SettingsService;
-use App\Jobs\TranscodeVideoJob;// 引入 Job
+use App\Jobs\TranscodeVideoJob; // 引入移动端视频转码任务
+use App\Jobs\DownloadCommentsJob; // 引入评论下载任务
 use Carbon\Carbon;
 use Log;
 
@@ -88,6 +89,11 @@ class DownloadVideoPartFileAction
             Log::info('Dispatching transcode job', ['video_id' => $video->id]);
             //dispatch(new TranscodeVideoJob($videoPart)); 
             dispatch(new TranscodeVideoJob($videoPart))->onQueue('slow');
+            // ==========================
+
+            // === 【修复】投递评论下载任务 ===
+            Log::info('Dispatching comments download job', ['video_id' => $video->id]);
+            dispatch(new DownloadCommentsJob($video))->onQueue('slow'); 
             // ==========================
 
             event(new VideoPartDownloaded($videoPart));

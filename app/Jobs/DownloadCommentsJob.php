@@ -30,7 +30,11 @@ class DownloadCommentsJob implements ShouldQueue
         public Video $video,
         public ?int $limit = null,
         public int $sleep = 3
-    ) {}
+    )
+    {
+        // 指定 slow 队列
+        $this->onQueue('slow');
+    }
 
     public function handle(DownloadCommentsAction $action): void
     {
