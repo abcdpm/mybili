@@ -23,6 +23,9 @@
                         <RouterLink to="/videos" class="hover:text-blue-600 transition-colors">
                             🎬<span class="hidden md:inline"> {{ t('navigation.videoManagement') }}</span>
                         </RouterLink>
+                        <RouterLink to="/download-queue" class="hover:text-blue-600 transition-colors">
+                            📥<span class="hidden md:inline"> 下载队列</span>
+                        </RouterLink>
                         <RouterLink to="/horizon" target="_blank" class="hover:text-blue-600 transition-colors">
                             🔭<span class="hidden md:inline"> {{ t('progress.viewTasks') }}</span>
                         </RouterLink>
@@ -296,6 +299,7 @@ interface VideoType {
     fav_time: number
     page: number
     video_downloaded_num: number
+    audio_downloaded_num: number
     cover_info: Cover | null
 }
 
@@ -339,7 +343,7 @@ const searchResults = computed(() => {
 const dataList = computed(() => {
     let list = videoList.value.filter(i => {
         // 如果启用了只显示缓存视频的选项，则过滤掉未缓存的视频
-        if (showCachedOnly.value && i.video_downloaded_num === 0) {
+        if (showCachedOnly.value && i.video_downloaded_num === 0 && i.audio_downloaded_num === 0) {
             return false
         }
 
