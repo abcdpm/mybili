@@ -32,7 +32,37 @@ class DownloadCommentsAction
             'sleep_interval' => $sleep
         ]);
 
-        $videoInfo = $this->bilibiliService->getVideoInfo($video->bvid);
+        // 【核心修改】加入 try-catch 拦截底层抛出的异常
+        try {
+            $videoInfo = $this->bilibiliService->getVideoInfo($video->bvid);
+        } catch (\App\Exceptions\ApiGetVideoStatusException $e) {
+            // 拦截业务状态异常：如 62002(稿件不可见), 62012, 62004 等
+            Log::warning('Video status exception, skip comments download', [
+                'bvid' => $video->bvid,
+                'code' => $e->getCode(),
+                'msg'  => $e->getMessage()
+            ]);
+            return; // 直接 return，不抛出异常，任务会顺利结束(DONE)不会重试
+        } catch (\Exception $e) {
+            // 拦截常规异常：如 -404(啥都木有/视频被删)
+            if (in_array($e->getCode(), [-404, -403])) {
+                Log::warning('Video not found or forbidden, skip comments download', [
+                    'bvid' => $video->bvid,
+                    'code' => $e->getCode(),
+                    'msg'  => $e->getMessage()
+                ]);
+                return; 
+            }
+            
+            // 如果遇到真的未知的偶发错误，记录简洁错误并抛出（保留栈追踪，并让队列重试机制生效）
+            Log::error('Unknown error fetching video info for comments', [
+                'bvid' => $video->bvid,
+                'code' => $e->getCode(),
+                'msg'  => $e->getMessage()
+            ]);
+            throw $e;
+        }
+        
         if (!$videoInfo) {
             // [建议] 增加失败日志
             Log::warning('Failed to fetch video info for comments', ['bvid' => $video->bvid]);
