@@ -3,7 +3,6 @@
 use App\Services\VideoManager\Contracts\VideoServiceInterface;
 use App\Enums\SettingKey;
 use App\Services\SettingsService;
-use App\Services\SubscriptionService;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schedule;
 
@@ -15,7 +14,7 @@ use Illuminate\Support\Facades\Schedule;
 Schedule::call(function () {
     $updateFavEnable = app(SettingsService::class)->get(SettingKey::FAVORITE_SYNC_ENABLED);
     if ($updateFavEnable == "on") {
-        Artisan::call('app:update-fav', ['--update-fav' => true]);
+        Artisan::call('app:sync-media', ['--fav-list' => true]);
     }
 })
 ->name('update-fav')
@@ -34,16 +33,14 @@ Schedule::call(function () {
 Schedule::call(function () {
     $updateFavEnable = app(SettingsService::class)->get(SettingKey::FAVORITE_SYNC_ENABLED);
     if ($updateFavEnable == "on") {
-        // 如果是首次运行则全量更新
-        if(app(VideoServiceInterface::class)->count() == 0){
-            Artisan::call('app:update-fav', ['--update-fav-videos' => true]);
+        if (app(VideoServiceInterface::class)->count() == 0) {
+            Artisan::call('app:sync-media', ['--fav-videos' => true]);
             return;
         }
-        // 如果当前时间在凌晨4点范围内,跳过执行
         if (now()->format('H') === '04') {
             return;
         }
-        Artisan::call('app:update-fav', ['--update-fav-videos' => true, '--update-fav-videos-page' => 1]);
+        Artisan::call('app:sync-media', ['--fav-videos' => true, '--fav-page' => 1]);
     }
 })
 ->name('update-fav-videos-page-1')
@@ -59,7 +56,7 @@ Schedule::call(function () {
 Schedule::call(function () {
     $updateFavEnable = app(SettingsService::class)->get(SettingKey::FAVORITE_SYNC_ENABLED);
     if ($updateFavEnable == "on") {
-        Artisan::call('app:update-fav', ['--update-fav-videos' => true]);
+        Artisan::call('app:sync-media', ['--fav-videos' => true]);
     }
 })
 ->name('update-fav-videos-all')
@@ -72,7 +69,7 @@ Schedule::call(function () {
 // 作用：检查本地标记为“失效”的收藏夹视频，确认它们是否恢复正常，或者进行清理操作。
 // 频率：每天凌晨 04:00 执行一次
 Schedule::call(function () {
-    Artisan::call('app:update-fav', ['--fix-invalid-fav-videos' => true]);
+    Artisan::call('app:sync-media', ['--fix-invalid' => true]);
 })
 ->name('fix-invalid-fav-videos')
 ->withoutOverlapping()
@@ -114,7 +111,7 @@ Schedule::call(function () {
 // 作用：检查已订阅的 UP 主或系列是否有新发布的视频。
 // 频率：每 10 分钟执行一次
 Schedule::call(function () {
-    app(SubscriptionService::class)->updateSubscriptions();
+    Artisan::call('app:sync-media', ['--subscriptions' => true]);
 })
 ->name('update-subscription')
 ->withoutOverlapping()
@@ -140,3 +137,11 @@ Schedule::command('app:scan-cover-image', ['--target=favorite'])->hourly();
 // 作用：启动轮询，对最久未更新评论的 3000 个视频，追加获取 20 条评论
 // 频率：每天凌晨 3:00执行一次
 Schedule::command('app:download-all-comments --incremental=20 --sleep=5 --max-videos=3000')->dailyAt('3:00');
+
+// ==========================================================================
+// 12. 处理下载队列
+// ==========================================================================
+// 每分钟从下载队列取出任务并派发 Job
+Schedule::command('app:process-download-queue')
+    ->everyMinute()
+    ->withoutOverlapping();

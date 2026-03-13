@@ -114,22 +114,30 @@ class VideoService implements VideoServiceInterface
 
     public function getAllPartsVideoForUser(Video $video): array
     {
+        if ($video->isAudio()) {
+            $audioPart = $video->audioPart;
+            if (! $audioPart) {
+                return [];
+            }
+            return [[
+                'id'         => $audioPart->sid,
+                'part'       => 1,
+                'url'        => $audioPart->audio_download_url,
+                'title'      => $video->title,
+                'downloaded' => (bool) $audioPart->audio_download_path,
+            ]];
+        }
+
         $list = [];
         foreach ($video->parts as $videoPart) {
-            if (! empty($videoPart['video_download_url'])) {
-                $urlPath = $videoPart['video_download_url'];
-            } else {
-                $urlPath = null;
-            }
-
             $list[] = [
                 'id'         => $videoPart['cid'],
                 'part'       => $videoPart['page'],
-                'url'        => $urlPath,
+                'url'        => $videoPart['video_download_url'] ?: null,
                 // 【新增】必须手动加上这一行，前端才能收到移动端地址！
                 'mobile_url' => $videoPart['mobile_url'],
                 'title'      => $videoPart['part'] ?? 'P' . $videoPart['page'],
-                'downloaded' => $videoPart['video_download_path'] ? true : false,
+                'downloaded' => (bool) $videoPart['video_download_path'],
             ];
         }
         return $list;

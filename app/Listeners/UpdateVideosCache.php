@@ -1,14 +1,16 @@
 <?php
-
 namespace App\Listeners;
 
+use App\Events\VideoPartDownloaded;
+use App\Events\VideoPartUpdated;
 use App\Events\VideoUpdated;
 use App\Services\VideoManager\Contracts\VideoServiceInterface;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Cache;
+use Laravel\Horizon\Contracts\Silenced;
 
-class UpdateVideosCache implements ShouldQueue
+class UpdateVideosCache implements ShouldQueue, Silenced
 {
     public $queue = 'fast';
 
@@ -22,7 +24,7 @@ class UpdateVideosCache implements ShouldQueue
     /**
      * Handle the event.
      */
-    public function handle(VideoUpdated $event): void
+    public function handle(VideoUpdated|VideoPartUpdated|VideoPartDownloaded $event): void
     {
         // [新增] 防抖逻辑
         // 尝试获取一个持续 20 秒的锁

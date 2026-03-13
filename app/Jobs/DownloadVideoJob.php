@@ -2,70 +2,58 @@
 namespace App\Jobs;
 
 use App\Models\VideoPart;
+use App\Services\DownloadQueueService;
 use App\Services\VideoManager\Actions\Video\DownloadVideoPartFileAction;
-use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Foundation\Bus\Dispatchable;
-use Illuminate\Queue\InteractsWithQueue;
-use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\Log;
 
 class DownloadVideoJob extends BaseScheduledRateLimitedJob
 {
-    use Dispatchable, InteractsWithQueue, SerializesModels;
 
-    public $queue = 'slow';
-    
+    public $tries = 1;
 
-    /**
-     * Create a new job instance.
-     */
     public function __construct(public VideoPart $videoPart)
     {
     }
 
-    public $tries = 3;
-
-    /**
-     * 任务失败前等待的时间（以秒为单位）
-     *
-     * @var array
-     */
-    public $backoff = [1800, 3600, 7200];
-
-     /**
-     * 获取限流键名
-     */
     protected function getRateLimitKey(): string
     {
-        return 'download_video_job';
+        return 'download_job';
     }
 
-    /**
-     * 获取最大处理数量 - 每分钟最多5个视频下载
-     */
-    protected function getMaxProcessCount(): int
+    protected function onRateLimited(int $availableIn): void
     {
-        return config('services.bilibili.limit_download_video_job', 20);
+        app(DownloadQueueService::class)->markPendingByVideoPart($this->videoPart->id);
     }
 
-    /**
-     * 获取时间窗口 - 1分钟
-     */
-    protected function getTimeWindow(): int
-    {
-        return 60;
-    }
-
-    /**
-     * Execute the job.
-     */
     public function process(): void
     {
-        $downloadVideoPartFileAction = app(DownloadVideoPartFileAction::class);
-        $downloadVideoPartFileAction->execute($this->videoPart);
+        try{
+            app(DownloadVideoPartFileAction::class)->execute($this->videoPart);
+        } catch (\App\Exceptions\ApiGetVideoStatusException $e) {
+            // 稿件状态异常，跳过下载
+            Log::error('video manuscript status abnormal', ['video_id' => $this->videoPart->video_id, 'part' => $this->videoPart->part, 'message' => $e->getMessage(), 'code' => $e->getCode()]);
+            // 标记视频失败不下载
+            app(DownloadQueueService::class)->markFailedByVideoPart($this->videoPart->id, sprintf('video manuscript status abnormal: %s', $e->getMessage()));
+            return;
+        }
+        app(DownloadQueueService::class)->markDoneByVideoPart($this->videoPart->id);
+    }
+
+    public function failed(\Throwable $exception): void
+    {
+        parent::failed($exception);
+        app(DownloadQueueService::class)->markRetryOrFailedByVideoPart(
+            $this->videoPart->id,
+            $exception->getMessage()
+        );
     }
 
     public function displayName(): string
     {
-        return sprintf('DownloadVideoJob %s-%s %s', $this->videoPart->video_id, $this->videoPart->page, $this->videoPart->part);
+        if ($this->videoPart->video->title && $this->videoPart->video->title != $this->videoPart->part) {
+            return sprintf('DownloadVideoJob %s-%s %s-%s', $this->videoPart->video_id, $this->videoPart->page, $this->videoPart->video->title, $this->videoPart->part);
+        } else {
+            return sprintf('DownloadVideoJob %s-%s %s', $this->videoPart->video_id, $this->videoPart->page, $this->videoPart->part);
+        }
     }
 }
