@@ -2,6 +2,7 @@
 namespace App\Services;
 
 use App\Enums\SettingKey;
+use App\Exceptions\ApiGetVideoStatusException;
 use App\Services\SettingsService;
 use Arr;
 use GuzzleHttp\Client;
@@ -17,8 +18,17 @@ class BilibiliService
 
     const API_HOST     = 'https://api.bilibili.com';
     const APP_API_HOST = 'https://app.biliapi.com';
+    const WEB_HOST     = 'https://www.bilibili.com';
     const APP_KEY      = '1d8b6e7d45233436';
     const APP_SECRET   = '560c52ccd288fed045859ed18bffd973';
+
+    const SUCCESS_CODE             = 0;//成功
+    const ERROR_CODE_REQUEST       = -400;//请求错误
+    const ERROR_CODE_PERMISSION    = -403;//权限不足
+    const ERROR_CODE_NOT_FOUND     = -404;//无视频
+    const ERROR_CODE_NOT_VISIBLE   = 62002;//稿件不可见
+    const ERROR_CODE_REVIEWING     = 62004;//稿件审核中
+    const ERROR_CODE_ONLY_UP_OWNER = 62012;//仅UP主自己可见
 
     protected $favVideosPageSize;
 
@@ -177,7 +187,7 @@ class BilibiliService
         $mixinKey = substr($mixinKey, 0, 32);
 
         // 过滤参数
-        $filteredParams = [];
+        $filteredParams  = [];
         foreach ($params as $key => $value) {
             $filteredParams[$key] = preg_replace("/[!'()*]/", '', (string) $value);
         }
@@ -248,9 +258,9 @@ class BilibiliService
                     if ($pos >= $length) {
                         break 2; // 跳出外层循环
                     }
-                    $byte = ord($binary[$pos]);
+                    $byte    = ord($binary[$pos]);
                     $msgLen |= ($byte & 0x7F) << $shift;
-                    $shift += 7;
+                    $shift  += 7;
                     $pos++;
                 } while ($byte & 0x80);
 
@@ -286,8 +296,8 @@ class BilibiliService
                                 break 3;
                             }
                             // 跳出所有循环
-                            $byte = ord($binary[$pos]);
-                            $len |= ($byte & 0x7F) << $shift;
+                            $byte   = ord($binary[$pos]);
+                            $len   |= ($byte & 0x7F) << $shift;
                             $shift += 7;
                             $pos++;
                         } while ($byte & 0x80);
@@ -340,7 +350,7 @@ class BilibiliService
                     $value = 0;
                     $shift = 0;
                     do {
-                        $byte = ord($binary[$pos]);
+                        $byte   = ord($binary[$pos]);
                         $value |= ($byte & 0x7F) << $shift;
                         $shift += 7;
                         $pos++;
@@ -373,14 +383,14 @@ class BilibiliService
                     $len   = 0;
                     $shift = 0;
                     do {
-                        $byte = ord($binary[$pos]);
-                        $len |= ($byte & 0x7F) << $shift;
+                        $byte   = ord($binary[$pos]);
+                        $len   |= ($byte & 0x7F) << $shift;
                         $shift += 7;
                         $pos++;
                     } while ($byte & 0x80);
 
-                    $value = substr($binary, $pos, $len);
-                    $pos += $len;
+                    $value  = substr($binary, $pos, $len);
+                    $pos   += $len;
 
                     switch ($fieldNumber) {
                         case 6:$result['midHash'] = $value;
@@ -407,8 +417,8 @@ class BilibiliService
                             if ($pos >= $length) {
                                 break 2; // 跳出外层循环
                             }
-                            $byte = ord($binary[$pos]);
-                            $len |= ($byte & 0x7F) << $shift;
+                            $byte   = ord($binary[$pos]);
+                            $len   |= ($byte & 0x7F) << $shift;
                             $shift += 7;
                             $pos++;
                         } while ($byte & 0x80);
@@ -430,7 +440,7 @@ class BilibiliService
     {
         $cookies  = parse_netscape_cookie_content($this->settingsService->get(SettingKey::COOKIES_CONTENT));
         $client   = $this->getClient();
-        $url      = "https://www.bilibili.com/video/{$bvid}";
+        $url      = self::WEB_HOST . "/video/{$bvid}";
         $response = $client->request('GET', $url, [
             'cookies' => $cookies,
         ]);
@@ -720,6 +730,10 @@ class BilibiliService
             $response = $client->request('GET', $url);
             $result   = json_decode($response->getBody()->getContents(), true);
             if ($result['code'] !== 0) {
+                // 判断稿件状态异常
+                if (in_array($result['code'], [self::ERROR_CODE_NOT_VISIBLE, self::ERROR_CODE_REVIEWING, self::ERROR_CODE_ONLY_UP_OWNER])) {
+                    throw new ApiGetVideoStatusException($result['message'], $result['code']);
+                }
                 throw new \Exception("get video info failed: " . $result['message'], $result['code']);
             }
             return $result['data'];
@@ -771,7 +785,28 @@ class BilibiliService
         return [];
     }
 
-    public function checkCookieExpired(CookieJar $cookies):bool
+    public function getAudioInfo(int $sid): array
+    {
+        try {
+            $client   = $this->getClient();
+            $url      = self::WEB_HOST . "/audio/music-service-c/web/song/info?sid={$sid}";
+            $response = $client->request('GET', $url);
+            $result   = json_decode($response->getBody()->getContents(), true);
+            if ($result['code'] !== 0) {
+                throw new \Exception("get audio info failed: " . $result['message'], $result['code']);
+            }
+            return $result['data'];
+        } catch (\Exception $e) {
+            Log::error("API request failed (audio): " . $e->getMessage());
+            if (strpos($e->getMessage(), '429') !== false || strpos($e->getMessage(), '412') !== false) {
+                Log::warning("Rate limit detected, waiting before retry");
+                $this->bilibiliSuspendService->setSuspend();
+            }
+            throw $e;
+        }
+    }
+
+    public function checkCookieExpired(CookieJar $cookies): bool
     {
         try {
             $client   = new Client();

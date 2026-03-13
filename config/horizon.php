@@ -179,9 +179,18 @@ return [
     |
     */
 
+    /*
+    |--------------------------------------------------------------------------
+    | 双 Supervisor 说明
+    |--------------------------------------------------------------------------
+    | - default: 处理 default / fast / slow，不限流（如 ProcessDownloadQueue、统计等）
+    | - bilibili-rate-limit: 仅处理 bilibili-rate-limit 队列，限流 Job 执行 B 站 API/下载，
+    |   遇 412 风控时 Job 会 暂停 Horizon supervisor-bilibili-rate-limit, 并在延迟任务后自动恢复
+    */
+
     'defaults' => [
         // 专门处理常规任务
-        'supervisor-general' => [
+        'supervisor-default' => [
             'connection' => 'redis',
             'queue' => ['fast', 'default'],
             'balance' => 'auto',
@@ -203,12 +212,24 @@ return [
             'tries' => 1,           // 转码失败通常不需要立即重试
             'timeout' => 3600,      // 确保超时时间足够长
         ],
+        'supervisor-bilibili-rate-limit' => [
+            'connection' => 'redis',
+            'queue' => ['bilibili-rate-limit'],
+            'balance' => 'simple',
+            'maxProcesses' => 2,
+            'maxTime' => 0,
+            'maxJobs' => 0,
+            'memory' => 128,
+            'tries' => 1,
+            'timeout' => 1600,
+            'nice' => 0,
+        ],
     ],
 
     'environments' => [
         'production' => [
             // 专门处理常规任务
-            'supervisor-general' => [
+            'supervisor-default' => [
                 'connection' => 'redis',
                 'queue' => ['fast', 'default'],
                 'balance' => 'auto',
@@ -224,12 +245,20 @@ return [
                 'processes' => 2,       // 限制同时转码的数量，防止服务器 CPU 爆表
                 'tries' => 1,           // 转码失败通常不需要立即重试
                 'timeout' => 3600,      // 确保超时时间足够长
+            ],
+            'supervisor-bilibili-rate-limit' => [
+                'connection' => 'redis',
+                'queue' => ['bilibili-rate-limit'],
+                'balance' => 'simple',
+                'processes' => 2,
+                'tries' => 3,
+                'timeout' => 60,
             ],
         ],
 
         'local' => [
             // 专门处理常规任务
-            'supervisor-general' => [
+            'supervisor-default' => [
                 'connection' => 'redis',
                 'queue' => ['fast', 'default'],
                 'balance' => 'auto',
@@ -245,6 +274,14 @@ return [
                 'processes' => 2,       // 限制同时转码的数量，防止服务器 CPU 爆表
                 'tries' => 1,           // 转码失败通常不需要立即重试
                 'timeout' => 3600,      // 确保超时时间足够长
+            ],
+            'supervisor-bilibili-rate-limit' => [
+                'connection' => 'redis',
+                'queue' => ['bilibili-rate-limit'],
+                'balance' => 'simple',
+                'processes' => 2,
+                'tries' => 3,
+                'timeout' => 60,
             ],
         ],
     ],
