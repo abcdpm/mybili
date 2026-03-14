@@ -135,21 +135,20 @@ class VideoController extends Controller
 
         $perPage = $request->input('per_page', 20); // 每次真实请求 20 条
 
-        $comments = \App\Models\Comment::where('video_id', $id)
+        $comments = Comment::where('video_id', $id)
             ->where('root', 0) // 只查主评论
             // 【关键修复】必须加上这一行！
             // Laravel 会自动统计子评论数量，并生成一个 replies_count 字段传给前端
-            ->withCount('replies')
+            ->withCount('replies') // 利用 idx_root_like 索引，瞬间查出子评论数
             ->with(['replies' => function($query) {
                 // 【核心优化】限制每次附带的子评论数量，避免无限拉取。
                 // 剩余的子评论应由前端提供“展开更多回复”的按钮来异步请求
                 $query->orderBy('like', 'desc')->limit(5);
             }])
             // 【关键修改】优先按 is_top 倒序 (true=1 在前)，然后按点赞倒序
+            // 这里的排序会命中 idx_video_root_top_like 索引，不再走文件排序
             ->orderBy('is_top', 'desc')
             ->orderBy('like', 'desc')
-            // ->limit($limit) 
-            // ->get();
             // paginate 会自动执行一个 count() 查询并返回 total 字段
             ->paginate($perPage);
 
@@ -161,7 +160,7 @@ class VideoController extends Controller
     {
         $perPage = $request->input('per_page', 10); 
         
-        $replies = \App\Models\Comment::where('root', $rootId)
+        $replies = Comment::where('root', $rootId)
             ->orderBy('like', 'desc')
             ->paginate($perPage); // 直接使用 paginate 进行标准分页
 
