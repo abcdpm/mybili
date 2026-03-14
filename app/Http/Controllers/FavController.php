@@ -66,4 +66,24 @@ class FavController extends Controller
     {
         //
     }
+
+    // 新增排序保存接口 (支持混合排序)
+    public function reorder(\Illuminate\Http\Request $request)
+    {
+        $ids = $request->input('ids'); 
+        if (is_array($ids)) {
+            \Illuminate\Support\Facades\DB::transaction(function () use ($ids) {
+                foreach ($ids as $index => $id) {
+                    if ($id > 0) {
+                        // 正数是收藏夹
+                        \App\Models\FavoriteList::where('id', $id)->update(['sort_order' => $index]);
+                    } elseif ($id < 0) {
+                        // 负数是订阅夹，记得用 abs() 转为绝对值
+                        \App\Models\Subscription::where('id', abs($id))->update(['sort_order' => $index]);
+                    }
+                }
+            });
+        }
+        return response()->json(['code' => 0, 'message' => 'success']);
+    }
 }

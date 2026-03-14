@@ -1,6 +1,7 @@
 import type { Subscription } from "./subscription";
 import type { Upper } from "./upper";
 import type { Cover } from "./cover";
+import axios from 'axios';
 
 export interface Favorite {
     id: number;
@@ -61,4 +62,9 @@ export async function getFavList(): Promise<Favorite[]> {
 export async function getFavDetail(id: number): Promise<Favorite> {
     const response = await fetch(`/api/fav/${id}`);
     return response.json();
+}
+
+// 导出保存排序的方法
+export function reorderFavs(ids: number[]) {
+    return axios.post('/api/fav/reorder', { ids })
 }
