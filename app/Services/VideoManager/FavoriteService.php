@@ -109,7 +109,17 @@ class FavoriteService implements FavoriteServiceInterface
             ];
 
             // 加载关联的视频
-            $unifiedContent->videos = $subscription->videos()->orderBy('pubtime', 'desc')->orderBy('created_at', 'desc')->get();
+            // $unifiedContent->videos = $subscription->videos()->orderBy('pubtime', 'desc')->orderBy('created_at', 'desc')->get();
+            $unifiedContent->videos = $subscription->videos()
+                ->select([
+                    'videos.id', 'videos.title', 'videos.cover', 'videos.pubtime', 
+                    'videos.frozen', 'videos.page', 'videos.video_downloaded_num', 
+                    'videos.audio_downloaded_num',
+                    'videos.bvid', 'videos.duration', 'videos.invalid'
+                ])
+                ->orderBy('videos.pubtime', 'desc')
+                ->orderBy('videos.created_at', 'desc')
+                ->get();
 
             return $unifiedContent;
         } else {
@@ -135,7 +145,17 @@ class FavoriteService implements FavoriteServiceInterface
             ];
 
             // 加载关联的视频
-            $unifiedContent->videos = $fav->videos()->orderBy('fav_time', 'desc')->orderBy('created_at', 'desc')->get();
+            // $unifiedContent->videos = $fav->videos()->orderBy('fav_time', 'desc')->orderBy('created_at', 'desc')->get();
+            $unifiedContent->videos = $fav->videos()
+                ->select([
+                    'videos.id', 'videos.title', 'videos.cover', 'videos.pubtime', 
+                    'videos.fav_time', 'videos.frozen', 'videos.page', 
+                    'videos.video_downloaded_num', 'videos.audio_downloaded_num',
+                    'videos.bvid', 'videos.duration', 'videos.invalid'
+                ])
+                ->orderBy('videos.fav_time', 'desc')
+                ->orderBy('videos.created_at', 'desc')
+                ->get();
 
             return $unifiedContent;
         }

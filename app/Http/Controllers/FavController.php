@@ -3,6 +3,7 @@ namespace App\Http\Controllers;
 
 use App\Services\VideoManager\Contracts\FavoriteServiceInterface;
 use Illuminate\Http\Request;
+use \App\Models\FavoriteList;
 
 class FavController extends Controller
 {
@@ -41,10 +42,11 @@ class FavController extends Controller
         $content = $this->favoriteService->getUnifiedContentDetail($id);
 
         if ($content) {
-            // 确保视频关联已加载
-            if (isset($content->videos) && method_exists($content->videos, 'load')) {
-                $content->videos->load('parts');
-            }
+            // 列表页不需要分P数据，如果需要可以在这里加载
+            // // 确保视频关联已加载
+            // if (isset($content->videos) && method_exists($content->videos, 'load')) {
+            //     $content->videos->load('parts');
+            // }
             return response()->json($content);
         } else {
             return response()->json([]);
@@ -68,7 +70,7 @@ class FavController extends Controller
     }
 
     // 新增排序保存接口 (支持混合排序)
-    public function reorder(\Illuminate\Http\Request $request)
+    public function reorder(Request $request)
     {
         $ids = $request->input('ids'); 
         if (is_array($ids)) {
@@ -76,10 +78,10 @@ class FavController extends Controller
                 foreach ($ids as $index => $id) {
                     if ($id > 0) {
                         // 正数是收藏夹
-                        \App\Models\FavoriteList::where('id', $id)->update(['sort_order' => $index]);
+                        FavoriteList::where('id', $id)->update(['sort_order' => $index]);
                     } elseif ($id < 0) {
                         // 负数是订阅夹，记得用 abs() 转为绝对值
-                        \App\Models\Subscription::where('id', abs($id))->update(['sort_order' => $index]);
+                        Subscription::where('id', abs($id))->update(['sort_order' => $index]);
                     }
                 }
             });
