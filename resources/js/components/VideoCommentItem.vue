@@ -100,10 +100,16 @@
                     <div v-else class="flex flex-wrap items-center gap-2">
                         <span>共{{ totalPages }}页</span>
                         <div class="flex gap-1">
-                            <span v-for="p in paginationDisplay" :key="p" 
-                                  class="px-2 py-0.5 rounded cursor-pointer transition-colors"
-                                  :class="p === currentPage ? 'bg-blue-500 text-white' : 'bg-gray-100 hover:bg-gray-200'"
-                                  @click="changePage(p)">
+                            <span v-for="(p, index) in paginationDisplay" :key="index" 
+                                  class="px-2 py-0.5 rounded transition-colors"
+                                  :class="
+                                      p === '...' 
+                                      ? 'cursor-default text-gray-400 bg-transparent' 
+                                      : (p === currentPage 
+                                          ? 'bg-blue-500 text-white' 
+                                          : 'bg-gray-100 hover:bg-gray-200 cursor-pointer text-gray-700')
+                                  "
+                                  @click="p !== '...' ? changePage(p) : null">
                                 {{ p }}
                             </span>
                         </div>
@@ -320,7 +326,7 @@ const paginationDisplay = computed(() => {
             pages.push(1); pages.push('...'); pages.push(current-1); pages.push(current); pages.push(current+1); pages.push('...'); pages.push(total);
         }
     }
-    return pages.filter(p => typeof p === 'number');
+    return pages;
 });
 
 // 【新增】负责真正去后端拿某一页数据的函数
