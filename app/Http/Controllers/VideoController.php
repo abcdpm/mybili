@@ -7,6 +7,7 @@ use App\Services\VideoManager\Contracts\FavoriteServiceInterface;
 use App\Services\VideoManager\Contracts\VideoServiceInterface;
 use Illuminate\Http\Request;
 use App\Models\Comment;
+use App\Models\Video;
 
 class VideoController extends Controller
 {
@@ -165,5 +166,21 @@ class VideoController extends Controller
             ->paginate($perPage); // 直接使用 paginate 进行标准分页
 
         return response()->json($replies);
+    }
+
+    // 获取视频标签的接口
+    public function tags($id)
+    {
+        // 只查询 id 和 tags 字段，极致轻量
+        $video = Video::select('id', 'tags')->find($id);
+        
+        if (!$video) {
+            return response()->json(['code' => 404, 'message' => 'Video not found']);
+        }
+
+        return response()->json([
+            'code' => 0,
+            'data' => $video->tags ?? []
+        ]);
     }
 }

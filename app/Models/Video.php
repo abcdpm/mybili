@@ -14,7 +14,8 @@ class Video extends Model
     protected $fillable   = [
         'id', 'link', 'title', 'intro', 'cover', 'bvid', 'pubtime', 'duration',
         'attr', 'invalid', 'frozen', 'page', 'fav_time', 'danmaku_downloaded_at',
-        'video_downloaded_at', 'upper_id', 'comments_updated_at', 'type'
+        'video_downloaded_at', 'upper_id', 'comments_updated_at', 'type',
+        'tags'
     ];
     protected $primaryKey = 'id';
 

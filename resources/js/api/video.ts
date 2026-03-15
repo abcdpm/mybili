@@ -62,3 +62,12 @@ export async function getVideoInfo(id: number): Promise<Video> {
     });
     return response.json();
 }
+
+// 请求视频标签的接口
+export async function getVideoTags(id: number): Promise<any[]> {
+    const response = await fetch(`/api/videos/${id}/tags`, {
+        method: 'GET',
+    });
+    const data = await response.json();
+    return data.data || [];
+}
