@@ -11,6 +11,8 @@ use App\Services\VideoManager\Traits\VideoDataTrait;
 use Arr;
 use DB;
 use Illuminate\Support\Facades\Log;
+use App\Jobs\DownloadCommentsJob; // 引入评论下载任务
+use App\Jobs\DownloadVideoTagsJob; // 引入标签下载任务
 
 class UpdateFavoriteVideosAction
 {
@@ -163,7 +165,7 @@ class UpdateFavoriteVideosAction
             // 存量视频的评论更新交由 app:download-all-comments 命令或专门的定时任务去处理
             if ($video->wasRecentlyCreated && $video->invalid == 0) {
                  Log::info('New video detected, dispatching initial comment download', ['id' => $video->id]);
-                 dispatch(new \App\Jobs\DownloadCommentsJob($video));
+                 dispatch(new DownloadCommentsJob($video));
             }
 
             Log::info('Update video success', ['id' => $item['id'], 'title' => $item['title']]);
