@@ -8,6 +8,7 @@ use App\Services\BilibiliService;
 use App\Services\VideoManager\Traits\VideoDataTrait;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
+use App\Jobs\DownloadVideoTagsJob;
 
 class PullVideoInfoAction
 {
@@ -45,6 +46,11 @@ class PullVideoInfoAction
 
             $video->fill($videoData);
             $video->save();
+
+            // 【新增】如果视频没有标签，则自动抓取
+            if (empty($video->tags)) {
+                DownloadVideoTagsJob::dispatch($video);
+            }
 
             event(new VideoUpdated($oldVideoData, $video->getAttributes()));
 

@@ -20,6 +20,7 @@ class Video extends Model
 
     protected $casts = [
         // 移除时间字段的 cast，使用访问器代替，不能使用cast，因为写入时格式无法匹配，错误写入
+        'tags' => 'array', // 【重要补漏】：必须加上，否则读取出来会是普通字符串
     ];
 
     protected $appends = [

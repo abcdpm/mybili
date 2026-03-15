@@ -26,6 +26,13 @@ export interface VideoPartType {
     mobile_url?: string
 }
 
+export interface VideoTag {
+    tag_id: number;
+    tag_name: string;
+    tag_type: string; // 新增
+    jump_url: string; // 新增
+}
+
 export interface Video {
     id: number;
     link: string;
@@ -51,6 +58,7 @@ export interface Video {
     subscriptions: Subscription[]|null;
     upper: Upper|null;
     cover_info: Cover|null;
+    tags: VideoTag[] | null; // 【新增】
 }
 
 

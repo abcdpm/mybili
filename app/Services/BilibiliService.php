@@ -1109,4 +1109,46 @@ class BilibiliService
             return null;
         }
     }
+
+    /**
+     * 获取视频TAG信息（新接口）
+     *
+     * @param string $bvid
+     * @return array
+     */
+    public function getVideoTags(string $bvid): array
+    {
+        try {
+            // 1. 获取带有认证信息（SESSDATA）的 Cookie
+            $cookies = parse_netscape_cookie_content($this->settingsService->get(SettingKey::COOKIES_CONTENT));
+            
+            // 2. 获取内置的 Guzzle Client
+            $client = $this->getClient();
+
+            // 3. 请求官方 TAG 接口
+            $response = $client->get(self::API_HOST . '/x/web-interface/view/detail/tag', [
+                'query' => [
+                    'bvid' => $bvid
+                ],
+                'cookies' => $cookies,
+                'headers' => [
+                    'Referer' => self::WEB_HOST . '/video/' . $bvid
+                ]
+            ]);
+
+            $data = json_decode($response->getBody()->getContents(), true);
+
+            // 4. 判断返回结果
+            if (isset($data['code']) && $data['code'] === 0) {
+                // 如果没有标签，接口可能会返回 null 或空数组，做一下默认值处理
+                return is_array($data['data']) ? $data['data'] : [];
+            }
+
+            Log::warning('获取视频标签失败', ['bvid' => $bvid, 'response' => $data]);
+        } catch (\Exception $e) {
+            Log::error('请求视频标签异常', ['bvid' => $bvid, 'error' => $e->getMessage()]);
+        }
+
+        return [];
+    }
 }

@@ -54,6 +54,12 @@ php artisan app:download-all-comment --sleep=15
 php artisan app:download-all-comment --status
 php artisan app:download-all-comments --incremental=20 --sleep=5 --max-videos=3000
 
+下载视频标签：
+php artisan app:download-tags
+php artisan app:download-tags --force
+php artisan app:download-tags 115936803686117
+php artisan app:download-tags --status
+
 清空积压的 Job：
 php artisan horizon:clear
 php artisan horizon:clear --queue=fast

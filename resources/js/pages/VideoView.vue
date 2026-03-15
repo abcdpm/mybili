@@ -54,7 +54,30 @@
                                     <span class="w-1.5 h-1.5 bg-gray-400 rounded-full mr-2"></span>
                                     {{ t('video.videoDescription') }}
                                 </h3>
-                                <p class="text-gray-600 leading-relaxed break-words whitespace-pre-wrap">{{ videoInfo.intro }}</p>
+                                <div class="mt-4 text-sm text-gray-700 dark:text-gray-300">
+                                    <p class="whitespace-pre-wrap" v-if="videoInfo?.intro">{{ videoInfo.intro }}</p>
+                                    <div class="video-tag-container mt-6" v-if="videoInfo?.tags && videoInfo.tags.length > 0">
+                                        <div class="tag-panel">
+                                            <div class="tag not-btn-tag" v-for="tag in videoInfo.tags" :key="tag.tag_id">
+                                                <div v-if="tag.tag_type === 'topic' || tag.tag_type === 'bgm'" class="topic-tag">
+                                                    <a :href="tag.jump_url || `https://search.bilibili.com/all?keyword=${encodeURIComponent(tag.tag_name)}`" 
+                                                       target="_blank" class="tag-link topic-link flex items-center">
+                                                        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" class="mr-1">
+                                                            <path fill-rule="evenodd" clip-rule="evenodd" d="M5.15142 1.70791C5.36429 1.56008 5.6567 1.61281 5.80453 1.82568L6.92003 3.432C7.26888 3.42615 7.62969 3.42286 8.00007 3.42286C8.3704 3.42286 8.73116 3.42615 9.07998 3.432L10.1955 1.82568C10.3433 1.61281 10.6357 1.56008 10.8486 1.70791C11.0615 1.85574 11.1142 2.14814 10.9664 2.36102L10.203 3.46026C10.9526 3.48536 11.6215 3.52013 12.1791 3.5552C13.4364 3.63429 14.4433 4.60659 14.5376 5.87199C14.5966 6.66359 14.648 7.66253 14.648 8.7412C14.648 9.82395 14.5962 10.8185 14.5369 11.6027C14.4427 12.8488 13.4594 13.8117 12.2205 13.903C11.156 13.9815 9.67595 14.0596 8.00007 14.0596C6.32435 14.0596 4.8444 13.9815 3.77995 13.903C2.54085 13.8117 1.55749 12.8486 1.46327 11.6024C1.40396 10.8179 1.35214 9.82325 1.35214 8.7412C1.35214 7.66322 1.40358 6.66415 1.46258 5.87228C1.55688 4.60679 2.56384 3.63427 3.82138 3.55518C4.3788 3.52012 5.04762 3.48536 5.79702 3.46027L5.03365 2.36102C4.88582 2.14814 4.93855 1.85574 5.15142 1.70791ZM8.00007 4.36139C6.36941 4.36139 4.92598 4.4261 3.88029 4.49186C3.08157 4.5421 2.45732 5.15291 2.39852 5.94202C2.34078 6.71684 2.29067 7.69194 2.29067 8.7412C2.29067 9.79434 2.34115 10.7648 2.39913 11.5316C2.45778 12.3074 3.06585 12.9093 3.84894 12.967C4.89619 13.0442 6.35249 13.121 8.00007 13.121C9.6478 13.121 11.1042 13.0442 12.1515 12.967C12.9345 12.9093 13.5424 12.3075 13.6011 11.5319C13.659 10.7654 13.7095 9.79506 13.7095 8.7412C13.7095 7.69122 13.6594 6.71625 13.6017 5.94173C13.5429 5.15277 12.9188 4.54211 12.1201 4.49188C11.0744 4.42611 9.63088 4.36139 8.00007 4.36139ZM4.55172 7.40615C4.55172 7.16699 4.74559 6.97312 4.98475 6.97312H6.52431L6.69171 5.74556C6.72402 5.5086 6.94231 5.3427 7.17928 5.37501C7.41624 5.40732 7.58214 5.62562 7.54983 5.86258L7.39839 6.97312H8.92735L9.09475 5.74556C9.12706 5.5086 9.34535 5.3427 9.58231 5.37501C9.81928 5.40732 9.98518 5.62562 9.95287 5.86258L9.80143 6.97312H10.8589C11.0981 6.97312 11.2919 7.16699 11.2919 7.40615C11.2919 7.64531 11.0981 7.83918 10.8589 7.83918H9.68333L9.43736 9.643H10.8589C11.0981 9.643 11.2919 9.83688 11.2919 10.076C11.2919 10.3152 11.0981 10.5091 10.8589 10.5091H9.31926L9.15184 11.7367C9.11953 11.9737 8.90124 12.1396 8.66428 12.1073C8.42731 12.075 8.26141 11.8567 8.29372 11.6197L8.44518 10.5091H6.91622L6.74881 11.7367C6.71649 11.9737 6.4982 12.1396 6.26124 12.1073C6.02427 12.075 5.85837 11.8567 5.89068 11.6197L6.04214 10.5091H4.98475C4.74559 10.5091 4.55172 10.3152 4.55172 10.076C4.55172 9.83688 4.74559 9.643 4.98475 9.643H6.16024L6.40621 7.83918H4.98475C4.74559 7.83918 4.55172 7.64531 4.55172 7.40615ZM8.56328 9.643L8.80925 7.83918H7.28029L7.03432 9.643H8.56328Z"></path>
+                                                        </svg>
+                                                        <span class="tag-txt">{{ tag.tag_name }}</span>
+                                                    </a>
+                                                </div>
+                                                <div v-else class="ordinary-tag">
+                                                    <a :href="`https://search.bilibili.com/all?keyword=${encodeURIComponent(tag.tag_name)}`" 
+                                                       target="_blank" class="tag-link">
+                                                        {{ tag.tag_name }}
+                                                    </a>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
 
                             <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -455,4 +478,37 @@ onUnmounted(() => {
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
     background: #94a3b8;
 }
+
+/* 【新增】标签高仿 B站 样式 */
+.topic-tag {
+    background: var(--brand_blue_thin, #DFF6FD);
+    border-radius: 14px;
+    padding: 0 12px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    transition: background-color 0.2s;
+}
+.dark .topic-tag {
+    background: var(--darkreader-bg--brand_blue_thin, #043443);
+}
+.topic-tag:hover {
+    background: var(--brand_blue, #00AEEC);
+}
+.dark .topic-tag:hover {
+    background: var(--darkreader-bg--brand_blue, #008bbd);
+}
+.topic-link {
+    color: var(--brand_blue, #00AEEC);
+    font-size: 13px;
+    text-decoration: none;
+    transition: color 0.2s;
+}
+.dark .topic-link {
+    color: var(--darkreader-text--brand_blue, #27c6ff);
+}
+.topic-tag:hover .topic-link {
+    color: #fff;
+}
+
 </style>
