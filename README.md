@@ -66,9 +66,9 @@ php artisan horizon:clear --queue=fast
 php artisan queue:flush
 redis-cli flushall
 
-docker build --build-arg APP_VERSION=1.1.2 -t llllalex/mybili:1.1.2 . --no-cache
-docker push llllalex/mybili:1.1.2
-docker tag llllalex/mybili:1.1.2 llllalex/mybili:latest
+docker build --build-arg APP_VERSION=1.1.3 -t llllalex/mybili:1.1.3 . --no-cache
+docker push llllalex/mybili:1.1.3
+docker tag llllalex/mybili:1.1.3 llllalex/mybili:latest
 docker push llllalex/mybili:latest
 
 扫描磁盘上已存在的手机版视频并同步到数据库
