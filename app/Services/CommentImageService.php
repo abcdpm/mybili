@@ -6,6 +6,7 @@ use App\Models\Emote;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Cache; // 【新增】
 
 class CommentImageService
 {
@@ -116,7 +117,12 @@ class CommentImageService
             $filename = md5($url) . '.' . $extension;
             $path = $folder . '/' . $filename;
 
-            Storage::disk('public')->put($path, $content);            
+            Storage::disk('public')->put($path, $content);
+
+            // === 【新增】累加评论图片/表情包大小到缓存 ===
+            // 因为 $content 是字符串格式的二进制流，strlen 就是准确的字节大小
+            Cache::increment('stat_images_size', strlen($content));
+            // ==========================
             
             return $filename;
 

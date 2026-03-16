@@ -145,3 +145,13 @@ Schedule::command('app:download-all-comments --incremental=20 --sleep=5 --max-vi
 Schedule::command('app:process-download-queue')
     ->everyMinute()
     ->withoutOverlapping();
+
+// ==========================================================================
+// 13. 系统空间与数据库使用情况全量统计
+// ==========================================================================
+// 作用：全量统计数据库各表行数及文件夹物理大小，解决实时获取极度缓慢的问题。
+// 频率：每周一早晨 06:00 执行一次
+Schedule::command('app:calculate-system-stats')
+    ->name('calculate-system-stats')
+    ->withoutOverlapping()
+    ->weeklyOn(1, '6:00');

@@ -2,6 +2,12 @@
 
 namespace App\Providers;
 
+use App\Models\Video;
+use App\Models\VideoPart;
+use App\Models\Danmaku;
+use App\Models\Comment;
+use App\Models\Emote;
+use App\Models\FavoriteList;
 use App\Contracts\DownloadImageServiceInterface;
 use App\Contracts\TelegramBotServiceInterface;
 use App\Services\DownloadImageService;
@@ -15,6 +21,7 @@ use App\Services\VideoManager\FavoriteService;
 use App\Services\VideoManager\VideoService;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Cache;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -82,5 +89,24 @@ class AppServiceProvider extends ServiceProvider
                 logger()->debug('SQLite optimization skipped: ' . $e->getMessage());
             }
         }
+
+        // 自动监听数据的新增与删除，实现毫秒级数量增量更新
+        Video::created(fn() => Cache::increment('stat_videos'));
+        Video::deleted(fn() => Cache::decrement('stat_videos'));
+
+        VideoPart::created(fn() => Cache::increment('stat_video_parts'));
+        VideoPart::deleted(fn() => Cache::decrement('stat_video_parts'));
+
+        Danmaku::created(fn() => Cache::increment('stat_danmaku'));
+        Danmaku::deleted(fn() => Cache::decrement('stat_danmaku'));
+
+        Comment::created(fn() => Cache::increment('stat_comments'));
+        Comment::deleted(fn() => Cache::decrement('stat_comments'));
+
+        Emote::created(fn() => Cache::increment('stat_emotes'));
+        Emote::deleted(fn() => Cache::decrement('stat_emotes'));
+
+        FavoriteList::created(fn() => Cache::increment('stat_favorite_lists'));
+        FavoriteList::deleted(fn() => Cache::decrement('stat_favorite_lists'));
     }
 }

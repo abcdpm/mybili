@@ -133,7 +133,7 @@
         </div>
         
         <div v-else class="grid grid-cols-2 gap-4 text-left">
-          <div class="space-y-4">
+          <div class="flex flex-col justify-between">
             <div>
               <h3 class="text-lg font-medium mb-2">{{ t('about.versionInfo') }}</h3>
               <div class="space-y-2 text-gray-600">
@@ -159,8 +159,10 @@
               <p>{{ t('about.favoriteLists') }}：{{ systemInfo.database_usage.favorite_lists }} {{ t('about.units.count') }}</p>
               <p>{{ t('about.videos') }}：{{ systemInfo.database_usage.videos }} {{ t('about.units.count') }}</p>
               <p>{{ t('about.videoParts') }}：{{ systemInfo.database_usage.video_parts }} {{ t('about.units.count') }}</p>
+              <p>{{ t('about.emotes') }}：{{ systemInfo.database_usage.emotes?.toLocaleString() }} {{ t('about.units.count') }}</p>
+              <p>{{ t('about.comments') }}：{{ systemInfo.database_usage.comments?.toLocaleString() }} {{ t('about.units.danmaku') }}</p>
               <p>{{ t('about.danmaku') }}：{{ systemInfo.database_usage.danmaku.toLocaleString() }} {{ t('about.units.danmaku') }}</p>
-              <p>{{ t('about.databaseSize') }}：{{ (systemInfo.database_usage.db_size / 1024 / 1024).toFixed(2) }} {{ t('about.units.mb') }}</p>
+              <p>{{ t('about.databaseSize') }}：{{ systemInfo.database_usage.db_size }}</p>
               <p>{{ t('about.mediaVideosUsage') }}：{{ systemInfo.media_usage.videos_size }}</p>
               <p>{{ t('about.mediaImagesUsage') }}：{{ systemInfo.media_usage.images_size }}</p>
             </div>
@@ -183,7 +185,9 @@ interface DatabaseUsage {
   videos: number
   video_parts: number
   danmaku: number
-  db_size: number
+  comments: number // 【新增】
+  emotes: number   // 【新增】
+  db_size: string  // 【修改】把 number 改成 string
 }
 
 interface MediaUsage {
@@ -215,11 +219,13 @@ const systemInfo = ref<SystemInfo>({
     videos: 0,
     video_parts: 0,
     danmaku: 0,
-    db_size: 0
+    comments: 0,    // 【新增】
+    emotes: 0,      // 【新增】
+    db_size: '0 B'  // 【修改】给一个默认字符串
   },
   media_usage:{
-    videos_size: '',
-    images_size: ''
+    videos_size: '0 B',  // 【修改】给一个默认字符串
+    images_size: '0 B'   // 【修改】给一个默认字符串
   }
 })
 
