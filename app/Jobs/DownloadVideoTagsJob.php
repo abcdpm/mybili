@@ -4,25 +4,27 @@ namespace App\Jobs;
 
 use App\Models\Video;
 use App\Services\BilibiliService;
+use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Foundation\Bus\Dispatchable;
+use Illuminate\Queue\InteractsWithQueue;
+use Illuminate\Queue\SerializesModels;
 
-class DownloadVideoTagsJob extends BaseScheduledRateLimitedJob implements ShouldQueue
+class DownloadVideoTagsJob implements ShouldQueue
 {
-    // 极大值，防止被打回队列超过默认3次后报错失败
-    public $tries = 9999;
+    // 【修改】引入 Laravel 默认的队列 Traits
+    use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
+
+    public $tries = 3;
     public $maxExceptions = 3;
 
     public function __construct(public Video $video)
     {
         // 默认队列
+        $this->onQueue('default');
     }
 
-    protected function getRateLimitKey(): string
-    {
-        return 'bilibili_api_general';
-    }
-
-    protected function process(): void
+    public function handle(): void
     {
         if ($this->video->invalid) {
             return; 

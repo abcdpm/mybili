@@ -80,7 +80,7 @@ php artisan tinker
 执行统计脚本
 
 // --- 复制开始 ---
-$queueName = 'fast'; // 如果想查默认队列，改为 'default' 'slow' 'fast'
+$queueName = 'bilibili-rate-limit'; // 如果想查默认队列，改为 'default' 'slow' 'fast' 'bilibili-rate-limit'
 $connection = 'redis';
 
 // 获取 Redis 实例
