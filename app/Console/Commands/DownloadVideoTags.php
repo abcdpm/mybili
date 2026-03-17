@@ -43,7 +43,7 @@ class DownloadVideoTags extends Command
         $total = $query->count();
 
         if ($total === 0) {
-            $this->info("没有需要处理的视频。");
+            $this->info("没有需要处理的视频");
             return;
         }
 

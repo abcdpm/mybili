@@ -1144,9 +1144,9 @@ class BilibiliService
                 return is_array($data['data']) ? $data['data'] : [];
             }
 
-            Log::warning('获取视频标签失败', ['bvid' => $bvid, 'response' => $data]);
+            Log::warning('[视频标签] 获取视频标签失败', ['bvid' => $bvid, 'response' => $data]);
         } catch (\Exception $e) {
-            Log::error('请求视频标签异常', ['bvid' => $bvid, 'error' => $e->getMessage()]);
+            Log::error('[视频标签] 请求视频标签异常', ['bvid' => $bvid, 'error' => $e->getMessage()]);
         }
 
         return [];
