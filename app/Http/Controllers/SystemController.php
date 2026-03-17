@@ -57,8 +57,8 @@ class SystemController extends Controller
             // 获取队列全名 (底层依赖库会自动处理 prefix)
             $queueKey = 'queues:' . $queueName;
 
-            // 抽样取出前 10000 条任务 (不会删除任务)
-            $jobs = $redis->lrange($queueKey, 0, 10000);
+            // 抽样取出前 100000 条任务 (不会删除任务)
+            $jobs = $redis->lrange($queueKey, 0, 100000);
 
             $stats = [];
             foreach ($jobs as $jobJson) {
