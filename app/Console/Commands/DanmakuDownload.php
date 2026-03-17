@@ -97,7 +97,7 @@ class DanmakuDownload extends Command
                 ['系统收录视频分P总数', $totalParts],
                 ['已下载弹幕的分P数', $downloadedParts],
                 ['待补全弹幕的分P数', $pendingParts],
-                ['数据库弹幕总条数', number_format($totalDanmaku)], // 格式化数字更易读
+                ['数据库弹幕总条数', $totalDanmaku],
                 ['弹幕覆盖率进度', "{$percent}%"],
             ]
         );
