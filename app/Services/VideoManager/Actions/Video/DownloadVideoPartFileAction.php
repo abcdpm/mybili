@@ -95,18 +95,17 @@ class DownloadVideoPartFileAction
             // === 【新增】投递转码任务 ===
             // 放入队列执行，不卡住当前下载进程
             Log::info('Dispatching transcode job', ['video_id' => $video->id]);
-            //dispatch(new TranscodeVideoJob($videoPart)); 
-            dispatch(new TranscodeVideoJob($videoPart))->onQueue('slow');
+            dispatch(new TranscodeVideoJob($videoPart));
             // ==========================
 
             // === 【修复】投递评论下载任务 ===
             Log::info('Dispatching comments download job', ['video_id' => $video->id]);
-            dispatch(new DownloadCommentsJob($video))->onQueue('slow'); 
+            dispatch(new DownloadCommentsJob($video)); 
             // ==========================
 
             // === 【修复】投递标签下载任务 ===
             Log::info('Dispatching tags download job', ['video_id' => $video->id]);
-            dispatch(new DownloadVideoTagsJob($video))->onQueue('slow'); 
+            dispatch(new DownloadVideoTagsJob($video)); 
             // ==========================
 
             event(new VideoPartDownloaded($videoPart));

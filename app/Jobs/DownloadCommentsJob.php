@@ -32,8 +32,8 @@ class DownloadCommentsJob implements ShouldQueue
         public int $sleep = 3
     )
     {
-        // 指定 slow 队列
-        $this->onQueue('slow');
+        // 指定 comments 队列
+        $this->onQueue('comments');
     }
 
     public function handle(DownloadCommentsAction $action): void

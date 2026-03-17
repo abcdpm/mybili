@@ -27,7 +27,7 @@
       
       <div class="flex flex-wrap gap-2 mb-3">
         <button 
-          v-for="q in ['default', 'slow', 'fast', 'bilibili-rate-limit', 'bilibili-api-general']" 
+          v-for="q in ['default', 'fast', 'slow', 'comments', 'transcode', 'bilibili-rate-limit']" 
           :key="q"
           @click="checkQueue(q)"
           :class="['px-3 py-1 text-sm font-medium rounded-lg transition-colors border', activeQueue === q ? 'bg-blue-50 border-blue-200 text-blue-700' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50']"

@@ -62,7 +62,7 @@ php artisan app:download-tags --status
 
 清空积压的 Job：
 php artisan horizon:clear
-php artisan horizon:clear --queue=fast
+php artisan horizon:clear --queue=slow
 php artisan queue:flush
 redis-cli flushall
 

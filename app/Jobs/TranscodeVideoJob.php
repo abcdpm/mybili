@@ -20,7 +20,10 @@ class TranscodeVideoJob implements ShouldQueue
     public function __construct(
         public VideoPart $videoPart,
         public string $mode = 'cpu' // cpu, qsv, nvenc
-    ) {}
+    ) {
+        // [新增] 指定专属的转码队列，不再占用公共的 slow 队列
+        $this->onQueue('transcode');
+    }
 
     public function handle(): void
     {

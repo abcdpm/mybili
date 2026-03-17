@@ -83,7 +83,7 @@ class TranscodeAllVideos extends Command
         $query->chunk(100, function ($parts) use ($bar, $mode) {
             foreach ($parts as $part) {
                 // [修改] 将 mode 字符串传递给 Job
-                dispatch(new TranscodeVideoJob($part, $mode))->onQueue('slow');
+                dispatch(new TranscodeVideoJob($part, $mode));
                 $bar->advance();
             }
         });
