@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 use App\Services\VideoManager\Contracts\FavoriteServiceInterface;
 use Illuminate\Http\Request;
 use \App\Models\FavoriteList;
+use App\Models\Subscription;
 
 class FavController extends Controller
 {
