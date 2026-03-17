@@ -350,24 +350,24 @@ class SubscriptionService
         $offsetAid = null;
         $loaded    = 0;
         while (1) {
-            Log::info('get up videos', ['offsetAid' => $offsetAid, 'loaded' => $loaded]);
+            Log::info('[订阅] 获取UP主视频', ['offsetAid' => $offsetAid, 'loaded' => $loaded]);
             while (1) {
                 $retry = 0;
                 try {
                     $upVideos = $this->bilibiliService->getUpVideos($mid, $offsetAid);
                 } catch (\Exception $e) {
-                    Log::error('get up videos error', ['error' => $e->getMessage()]);
+                    Log::error('[订阅] 获取UP主视频失败, 开始重试', ['error' => $e->getMessage()]);
                     $retry++;
                     if ($retry > 3) {
-                        Log::error('get up videos error: ' . $e->getMessage());
-                        throw new \Exception('get up videos error: ' . $e->getMessage());
+                        Log::error('[订阅] 获取UP主视频重试次数达上限: ' . $e->getMessage());
+                        throw new \Exception('[订阅] 获取UP主视频失败: ' . $e->getMessage());
                     }
                     continue;
                 }
                 break;
             }
             foreach ($upVideos['list'] as $item) {
-                Log::info('up video', ['title' => $item['title']]);
+                Log::info('[订阅] 开始下载UP主视频', ['title' => $item['title']]);
                 $aid                                = $item['param'];
                 $subscriptionVideo                  = SubscriptionVideo::where('subscription_id', $subscription->id)->where('video_id', $aid)->firstOrNew();
                 $subscriptionVideo->bvid            = $item['bvid'];

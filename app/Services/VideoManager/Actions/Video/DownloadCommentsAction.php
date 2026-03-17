@@ -25,7 +25,7 @@ class DownloadCommentsAction
         sleep($sleep);
 
         // [修改] 统一日志格式：固定消息 + ID上下文
-        Log::info('Start downloading comments', [
+        Log::info('[视频评论] 开始评论下载任务', [
             'video_id' => $video->id,
             'title'    => $video->title,
             'bvid'     => $video->bvid,
@@ -37,7 +37,7 @@ class DownloadCommentsAction
             $videoInfo = $this->bilibiliService->getVideoInfo($video->bvid);
         } catch (\App\Exceptions\ApiGetVideoStatusException $e) {
             // 拦截业务状态异常：如 62002(稿件不可见), 62012, 62004 等
-            Log::warning('Video status exception, skip comments download', [
+            Log::warning('[视频评论] 视频状态异常(62002, 62012, 62004), 跳过评论下载', [
                 'bvid' => $video->bvid,
                 'code' => $e->getCode(),
                 'msg'  => $e->getMessage()
@@ -46,7 +46,7 @@ class DownloadCommentsAction
         } catch (\Exception $e) {
             // 拦截常规异常：如 -404(啥都木有/视频被删)
             if (in_array($e->getCode(), [-404, -403])) {
-                Log::warning('Video not found or forbidden, skip comments download', [
+                Log::warning('[视频评论] 视频状态异常(啥都木有, 视频被删), 跳过评论下载', [
                     'bvid' => $video->bvid,
                     'code' => $e->getCode(),
                     'msg'  => $e->getMessage()
@@ -55,7 +55,7 @@ class DownloadCommentsAction
             }
             
             // 如果遇到真的未知的偶发错误，记录简洁错误并抛出（保留栈追踪，并让队列重试机制生效）
-            Log::error('Unknown error fetching video info for comments', [
+            Log::error('[视频评论] 视频状态异常(Unknown error fetching video info for comments), 跳过评论下载', [
                 'bvid' => $video->bvid,
                 'code' => $e->getCode(),
                 'msg'  => $e->getMessage()
@@ -65,7 +65,7 @@ class DownloadCommentsAction
         
         if (!$videoInfo) {
             // [建议] 增加失败日志
-            Log::warning('Failed to fetch video info for comments', ['bvid' => $video->bvid]);
+            Log::warning('[视频评论] 视频状态异常(Failed to fetch video info for comments), 跳过评论下载', ['bvid' => $video->bvid]);
             return;
         }
         $aid = $videoInfo['aid'];
@@ -75,7 +75,7 @@ class DownloadCommentsAction
         if ($customLimit !== null) {
             $targetCount = $customLimit;
             // [修改] 统一日志格式
-            Log::info('Using custom comment limit', ['count' => $targetCount]);
+            Log::info('[视频评论] 使用自定义数量', ['count' => $targetCount]);
         } else {
             // -------------------------------------------------------------
             // 需求 2: 自适应数量 (数学模型)
@@ -96,7 +96,7 @@ class DownloadCommentsAction
             $targetCount = min(100, $baseCount + $viewScore + $replyScore);
             
             // [修改] 统一日志格式：将计算参数放入 Context
-            Log::info('Adaptive comment count calculated', [
+            Log::info('[视频评论] 计算并使用自适应数量', [
                 'target_count' => $targetCount,
                 'view_count'   => $viewCount,
                 'reply_count'  => $replyCount
@@ -106,7 +106,7 @@ class DownloadCommentsAction
         $commentsData = $this->bilibiliService->getVideoComments($aid, $targetCount);
 
         if (empty($commentsData)) {
-            Log::info('No comments found', ['bvid' => $video->bvid]);
+            Log::info('[视频评论] 未找到评论', ['bvid' => $video->bvid]);
             return;
         }
 
@@ -133,7 +133,7 @@ class DownloadCommentsAction
         unset($data); // 解除引用
 
         // [修改] 统一日志格式
-        Log::info('Comments download completed', [
+        Log::info('[视频评论] 评论下载完成', [
             'video_id' => $video->id,
             'title'    => $video->title,
             'count'    => count($commentsData)

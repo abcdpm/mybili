@@ -155,3 +155,30 @@ Schedule::command('app:calculate-system-stats')
     ->name('calculate-system-stats')
     ->withoutOverlapping()
     ->weeklyOn(1, '6:00');
+
+// ==========================================================================
+// 14. 自动清理并限制系统日志大小
+// ==========================================================================
+// 作用：防止 laravel.log 文件无限增长撑爆磁盘。如果文件超过 50MB，则只保留最新的 5000 行。
+// 频率：每天凌晨 3:30 执行一次
+Schedule::call(function () {
+    $logPath = storage_path('logs/laravel.log');
+    
+    // 如果日志文件存在，且大小超过 50MB (50 * 1024 * 1024 bytes)
+    if (file_exists($logPath) && filesize($logPath) > 52428800) {
+        $tmpPath = $logPath . '.tmp';
+        // 利用 Linux 的 tail 命令极速提取最后 5000 行并覆盖原文件
+        $cmd = sprintf(
+            'tail -n 5000 %s > %s && mv %s %s', 
+            escapeshellarg($logPath), 
+            escapeshellarg($tmpPath), 
+            escapeshellarg($tmpPath), 
+            escapeshellarg($logPath)
+        );
+        exec($cmd);
+        
+        Log::info('系统日志文件已成功瘦身，保留最新的 5000 行。');
+    }
+})
+->name('rotate-system-logs')
+->dailyAt('3:30');

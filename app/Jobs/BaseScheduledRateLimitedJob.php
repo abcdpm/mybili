@@ -86,7 +86,7 @@ abstract class BaseScheduledRateLimitedJob implements ShouldQueue
     {
         if ($this->duplicateCheckKey !== '') {
             Redis::del($this->duplicateCheckKey);
-            Log::info('Cleared duplicate check key', ['job' => static::class, 'key' => $this->duplicateCheckKey]);
+            Log::info('[限流] 已清除去重校验 Key', ['job' => static::class, 'key' => $this->duplicateCheckKey]);
         }
     }
 
@@ -98,7 +98,7 @@ abstract class BaseScheduledRateLimitedJob implements ShouldQueue
 
         if (RateLimiter::tooManyAttempts($limitKey, $maxAttempts)) {
             $availableIn = RateLimiter::availableIn($limitKey);
-            Log::info('Job rate limited', [
+            Log::info('[限流] 任务触发频率限制', [
                 'job'          => static::class,
                 'limit_key'    => $limitKey,
                 'available_in' => $availableIn,
@@ -113,7 +113,7 @@ abstract class BaseScheduledRateLimitedJob implements ShouldQueue
             $this->process();
             $this->clearDuplicateCheck();
         } catch (\Throwable $e) {
-            Log::error('Job processing failed: ' . $e->getMessage(), [
+            Log::error('[限流] 任务处理失败' . $e->getMessage(), [
                 'job'       => static::class,
                 'exception' => $e,
             ]);
@@ -124,7 +124,7 @@ abstract class BaseScheduledRateLimitedJob implements ShouldQueue
     public function failed(\Throwable $exception): void
     {
         $this->clearDuplicateCheck();
-        Log::error('Job finally failed after all retries', [
+        Log::error('[限流] 任务失败, 任务达到最大重试次数', [
             'job'       => static::class,
             'exception' => $exception->getMessage(),
         ]);
@@ -148,7 +148,7 @@ abstract class BaseScheduledRateLimitedJob implements ShouldQueue
     public static function dispatchWithRateLimit(...$args): void
     {
         if (self::isDuplicateJob($args)) {
-            Log::info('Duplicate job detected, skipping dispatch', ['job' => static::class, 'args' => $args]);
+            Log::info('[限流] 检测到重复任务，已跳过派发', ['job' => static::class, 'args' => $args]);
             return;
         }
 
@@ -159,6 +159,6 @@ abstract class BaseScheduledRateLimitedJob implements ShouldQueue
 
         $delay = rand(0, 20);
         dispatch($job)->onQueue('bilibili-rate-limit')->delay($delay);
-        Log::info('Job dispatched (rate limit applied in handle)', ['job' => static::class, 'delay' => $delay]);
+        Log::info('[限流] 任务已派发 (将在 handle 阶段执行限流检查)', ['job' => static::class, 'delay' => $delay]);
     }
 }

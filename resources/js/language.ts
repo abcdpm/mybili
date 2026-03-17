@@ -62,6 +62,7 @@ const messages = {
             subscription: '订阅',
             cookie: '会话',
             settings: '设置',
+            logs: '日志',
             about: '关于',
             menu: '菜单',
             videoManagement: '视频管理'
@@ -473,6 +474,7 @@ const messages = {
             subscription: 'Subscription',
             cookie: 'Cookie',
             settings: 'Settings',
+            logs: 'Logs',
             about: 'About',
             menu: 'Menu',
             videoManagement: 'Video Management'

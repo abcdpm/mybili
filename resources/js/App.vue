@@ -134,6 +134,7 @@ const navLinks = [
   { key: 'subscription', path: '/subscription' },
   { key: 'cookie', path: '/cookie' },
   { key: 'settings', path: '/settings' },
+  { key: 'logs', path: '/logs' },
   { key: 'about', path: '/about' }
 ];
 

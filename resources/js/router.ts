@@ -10,6 +10,7 @@ import SubscriptionView from './pages/Subscription.vue';
 import SubscriptionVideoView from './pages/SubscriptionVideo.vue';
 import VideoManagement from './pages/VideoManagement.vue';
 import DownloadQueueView from './pages/DownloadQueueView.vue';
+import LogView from './pages/LogView.vue'
 
 const routes = [
   { path: '/', component: Home, meta: { keepAlive: true }  },
@@ -25,6 +26,7 @@ const routes = [
   { path: '/subscription', component: SubscriptionView, name: 'subscription' },
   { path: '/subscription/:id', component: SubscriptionVideoView, name: 'subscription-id', meta: { keepAlive: true } },
   { path: '/subscription/:id/video/:video_id', component: VideoView, name: 'subscription-video-id' },
+  { path: '/logs', component: LogView, name: 'LogView' },
 ];
 
 const router = createRouter({
