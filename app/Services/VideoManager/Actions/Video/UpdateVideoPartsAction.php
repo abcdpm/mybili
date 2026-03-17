@@ -20,18 +20,18 @@ class UpdateVideoPartsAction
     use VideoDataTrait;
 
     /**
- * 更新视频分P信息
+    * 更新视频分片信息
      */
     public function execute(Video $video): void
     {
-        Log::info('[视频分P] 更新视频分P信息', ['id' => $video->id, 'bvid' => $video->bvid, 'title' => $video->title]);
+        Log::info('[视频分片] 更新视频分片信息', ['id' => $video->id, 'bvid' => $video->bvid, 'title' => $video->title]);
         if ($video->isAudio()) {
             app(UpdateAudioPartAction::class)->execute($video);
             return;
         }
 
         if ($this->videoIsInvalid($video->toArray())) {
-            Log::info('[视频分P] 视频无效, 跳过更新视频分P信息', ['id' => $video->id, 'bvid' => $video->bvid, 'title' => $video->title]);
+            Log::info('[视频分片] 视频无效, 跳过更新视频分片信息', ['id' => $video->id, 'bvid' => $video->bvid, 'title' => $video->title]);
             return;
         }
 
@@ -42,7 +42,7 @@ class UpdateVideoPartsAction
                 $videoParts = $this->bilibiliService->getVideoParts($video->id);
             }
         } catch (\Exception $e) {
-            Log::error('[视频分P] 获取视频分P失败', ['id' => $video->id, 'bvid' => $video->bvid, 'title' => $video->title]);
+            Log::error('[视频分片] 获取视频分片失败', ['id' => $video->id, 'bvid' => $video->bvid, 'title' => $video->title]);
             return;
         }
 
@@ -54,7 +54,7 @@ class UpdateVideoPartsAction
         $deleteVideoPartsIds = array_diff($localVideoPartsIds, $remoteVideoPartsIds);
 
         if (! empty($deleteVideoPartsIds)) {
-            Log::info('[视频分P] 删除视频分P', ['id' => $video->id, 'bvid' => $video->bvid, 'title' => $video->title, 'deleteVideoPartsIds' => $deleteVideoPartsIds]);
+            Log::info('[视频分片] 删除视频分片', ['id' => $video->id, 'bvid' => $video->bvid, 'title' => $video->title, 'deleteVideoPartsIds' => $deleteVideoPartsIds]);
             return;
         }
 
@@ -111,13 +111,13 @@ class UpdateVideoPartsAction
                         $insertedCount += count($chunk);
                     });
                 }
-                Log::info("[视频分P] 批量插入视频分P数据", [
+                Log::info("[视频分片] 批量插入视频分片数据", [
                     'count' => $insertedCount, 
                     'video_id' => $video->id
                 ]);
             } catch (\Exception $e) {
                 // 批量插入失败，可能是重复，逐个插入
-                Log::warning('[视频分P] 批量插入视频分P数据失败, 尝试逐个插入', [
+                Log::warning('[视频分片] 批量插入视频分片数据失败, 尝试逐个插入', [
                     'video_id' => $video->id,
                     'error' => $e->getMessage()
                 ]);
@@ -128,7 +128,7 @@ class UpdateVideoPartsAction
                             VideoPart::create($data);
                         });
                     } catch (\Exception $e) {
-                        Log::error('[视频分P] 插入视频分P数据失败', [
+                        Log::error('[视频分片] 插入视频分片数据失败', [
                             'cid' => $data['cid'],
                             'error' => $e->getMessage()
                         ]);
@@ -144,7 +144,7 @@ class UpdateVideoPartsAction
                         event(new VideoPartUpdated([], $newPart->toArray()));
                     }
                 } catch (\Exception $e) {
-                    Log::debug('[视频分P] 触发视频分P数据新增事件失败', ['cid' => $data['cid']]);
+                    Log::debug('[视频分片] 触发视频分片数据新增事件失败', ['cid' => $data['cid']]);
                 }
             }
         }
@@ -166,18 +166,18 @@ class UpdateVideoPartsAction
                             event(new VideoPartUpdated($oldVideoPartsData[$cid] ?? [], $newPart->toArray()));
                         }
                     } catch (\Exception $e) {
-                        Log::debug('[视频分P] 触发视频分P数据更新事件失败', ['cid' => $cid]);
+                        Log::debug('[视频分片] 触发视频分片数据更新事件失败', ['cid' => $cid]);
                     }
                     
                     $updatedCount++;
                 } catch (\Exception $e) {
-                    Log::error('[视频分P] 无法更新视频分P数据', [
+                    Log::error('[视频分片] 无法更新视频分片数据', [
                         'cid' => $data['cid'],
                         'error' => $e->getMessage()
                     ]);
                 }
             }
-            Log::info("[视频分P] 更新视频分P数据成功", [
+            Log::info("[视频分片] 更新视频分片数据成功", [
                 'count' => $updatedCount, 
                 'video_id' => $video->id
             ]);
@@ -200,13 +200,13 @@ class UpdateVideoPartsAction
                 }
             });
         } catch (\Exception $e) {
-            Log::error('[视频分P] 更新视频分P下载时间失败', [
+            Log::error('[视频分片] 更新视频分片下载时间失败', [
                 'video_id' => $video->id,
                 'error' => $e->getMessage()
             ]);
         }
 
-        Log::info('[视频分P] 更新视频分P任务成功', ['id' => $video->id, 'bvid' => $video->bvid, 'title' => $video->title]);
+        Log::info('[视频分片] 更新视频分片任务成功', ['id' => $video->id, 'bvid' => $video->bvid, 'title' => $video->title]);
     }
 
     /**

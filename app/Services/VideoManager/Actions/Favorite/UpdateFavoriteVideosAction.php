@@ -32,7 +32,7 @@ class UpdateFavoriteVideosAction
         $videos = $this->bilibiliService->pullFavVideoList($favId, $page);
 
         if (count($videos) === 0) {
-            Log::info('No videos found in fav', ['favId' => $favId]);
+            Log::info('[收藏夹管理] 未获取到视频数据', ['favId' => $favId]);
             return;
         }
 
@@ -53,7 +53,7 @@ class UpdateFavoriteVideosAction
             $item['invalid'] = $videoInvalid;
 
             if ($frozen) {
-                Log::info('Frozen video', ['id' => $item['id'], 'title' => $exist['title']]);
+                Log::info('[收藏夹管理] 视频已冻结', ['id' => $item['id'], 'title' => $exist['title']]);
                 $item     = array_merge($exist->toArray(), Arr::except($item, ['attr', 'title', 'cover', 'intro']));
                 $newValue = $item;
             } else {
@@ -116,7 +116,7 @@ class UpdateFavoriteVideosAction
             if (! empty($attachData)) {
                 $favoriteList = FavoriteList::query()->where('id', $favId)->first();
                 $favoriteList->videos()->attach($attachData);
-                Log::info('Attached videos to favorite list', ['favId' => $favId, 'videoIds' => array_keys($attachData)]);
+                Log::info('[收藏夹管理] 关联新视频到收藏夹', ['favId' => $favId, 'videoIds' => array_keys($attachData)]);
             }
         }
 
@@ -143,14 +143,14 @@ class UpdateFavoriteVideosAction
 
             // 只有在数据真正发生变化时才触发事件
             if ($hasChanges) {
-                Log::info('Video data changed, triggering VideoUpdated event', [
+                Log::info('[收藏夹管理] 视频数据发生变化, 触发 VideoUpdated 事件', [
                     'id'             => $item['id'],
                     'title'          => $item['title'],
                     'changed_fields' => array_keys($changedFields),
                 ]);
                 event(new VideoUpdated($oldVideoData, $video->getAttributes()));
             } else {
-                Log::info('Video data unchanged, skipping VideoUpdated event', [
+                Log::info('[收藏夹管理] 视频数据未变化, 跳过 VideoUpdated 事件', [
                     'id'    => $item['id'],
                     'title' => $item['title'],
                 ]);
@@ -164,11 +164,11 @@ class UpdateFavoriteVideosAction
             // [修改] 仅当视频是“新创建”的时候，才自动下载一次评论
             // 存量视频的评论更新交由 app:download-all-comments 命令或专门的定时任务去处理
             if ($video->wasRecentlyCreated && $video->invalid == 0) {
-                 Log::info('New video detected, dispatching initial comment download', ['id' => $video->id]);
+                 Log::info('[收藏夹管理] 检测到新视频, 正在派发初始评论下载任务', ['id' => $video->id]);
                  dispatch(new DownloadCommentsJob($video));
             }
 
-            Log::info('Update video success', ['id' => $item['id'], 'title' => $item['title']]);
+            Log::info('[收藏夹管理] 视频信息更新成功', ['id' => $item['id'], 'title' => $item['title']]);
         }
 
         $savedVideos = $this->getFavoriteVideo($favId);
@@ -179,7 +179,7 @@ class UpdateFavoriteVideosAction
             $deleteVideoIds      = array_diff($localVideoIds, $remoteCacheVideoIds);
             if (! empty($deleteVideoIds)) {
                 FavoriteList::query()->where('id', $favId)->first()->videos()->detach($deleteVideoIds);
-                Log::info('Detached videos from favorite list', ['favId' => $favId, 'videoIds' => $deleteVideoIds]);
+                Log::info('[收藏夹管理] 从收藏夹中解绑已删除视频', ['favId' => $favId, 'videoIds' => $deleteVideoIds]);
             }
         }
     }

@@ -29,9 +29,9 @@ class UpdateFavVideosJob extends BaseScheduledRateLimitedJob
      */
     protected function process(): void
     {
-        Log::info('Update favorite videos job start');
+        Log::info('[收藏夹管理] 收藏夹视频更新任务开始');
         app(UpdateFavoriteVideosAction::class)->execute($this->fav, $this->page);
-        Log::info('Update favorite videos job end', ['fav_title' => $this->fav['title'], 'page' => $this->page]);
+        Log::info('[收藏夹管理] 收藏夹视频更新任务完成', ['fav_title' => $this->fav['title'], 'page' => $this->page]);
     }
 
     public function displayName(): string

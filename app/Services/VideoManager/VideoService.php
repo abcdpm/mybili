@@ -186,7 +186,7 @@ class VideoService implements VideoServiceInterface
                 event(new VideoUpdated($video->getAttributes(), []));
             }
         }
-        Log::info(sprintf('Delete %d videos', count($deletedIds)), ['ids' => $ids, 'deleted_ids' => $deletedIds]);
+        Log::info(sprintf('[视频管理] 已删除 %d 个视频', count($deletedIds)), ['ids' => $ids, 'deleted_ids' => $deletedIds]);
 
         // 删除视频弹幕
         Danmaku::query()->whereIn('video_id', $deletedIds)->delete();
@@ -202,7 +202,7 @@ class VideoService implements VideoServiceInterface
         }
         redis()->set('video_list', json_encode($list));
         redis()->expire('video_list', $this->ttl);
-        Log::info('Update videos cache success', ['count' => count($list)]);
+        Log::info('[视频管理] 视频列表缓存已更新', ['count' => count($list)]);
     }
 
     public function getVideosCache(): array

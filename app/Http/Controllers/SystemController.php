@@ -41,4 +41,55 @@ class SystemController extends Controller
         exec('tail -n 1000 ' . escapeshellarg($logFile), $output);
         return response()->json(['data' => implode("\n", $output)]);
     }
+
+    /**
+     * 运维小工具：获取 Horizon 队列积压统计
+     */
+    public function queueStats(Request $request)
+    {
+        $queueName = $request->input('queue', 'default'); 
+        $connection = 'redis';
+
+        try {
+            // 获取 Redis 实例
+            $redis = app('queue')->connection($connection)->getRedis()->connection();
+            
+            // 获取队列全名 (底层依赖库会自动处理 prefix)
+            $queueKey = 'queues:' . $queueName;
+
+            // 抽样取出前 10000 条任务 (不会删除任务)
+            $jobs = $redis->lrange($queueKey, 0, 10000);
+
+            $stats = [];
+            foreach ($jobs as $jobJson) {
+                $job = json_decode($jobJson, true);
+                $commandName = $job['displayName'] ?? 'Unknown';
+
+                // 简化类名显示
+                $parts = explode('\\', $commandName);
+                $shortName = end($parts);
+
+                if (!isset($stats[$shortName])) {
+                    $stats[$shortName] = 0;
+                }
+                $stats[$shortName]++;
+            }
+
+            // 按数量降序排列
+            arsort($stats);
+
+            // 格式化为前端易于渲染的数组
+            $result = [];
+            foreach ($stats as $name => $count) {
+                $result[] = [
+                    'name' => $name,
+                    'count' => $count
+                ];
+            }
+
+            return response()->json(['data' => $result]);
+        } catch (\Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
+    }
 }

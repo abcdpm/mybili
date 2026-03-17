@@ -6,3 +6,8 @@ export const getSystemInfo = () => {
 export const getSystemLogs = (type: string = 'laravel') => {
   return fetch(`/api/system/logs?type=${type}`).then((res) => res.json());
 }
+
+// 获取队列积压统计
+export const getQueueStats = (queue: string = 'default') => {
+  return fetch(`/api/system/queue-stats?queue=${queue}`).then((res) => res.json());
+}
