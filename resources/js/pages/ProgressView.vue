@@ -238,11 +238,20 @@
 
                 <div class="grid grid-cols-1 md:grid-cols-5 w-full gap-4 pb-4">
                     <div class="flex flex-col relative" v-for="video in displayedVideos" :key="video.id" :data-video-id="video.id">
-                        <RouterLink :to="{ name: 'video-id', params: { id: video.id } }">
-                            <div class="image-container rounded-lg overflow-hidden" :style="{ aspectRatio: '4/3' }">
-                                <Image class="w-full h-full object-cover hover:scale-105 transition-all duration-300"
+                        <RouterLink :to="{ name: 'video-id', params: { id: video.id } }" class="relative block rounded-lg overflow-hidden group">
+                            <div class="image-container w-full h-full" :style="{ aspectRatio: '4/3' }">
+                                <Image class="w-full h-full object-cover group-hover:scale-105 transition-all duration-300"
                                     :src="video.cover_info?.image_url ?? '/assets/images/notfound.webp'"
                                     :class="{ 'grayscale-image': video.video_downloaded_num == 0 && video.audio_downloaded_num == 0 }" :title="video.title" />
+                            </div>
+                            <div class="absolute bottom-0 left-0 right-0 w-full px-2 py-1.5 flex justify-between items-end text-white text-[13px] z-10 pointer-events-none" style="background-image: linear-gradient(180deg, transparent 0%, rgba(0,0,0,0.8) 100%);">
+                                <div class="flex items-center tracking-wide font-medium drop-shadow">
+                                    <svg class="w-[18px] h-[18px] mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2.5" y="4" width="19" height="16" rx="3" /><path d="M10 9L15 12L10 15V9Z" fill="currentColor" stroke="none" /></svg>
+                                    <span>{{ formatViewCount(video.view || video.stat?.view || 0) }}</span>
+                                </div>
+                                <div class="flex items-center tracking-wide font-medium drop-shadow">
+                                    <span>{{ formatDuration(video.duration || 0) }}</span>
+                                </div>
                             </div>
                         </RouterLink>
                         <span class="mt-4 text-center h-12 line-clamp-2" :title="video.title">{{ video.title }}</span>
@@ -280,7 +289,7 @@ import type { Cover } from '../api/cover';
 // import VirtualList from 'vue-virtual-sortable';
 
 import Image from '@/components/Image.vue'; 
-import { formatTimestamp } from '../lib/helper';
+import { formatTimestamp, formatViewCount, formatDuration } from '../lib/helper';
 
 const { t } = useI18n();
 const route = useRoute();

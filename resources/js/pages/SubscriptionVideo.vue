@@ -15,18 +15,22 @@
         <div class="grid grid-cols-1 md:grid-cols-5 w-full gap-4">
             <div class="flex flex-col relative" v-for="item in displayedVideoList" :key="item.id">
                 <RouterLink :to="{ name: 'video-id', params: { id: item.id } }">
-                    <div class="rounded-lg overflow-hidden aspect-video w-full bg-gray-100 relative">
-                        <Image class="w-full h-full object-cover hover:scale-105 transition-all duration-300"
+                    <div class="rounded-lg overflow-hidden aspect-video w-full bg-gray-100 relative group">
+                        <Image class="w-full h-full object-cover group-hover:scale-105 transition-all duration-300"
                             :src="item.cover ? (item.cover.startsWith('http') ? item.cover : image(item.cover)) : '/assets/images/notfound.webp'" 
                             :title="item.title"
                             referrerpolicy="no-referrer"
                             :class="{ 'grayscale-image': item.video_downloaded_num == 0 && item.audio_downloaded_num == 0 }" />
                         
-                        <div class="absolute top-2 left-2 text-xl" v-if="item.frozen == 1">💾</div>
-                        <span v-if="item.page > 1"
-                            class="text-xs text-white bg-gray-800/80 px-1.5 py-0.5 rounded absolute bottom-2 right-2 backdrop-blur-sm">
-                            {{ item.page }}
-                        </span>
+                        <div class="absolute bottom-0 left-0 right-0 w-full px-2 py-1.5 flex justify-between items-end text-white text-[13px] z-10 pointer-events-none" style="background-image: linear-gradient(180deg, transparent 0%, rgba(0,0,0,0.8) 100%);">
+                            <div class="flex items-center tracking-wide font-medium drop-shadow">
+                                <svg class="w-[18px] h-[18px] mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2.5" y="4" width="19" height="16" rx="3" /><path d="M10 9L15 12L10 15V9Z" fill="currentColor" stroke="none" /></svg>
+                                <span>{{ formatViewCount(item.view || item.stat?.view || 0) }}</span>
+                            </div>
+                            <div class="flex items-center tracking-wide font-medium drop-shadow">
+                                <span>{{ formatDuration(item.duration || 0) }}</span>
+                            </div>
+                        </div>
                     </div>
                 </RouterLink>
                 
@@ -50,7 +54,7 @@ import { useI18n } from 'vue-i18n';
 import Image from '@/components/Image.vue';
 import Breadcrumbs from '@/components/Breadcrumbs.vue';
 
-import { formatTimestamp, image } from "../lib/helper"
+import { formatTimestamp, image, formatViewCount, formatDuration } from "../lib/helper"
 import { type Video } from '@/api/fav';
 import { getSubscriptionDetail, type Subscription } from '@/api/subscription';
 

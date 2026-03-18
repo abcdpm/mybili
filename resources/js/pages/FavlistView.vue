@@ -14,10 +14,20 @@
 
         <div class="grid grid-cols-1 md:grid-cols-5 w-full gap-4">
             <div class="flex flex-col relative" v-for="item in displayedVideoList" :key="item.id">
-                <RouterLink :to="{ name: 'favlist-video-id', params: { id: id, video_id: item.id } }">
-                    <Image class="rounded-lg w-full h-auto aspect-video object-cover hover:scale-105 transition-all duration-300"
+                <RouterLink :to="{ name: 'favlist-video-id', params: { id: id, video_id: item.id } }" class="relative block rounded-lg overflow-hidden group">
+                    <Image class="w-full h-auto aspect-video object-cover group-hover:scale-105 transition-all duration-300"
                         :src="item.cover_info?.image_url ?? '/assets/images/notfound.webp'" :title="item.title"
                         :class="{ 'grayscale-image': item.video_downloaded_num == 0 && item.audio_downloaded_num == 0 }" />
+                    
+                    <div class="absolute bottom-0 left-0 right-0 w-full px-2 py-1.5 flex justify-between items-end text-white text-[13px] z-10 pointer-events-none" style="background-image: linear-gradient(180deg, transparent 0%, rgba(0,0,0,0.8) 100%);">
+                        <div class="flex items-center tracking-wide font-medium drop-shadow">
+                            <svg class="w-[18px] h-[18px] mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2.5" y="4" width="19" height="16" rx="3" /><path d="M10 9L15 12L10 15V9Z" fill="currentColor" stroke="none" /></svg>
+                            <span>{{ formatViewCount(item.view || item.stat?.view || 0) }}</span>
+                        </div>
+                        <div class="flex items-center tracking-wide font-medium drop-shadow">
+                            <span>{{ formatDuration(item.duration || 0) }}</span>
+                        </div>
+                    </div>
                 </RouterLink>
                 <div class="absolute top-4 left-4" v-if="item.frozen == 1">💾</div>
                 <span class="mt-4 text-center  h-12 line-clamp-2" :title="item.title">{{ item.title }}</span>
@@ -45,7 +55,7 @@ import { useI18n } from 'vue-i18n';
 import Image from '@/components/Image.vue';
 import Breadcrumbs from '@/components/Breadcrumbs.vue';
 
-import { formatTimestamp, image } from "../lib/helper"
+import { formatTimestamp, image, formatViewCount, formatDuration } from "../lib/helper"
 import { getFavDetail, type Favorite, type Video } from '@/api/fav';
 
 const { t } = useI18n();
