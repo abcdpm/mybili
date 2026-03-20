@@ -11,9 +11,12 @@ class UpdateVideoStats extends Command
     protected $signature = 'app:update-video-stats 
                             {video_id? : 指定视频ID (Video ID)} 
                             {--force : 强制重新拉取所有有效视频的信息}
-                            {--status : 查看当前视频播放量获取进度统计 (不执行任务)}';
+                            {--status : 查看当前视频播放量获取进度统计 (不执行任务)}
+                            {--auto-update : 自动增量更新模式 (每天抽取最久未更新的视频)}
+                            {--percent=3 : 抽取有效视频总数的百分比 (默认 3%)}
+                            {--sleep=5 : 每个任务派发到队列的执行间隔延迟(秒)，防止触发风控}';
                             
-    protected $description = '快速投递队列：定期更新或修复存量视频的播放量和时长数据';
+    protected $description = '安全的队列派发：定期更新或修复存量视频的播放量和时长数据';
 
     public function handle(): void
     {
@@ -23,33 +26,84 @@ class UpdateVideoStats extends Command
             return;
         }
 
-        $videoId = $this->argument('video_id');
-        $force   = $this->option('force');
+        $videoId    = $this->argument('video_id');
+        $force      = $this->option('force');
+        $autoUpdate = $this->option('auto-update');
+        $percent    = (float) $this->option('percent');
+        $sleep      = (int) $this->option('sleep');
 
         $this->info("开始扫描数据库中的存量视频...");
 
         // 基础查询：仅处理未失效的有效视频
         $query = Video::where('invalid', 0);
 
-        // 指定单个视频逻辑
+        // 模式 1: 单个视频调试
         if ($videoId) {
-            $query->where('id', $videoId);
+            $videos = $query->where('id', $videoId)->get();
             $this->info("模式: 仅处理视频 ID {$videoId}");
+            $this->dispatchJobs($videos, $sleep);
+            return;
         }
 
-        // 默认模式：仅修复缺失数据的视频；如果加了 --force 则是全量刷新
-        if (!$force && !$videoId) {
+        // 模式 2: 自动轮询增量更新 (比如每天 3%)
+        if ($autoUpdate) {
+            $total = $query->count();
+            $limit = max(1, (int)ceil($total * ($percent / 100)));
+            $this->info("模式: 自动增量轮询. 将抽取最久未更新的 {$percent}% 视频 (共 {$limit} 个)");
+
+            // 利用 updated_at 升序，完美实现“循环更新最久未获取的视频”
+            $videos = Video::where('invalid', 0)
+                ->orderBy('updated_at', 'asc')
+                ->limit($limit)
+                ->get();
+
+            $this->dispatchJobs($videos, $sleep);
+            return;
+        }
+
+        // 模式 3: 默认修复确实没数据的
+        if (!$force) {
             $query->where(function($q) {
-                // 查找播放量为0 或 时长为0的视频
                 $q->where('view', 0)->orWhere('duration', 0);
             });
             $this->info("模式: 增量修复 (仅处理播放量或时长为 0 的视频)。");
-            $this->comment("提示: 如需定期全量刷新所有视频最新播放量，请加上 --force 参数");
-        } else if ($force) {
-            $this->info("模式: 强制更新 (全量刷新所有有效视频的最新播放量)");
+            $this->comment("提示: 日常按比例平滑更新，请加上 --auto-update 参数");
+
+            $videos = $query->get();
+            $this->dispatchJobs($videos, $sleep);
+            return;
         }
 
-        $count = $query->count();
+        // 模式 4: 强制全量更新 (虽然支持，但不推荐日常使用)
+        if ($force) {
+            $this->info("模式: 强制更新 (全量刷新所有有效视频的最新播放量)");
+            $this->warn("警告: 全量任务已自动应用 {$sleep} 秒/个 的间隔保护。");
+
+            $count = $query->count();
+            $bar = $this->output->createProgressBar($count);
+            $bar->start();
+
+            $delayCounter = 0;
+            $query->chunkById(500, function ($chunkVideos) use ($bar, &$delayCounter, $sleep) {
+                foreach ($chunkVideos as $video) {
+                    // 核心防封逻辑：推入队列时加上 delay()
+                    $delay = now()->addSeconds($delayCounter * $sleep);
+                    dispatch(new PullVideoInfoJob($video->bvid))->delay($delay);
+                    $delayCounter++;
+                    $bar->advance();
+                }
+            });
+
+            $bar->finish();
+            $this->newLine();
+            $this->info("全量任务已按时间间隔打散推送到队列！");
+        }
+    }
+
+    // 统一下发任务，利用 Queue 的 delay 进行任务时间线打散
+    private function dispatchJobs($videos, int $sleep): void
+    {
+        $count = $videos->count();
         if ($count === 0) {
             $this->info("没有发现符合条件的视频，无需更新。");
             return;
@@ -59,18 +113,17 @@ class UpdateVideoStats extends Command
         $bar = $this->output->createProgressBar($count);
         $bar->start();
 
-        // 核心提速点：使用 chunkById 极大降低数据库内存占用，并以最快速度投递到队列
-        $query->chunkById(500, function ($videos) use ($bar) {
-            foreach ($videos as $video) {
-                // 利用现有的限流队列，防止被 B站 API 封禁
-                dispatch(new PullVideoInfoJob($video->bvid));
-                $bar->advance();
-            }
-        });
+        foreach ($videos as $index => $video) {
+            // 💡 绝妙之处：无论队列有多少个并发进程，我们在投递时就设定好它的“起跑时间”
+            // 比如第1个立即执行，第2个5秒后，第3个10秒后... 强制把 API 请求速率降下来
+            $delay = now()->addSeconds($index * $sleep);
+            dispatch(new PullVideoInfoJob($video->bvid))->delay($delay);
+            $bar->advance();
+        }
 
         $bar->finish();
         $this->newLine();
-        $this->info("所有任务已光速推送到队列！请通过 Horizon 查看后台实际拉取进度。");
+        $this->info("任务已按 {$sleep} 秒/个的间隔打散并推送到队列！将在后台无感平滑执行。");
     }
 
     // 显示统计信息的方法

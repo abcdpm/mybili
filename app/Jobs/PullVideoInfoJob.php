@@ -2,28 +2,29 @@
 namespace App\Jobs;
 
 use App\Services\VideoManager\Actions\Video\PullVideoInfoAction;
+use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Foundation\Bus\Dispatchable;
+use Illuminate\Queue\InteractsWithQueue;
+use Illuminate\Queue\SerializesModels;
 
-class PullVideoInfoJob extends BaseScheduledRateLimitedJob
+class PullVideoInfoJob implements ShouldQueue 
 {
+    use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
+
+    // 设置普通队列的最大重试次数
+    public $tries = 3;
+    
+    // 设置任务超时时间
+    public $timeout = 120;  
+
     public function __construct(public string $bvid)
     {
+        // 如果你需要强制指定它进入特定的常规队列（比如 default），可以显式声明：
+        $this->onQueue('default'); 
     }
 
-    /**
-     * 限流 release() 和异常重试都会消耗 attempts，用时间窗口代替固定次数上限，
-     * 避免频繁限流时 attempts 耗尽导致 MaxAttemptsExceededException。
-     */
-    public function retryUntil(): \DateTimeInterface
-    {
-        return now()->addHour();
-    }
-
-    protected function getRateLimitKey(): string
-    {
-        return 'update_job';
-    }
-
-    public function process(): void
+    public function handle(): void
     {
         app(PullVideoInfoAction::class)->execute($this->bvid);
     }
