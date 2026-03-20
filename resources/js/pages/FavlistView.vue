@@ -29,7 +29,7 @@
                         </div>
                     </div>
                 </RouterLink>
-                <div class="absolute top-4 left-4" v-if="item.frozen == 1">💾</div>
+                <div class="absolute top-2 left-2" v-if="item.frozen == 1">💾</div>
                 <span class="mt-4 text-center  h-12 line-clamp-2" :title="item.title">{{ item.title }}</span>
                 <div class="mt-2 flex justify-between text-xs text-gray-400 px-1">
                     <span>{{ t('favorites.published') }}: {{ formatTimestamp(item.pubtime, "yyyy.mm.dd") }}</span>
