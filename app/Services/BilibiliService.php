@@ -435,7 +435,8 @@ class BilibiliService
 
         return $result;
     }
-
+    
+    // 已弃用该方法，使用getVideoPartFromWbiApi替代，因为直接爬取网页的方式太过于脆弱，而通过WBI接口获取更稳定可靠
     private function getVideoPartFromWebpage(string $bvid)
     {
         $cookies  = parse_netscape_cookie_content($this->settingsService->get(SettingKey::COOKIES_CONTENT));
@@ -453,6 +454,53 @@ class BilibiliService
             }
             return $pages;
         }
+        throw new \Exception("未找到视频分P信息");
+    }
+
+    private function getVideoPartFromWbiApi(string $bvid)
+    {
+        $cookies = parse_netscape_cookie_content($this->settingsService->get(SettingKey::COOKIES_CONTENT));
+        $client  = $this->getClient();
+
+        // 1. 获取 WBI Keys (复用现有的方法)
+        $keys = $this->getWbiKeys($client, $cookies);
+        if (!$keys) {
+            throw new \Exception("获取 WBI keys 失败，无法请求分P数据");
+        }
+        list($imgKey, $subKey) = $keys;
+
+        // 2. 构造参数
+        $params = [
+            'wts' => time()
+        ];
+        
+        // 兼容传入的是 BV 还是 AV 格式
+        if (str_starts_with(strtolower($bvid), 'bv')) {
+            $params['bvid'] = $bvid;
+        } else {
+            $params['aid'] = str_ireplace('av', '', strtolower($bvid));
+        }
+
+        // 3. 生成 WBI 签名
+        $query = $this->encWbi($params, $imgKey, $subKey);
+
+        // 4. 请求带有 WBI 签名的接口 (替代直接爬取网页HTML)
+        $url = self::API_HOST . "/x/web-interface/wbi/view?" . $query;
+        
+        $response = $client->request('GET', $url, [
+            'cookies' => $cookies,
+        ]);
+        
+        $result = json_decode($response->getBody()->getContents(), true);
+
+        if (($result['code'] ?? -1) !== 0) {
+            throw new \Exception("WBI 接口请求失败：" . ($result['message'] ?? '未知错误') . " (Code: " . ($result['code'] ?? 'null') . ")");
+        }
+
+        if (isset($result['data']['pages']) && is_array($result['data']['pages'])) {
+            return $result['data']['pages'];
+        }
+        
         throw new \Exception("未找到视频分P信息");
     }
 
@@ -476,12 +524,15 @@ class BilibiliService
             // api 接口太敏感，优先从网页获取
             if (str_starts_with(strtolower($strId), 'bv')) {
                 $bvid        = $strId;
-                $parsedParts = $this->getVideoPartFromWebpage($bvid);
+                // $parsedParts = $this->getVideoPartFromWebpage($bvid);
+                $parsedParts = $this->getVideoPartFromWbiApi($bvid);
             } else {
-                $parsedParts = $this->getVideoPartFromWebpage('av' . $strId);
+                // $parsedParts = $this->getVideoPartFromWebpage('av' . $strId);
+                $parsedParts = $this->getVideoPartFromWbiApi('av' . $strId);
             }
         } catch (\Exception $e) {
-            Log::error("[视频分片] 通过网页获取视频分片信息失败" . $e->getMessage());
+            // Log::error("[视频分片] 通过网页获取视频分片信息失败" . $e->getMessage());
+            Log::error("[视频分片] 通过 WBI API 获取视频分片信息失败: " . $e->getMessage());
             try {
                 $parsedParts = $this->getVideoPartFromApi($strId);
                 Log::info("[视频分片] 通过 API 获取视频分片信息成功", [
