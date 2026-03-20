@@ -90,7 +90,8 @@ class SubscriptionController extends Controller
                 'videos.id', 'videos.title', 'videos.cover', 'videos.pubtime', 
                 'videos.frozen', 'videos.page', 'videos.video_downloaded_num', 
                 'videos.audio_downloaded_num',
-                'videos.bvid', 'videos.duration', 'videos.invalid'
+                'videos.bvid', 'videos.duration', 'videos.invalid',
+                'videos.view'
             ])->orderBy('videos.pubtime', 'desc');
         }]);
         

@@ -75,6 +75,7 @@ php artisan app:update-video-stats --status
 清空积压的 Job：
 php artisan horizon:clear
 php artisan horizon:clear --queue=slow
+php artisan horizon:clear --queue=bilibili-rate-limit
 php artisan queue:flush
 redis-cli flushall
 

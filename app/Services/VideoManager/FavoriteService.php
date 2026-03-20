@@ -115,7 +115,8 @@ class FavoriteService implements FavoriteServiceInterface
                     'videos.id', 'videos.title', 'videos.cover', 'videos.pubtime', 
                     'videos.frozen', 'videos.page', 'videos.video_downloaded_num', 
                     'videos.audio_downloaded_num',
-                    'videos.bvid', 'videos.duration', 'videos.invalid'
+                    'videos.bvid', 'videos.duration', 'videos.invalid',
+                    'videos.view'
                 ])
                 ->orderBy('videos.pubtime', 'desc')
                 ->orderBy('videos.created_at', 'desc')
@@ -151,7 +152,8 @@ class FavoriteService implements FavoriteServiceInterface
                     'videos.id', 'videos.title', 'videos.cover', 'videos.pubtime', 
                     'videos.fav_time', 'videos.frozen', 'videos.page', 
                     'videos.video_downloaded_num', 'videos.audio_downloaded_num',
-                    'videos.bvid', 'videos.duration', 'videos.invalid'
+                    'videos.bvid', 'videos.duration', 'videos.invalid',
+                    'videos.view'
                 ])
                 ->orderBy('videos.fav_time', 'desc')
                 ->orderBy('videos.created_at', 'desc')

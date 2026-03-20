@@ -76,6 +76,7 @@ class UpdateFavoriteVideosAction
                 'bvid'     => $newValue['bvid'],
                 'pubtime'  => date('Y-m-d H:i:s', $newValue['pubtime']),
                 'duration' => $newValue['duration'],
+                'view'     => $newValue['cnt_info']['play'] ?? $newValue['stat']['view'] ?? 0, // 播放量数据
                 'attr'     => $newValue['attr'],
                 'invalid'  => $newValue['invalid'],
                 'frozen'   => $newValue['frozen'],
