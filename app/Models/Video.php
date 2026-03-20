@@ -15,7 +15,7 @@ class Video extends Model
         'id', 'link', 'title', 'intro', 'cover', 'bvid', 'pubtime', 'duration',
         'attr', 'invalid', 'frozen', 'page', 'fav_time', 'danmaku_downloaded_at',
         'video_downloaded_at', 'upper_id', 'comments_updated_at', 'type',
-        'tags'
+        'tags', 'view'
     ];
     protected $primaryKey = 'id';
 
@@ -37,6 +37,7 @@ class Video extends Model
         'fav_time'    => null,
         'upper_id'    => null,
         'type'        => 2,
+        'view'        => 0,
     ];
 
     public function parts()

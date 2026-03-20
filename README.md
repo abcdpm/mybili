@@ -66,6 +66,12 @@ php artisan app:danmaku-download --force
 php artisan app:danmaku-download 115936803686117
 php artisan app:danmaku-download --status
 
+下载视频播放量和播放时长信息
+php artisan app:update-video-stats
+php artisan app:update-video-stats --force
+php artisan app:update-video-stats 115936803686117
+php artisan app:update-video-stats --status
+
 清空积压的 Job：
 php artisan horizon:clear
 php artisan horizon:clear --queue=slow

@@ -84,6 +84,8 @@ class PullVideoInfoAction
             'frozen'   => false,
             'page'     => count($videoInfo['pages']),
             'upper_id' => $upperId,
+            'duration' => $videoInfo['duration'] ?? 0,
+            'view'     => $videoInfo['stat']['view'] ?? 0,
         ];
     }
 

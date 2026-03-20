@@ -59,6 +59,8 @@ export interface Video {
     upper: Upper|null;
     cover_info: Cover|null;
     tags: VideoTag[] | null; // 【新增】
+    duration?: number;
+    view?: number;
 }
 
 
