@@ -1,140 +1,18 @@
-
-同步收藏夹信息 更新收藏夹本身的元数据（如标题、媒体数量等）：
-php artisan app:sync-media --fav-list
-
-同步「指定」收藏夹视频信息：
-php artisan app:sync-media --fav-videos --fav=1
-同步「所有」收藏夹视频信息：
-php artisan app:sync-media --fav-videos
-查看收藏夹视频信息数据量：
-php artisan tinker --execute="echo App\Models\VideoPart::count();"
-
-通过统一调度触发排队下载
-下载指定视频：
-php artisan app:sync-media --download --video-id=1
-扫描并下载全部未下载的视频：
-php artisan app:sync-media --download
-
-通过扫描文件指令触发下载
-检查指定视频文件并下载：
-php artisan app:scan-video-file --video-id=1 --download
-扫描全部缺失文件并下载：
-php artisan app:scan-video-file --download
-
-「视频」封面图缺失：
-php artisan app:scan-cover-image --target=video
-「收藏夹」封面图缺失：
-php artisan app:scan-cover-image --target=favorite
-「订阅」封面图缺失：
-php artisan app:scan-cover-image --target=subscription
-「UP主」头像图缺失：
-php artisan app:scan-cover-image --target=upper
-
-手动全量视频转码：
-php artisan app:transcode-all
-php artisan app:transcode-all --force
-php artisan app:transcode-all --force --hwaccel=qsv
-php artisan app:transcode-all --force --hwaccel=nvenc
-php artisan app:transcode-all --status
-php artisan app:transcode-all --hwaccel=nvenc
-
-手动全量视频可读文件名：
-php artisan app:make-human-readable-names
-
-删除Redis脏数据：
-php artisan tinker
-\Illuminate\Support\Facades\Redis::del('video_list');
-
-触发全量视频评论备份：
-php artisan app:download-all-comment
-php artisan app:download-all-comment --limit=60 --force
-php artisan app:download-all-comment --limit=80 --force --sleep=10
-php artisan app:download-all-comment --limit=60 --force 115936803686117
-php artisan app:download-all-comment --sleep=15
-php artisan app:download-all-comment --status
-php artisan app:download-all-comments --incremental=20 --sleep=5 --max-videos=3000
-
-下载视频标签：
-php artisan app:download-tags
-php artisan app:download-tags --force
-php artisan app:download-tags 115936803686117
-php artisan app:download-tags --status
-
-下载视频弹幕
-php artisan app:danmaku-download
-php artisan app:danmaku-download --force
-php artisan app:danmaku-download 115936803686117
-php artisan app:danmaku-download --status
-
-下载视频播放量和播放时长信息
-php artisan app:update-video-stats
-php artisan app:update-video-stats --force
-php artisan app:update-video-stats 115936803686117
-php artisan app:update-video-stats --status
-
-清空积压的 Job：
-php artisan horizon:clear
-php artisan horizon:clear --queue=slow
-php artisan horizon:clear --queue=bilibili-rate-limit
-php artisan queue:flush
-redis-cli flushall
-
-docker build --build-arg APP_VERSION=1.2.1 -t llllalex/mybili:1.2.1 . --no-cache
-docker push llllalex/mybili:1.2.1
-docker tag llllalex/mybili:1.2.1 llllalex/mybili:latest
-docker push llllalex/mybili:latest
-
-扫描磁盘上已存在的手机版视频并同步到数据库
-php artisan app:sync-mobile-videos
-
-重算系统信息页 - 全量计算系统数据库与媒体文件使用情况并存入缓存
-php artisan app:calculate-system-stats
-
-
-查看堆积的任务类型
-php artisan tinker
-执行统计脚本
-
-// --- 复制开始 ---
-$queueName = 'slow'; // 如果想查默认队列，改为 'default' 'slow' 'fast' 'bilibili-rate-limit'
-$connection = 'redis';
-
-// 获取 Redis 实例
-$redis = app('queue')->connection($connection)->getRedis()->connection();
-
-// 获取队列全名 (Laravel 自动处理前缀)
-$prefix = config('database.redis.options.prefix', '');
-$queueKey = 'queues:' . $queueName;
-
-// 抽样取出前 10000 条任务 (不会删除任务)
-$jobs = $redis->lrange($queueKey, 0, 100000);
-
-$stats = [];
-foreach ($jobs as $jobJson) {
-    $job = json_decode($jobJson, true);
-    $commandName = $job['displayName'] ?? 'Unknown';
-
-    // 简化类名显示
-    $parts = explode('\\', $commandName);
-    $shortName = end($parts);
-
-    if (!isset($stats[$shortName])) {
-        $stats[$shortName] = 0;
-    }
-    $stats[$shortName]++;
-}
-
-// 按数量降序排列
-arsort($stats);
-print_r($stats);
-// --- 复制结束 ---
-
-
 ## 🎥 Mybili
 
 **bilibili 收藏夹下载工具** - 你的NAS中必不可少的程序
 
 <img src="./mybili.png" alt="Mybili Logo" width="256" height="256" />
+
+## 区别于 ellermister/mybili
+1. 调整了 UI 界面
+2. 新增了 **视频评论区** 的缓存功能
+3. 新增了 **视频转码** 功能（主要用于 iOS 移动端）
+4. 新增了 **视频标签** 的缓存功能
+5. 新增了 日志页面
+6. 优化了 系统信息页面
+7. 调整了 定时任务
+8. 新增了 **视频播放量和播放时长** 的缓存功能
 
 ## 📱 社区交流
 
@@ -188,7 +66,7 @@ mkdir /mnt/user/mybili/data -p
 ```yml
 services: 
     mybili:
-        image: ellermister/mybili
+        image: abcdpm/mybili
         ports:
             - "5151:80"
         volumes:
@@ -266,20 +144,6 @@ https://github.com/ellermister/mybili-cookie
 - **视频下载**：允许触发视频文件下载
 
 
-### 📝 4. 日志排查
-
-在容器内部，存储了多份日志，来源于不同的服务产生的文件。
-```bash
-/app # ls /var/log
-queue.log.0        schedule.log.0     supervisord.log.0  web.log.0
-```
-
-#### 🌐 Web 服务日志
-网页不通或者异常报错，可以查看 laravel 的日志
-```bash
-tail -f /app/storage/logs/laravel.log
-```
-
 ## 🔄 更新说明
 
 你可以在 github 或 docker hub 检视如果存在新版本，可以直接通过拉取最新镜像进行更新。
@@ -290,21 +154,25 @@ tail -f /app/storage/logs/laravel.log
 2. ⚙️ 当前版本指引中已经废除 .env 进行配置，采用环境变量进行覆盖配置，如果你有配置可以在 docker-compose.yml 中移除 .env 条目
 3. 🍪 当前版本指引中已经废除 cookie.txt 文件映射，采用数据库进行存储，如果你有配置可以在 docker-compose.yml 中移除 cookie.txt 条目
 
-## 💓 支持本项目
-
-如果你喜欢这个项目，或者它对你有帮助，请考虑支持我！
-
-### 💰 赞助方式
-
-你可以通过以下方式支持这个项目：
-
-- **Buy me a coffee**: [买一杯咖啡](https://buymeacoffee.com/ellermister)
-- **USDT**: TRC20 `TRjWTbPfQBhHawCD8DrfLGa8ECbhPP6F3b`
-- **LTC**: Litecoin `LdH6SxbAq3No9P4zaNR2aGgH9Kr9yfuGHi`
-- **爱发电**  [去支持一下](https://afdian.com/a/eller)
-
-任何形式的支持都将帮助我继续改进和维护这个项目，非常感谢！
-
-## Star History
-
-[![Star History Chart](https://api.star-history.com/svg?repos=ellermister/mybili&type=Date)](https://www.star-history.com/#ellermister/mybili&Date)
+### 常用控制台手动命令
+- 同步「所有」收藏夹视频信息: `php artisan app:sync-media --fav-videos`
+- 同步收藏夹信息 更新收藏夹本身的元数据（如标题、媒体数量等）: `php artisan app:sync-media --fav-list`
+- 扫描并下载全部未下载的视频: `php artisan app:sync-media --download`
+- 扫描本地全部缺失文件并下载: `php artisan app:scan-video-file --download`
+- 「视频」封面图缺失: `php artisan app:scan-cover-image --target=video`
+- 「收藏夹」封面图缺失: `php artisan app:scan-cover-image --target=favorite`
+- 「订阅」封面图缺失: `php artisan app:scan-cover-image --target=subscription`
+- 「UP主」头像图缺失: `php artisan app:scan-cover-image --target=upper`
+- 全量视频转码: `php artisan app:transcode-all`
+- 全量视频转码 状态查询: `php artisan app:transcode-all --status`
+- 全量视频生成可读文件名: `php artisan app:make-human-readable-names`
+- 全量视频评论缓存: `php artisan app:download-all-comment`
+- 全量视频评论缓存 状态查询: `php artisan app:download-all-comment --status`
+- 全量视频标签缓存: `php artisan app:download-tags`
+- 全量视频标签缓存 状态查询: `php artisan app:download-tags --status`
+- 全量视频弹幕缓存: `php artisan app:danmaku-download`
+- 全量视频弹幕缓存 状态查询: `php artisan app:danmaku-download --status`
+- 全量频播放量和播放时长信息缓存: `php artisan app:update-video-stats`
+- 全量频播放量和播放时长信息缓存 状态查询: `php artisan app:update-video-stats --status`
+- 扫描磁盘上已存在的手机版视频并同步到数据库（本地转码后同步到数据库）: `php artisan app:sync-mobile-videos`
+- 重算系统信息页 - 全量计算系统数据库与媒体文件使用情况并存入缓存: `php artisan app:calculate-system-stats`
