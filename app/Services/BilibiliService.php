@@ -78,6 +78,8 @@ class BilibiliService
         return new Client([
             'handler' => $stack,
             'cookies' => $cookies,
+            'timeout'         => 30.0,  // 整个请求生命周期的最大超时时间（秒）
+            'connect_timeout' => 10.0,  // 连接阶段（含 DNS 解析）的超时时间（秒）
             'headers' => [
                 'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3',
                 'Referer'    => 'https://www.bilibili.com/',
@@ -88,6 +90,8 @@ class BilibiliService
     private function getAppClient()
     {
         return new Client([
+            'timeout'         => 30.0,  // 整个请求生命周期的最大超时时间（秒）
+            'connect_timeout' => 10.0,  // 连接阶段（含 DNS 解析）的超时时间（秒）
             'headers' => [
                 'User-Agent' => 'bili-universal/77100100 CFNetwork/1404.0.5 Darwin/22.3.0',
                 'Buvid'      => 'XY' . bin2hex(random_bytes(16)),
