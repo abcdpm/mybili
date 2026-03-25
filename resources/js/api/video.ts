@@ -71,3 +71,30 @@ export async function getVideoTags(id: number): Promise<any[]> {
     const data = await response.json();
     return data.data || [];
 }
+
+// 手动触发更新弹幕
+export async function triggerUpdateDanmaku(id: number): Promise<any> {
+    const response = await fetch(`/api/videos/${id}/update-danmaku`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+    });
+    return response.json();
+}
+
+// 手动触发更新评论
+export async function triggerUpdateComments(id: number): Promise<any> {
+    const response = await fetch(`/api/videos/${id}/update-comments`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+    });
+    return response.json();
+}
+
+// 手动触发更新播放量等数据
+export async function triggerUpdateStats(id: number): Promise<any> {
+    const response = await fetch(`/api/videos/${id}/update-stats`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+    });
+    return response.json();
+}

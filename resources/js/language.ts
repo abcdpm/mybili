@@ -175,6 +175,9 @@ const messages = {
             downloadVideo: '下载视频',
             downloadDanmaku: '下载弹幕',
             downloadCover: '下载封面',
+            updateStat: '更新播放量',
+            updateDanmaku: '更新弹幕',
+            updateComment: '更新评论',
             visitSpace: '访问空间'
         },
 
@@ -587,6 +590,9 @@ const messages = {
             downloadVideo: 'Download Video',
             downloadDanmaku: 'Download Danmaku',
             downloadCover: 'Download Cover',
+            updateStat: 'Update Stat',
+            updateDanmaku: 'Update Danmaku',
+            updateComment: 'Update Comment',
             visitSpace: 'Visit Space'
         },
 

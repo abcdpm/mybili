@@ -147,6 +147,29 @@
                                     <span class="text-sm font-medium text-pink-700 group-hover:text-pink-800">{{ t('video.downloadCover') }}</span>
                                 </button>
                             </div>
+
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-3 pt-3">
+                                <button @click="handleUpdateStats" class="flex flex-col items-center p-4 bg-gradient-to-br from-indigo-50 to-indigo-100 border border-indigo-200/50 rounded-xl hover:from-indigo-100 hover:to-indigo-150 hover:border-indigo-300/50 transition-all duration-300 group hover:shadow-md">
+                                    <div class="w-12 h-12 bg-gradient-to-br from-indigo-400 to-indigo-500 rounded-full flex items-center justify-center mb-2 group-hover:scale-110 transition-transform duration-300">
+                                        <span class="text-xl text-white">📊</span>
+                                    </div>
+                                    <span class="text-sm font-medium text-indigo-700 group-hover:text-indigo-800">{{ t('video.updateStat') }}</span>
+                                </button>
+                                
+                                <button @click="handleUpdateDanmaku" class="flex flex-col items-center p-4 bg-gradient-to-br from-orange-50 to-orange-100 border border-orange-200/50 rounded-xl hover:from-orange-100 hover:to-orange-150 hover:border-orange-300/50 transition-all duration-300 group hover:shadow-md">
+                                    <div class="w-12 h-12 bg-gradient-to-br from-orange-400 to-orange-500 rounded-full flex items-center justify-center mb-2 group-hover:scale-110 transition-transform duration-300">
+                                        <span class="text-xl text-white">🔄</span>
+                                    </div>
+                                    <span class="text-sm font-medium text-orange-700 group-hover:text-orange-800">{{ t('video.updateDanmaku') }}</span>
+                                </button>
+
+                                <button @click="handleUpdateComments" class="flex flex-col items-center p-4 bg-gradient-to-br from-teal-50 to-teal-100 border border-teal-200/50 rounded-xl hover:from-teal-100 hover:to-teal-150 hover:border-teal-300/50 transition-all duration-300 group hover:shadow-md">
+                                    <div class="w-12 h-12 bg-gradient-to-br from-teal-400 to-teal-500 rounded-full flex items-center justify-center mb-2 group-hover:scale-110 transition-transform duration-300">
+                                        <span class="text-xl text-white">📝</span>
+                                    </div>
+                                    <span class="text-sm font-medium text-teal-700 group-hover:text-teal-800">{{ t('video.updateComment') }}</span>
+                                </button>
+                            </div>
                         </div>
                     </div>
 
@@ -222,7 +245,7 @@ import { formatTimestamp } from '../lib/helper';
 import Player from '../components/Player.vue';
 import Breadcrumbs from '../components/Breadcrumbs.vue';
 import type { Video, VideoPartType } from '@/api/fav';
-import { getVideoDanmaku, getVideoInfo, getVideoTags } from '@/api/video';
+import { getVideoDanmaku, getVideoInfo, getVideoTags, triggerUpdateDanmaku, triggerUpdateComments, triggerUpdateStats } from '@/api/video';
 import VideoComments from '@/components/VideoComments.vue';
 
 const { t } = useI18n();
@@ -360,6 +383,36 @@ const downloadCover = () => {
     }
     console.log('Download cover clicked for:', videoInfo.value?.bvid)
 }
+
+const handleUpdateDanmaku = async () => {
+    if (!videoInfo.value?.id) return;
+    try {
+        await triggerUpdateDanmaku(videoInfo.value.id);
+        alert('弹幕更新任务已提交后台处理'); // 如果你项目里有 toast 组件如 ElMessage，建议用组件替换 alert
+    } catch (e) {
+        alert('弹幕更新失败，请检查网络或日志');
+    }
+};
+
+const handleUpdateComments = async () => {
+    if (!videoInfo.value?.id) return;
+    try {
+        await triggerUpdateComments(videoInfo.value.id);
+        alert('评论区更新任务已提交后台处理');
+    } catch (e) {
+        alert('评论更新失败，请检查网络或日志');
+    }
+};
+
+const handleUpdateStats = async () => {
+    if (!videoInfo.value?.id) return;
+    try {
+        await triggerUpdateStats(videoInfo.value.id);
+        alert('播放量等数据更新任务已提交后台处理');
+    } catch (e) {
+        alert('数据更新失败，请检查网络或日志');
+    }
+};
 
 const videoInfo = ref<Video | null>()
 const notfound = ref(false)

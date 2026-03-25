@@ -8,6 +8,9 @@ use App\Services\VideoManager\Contracts\VideoServiceInterface;
 use Illuminate\Http\Request;
 use App\Models\Comment;
 use App\Models\Video;
+use App\Jobs\DownloadDanmakuJob;
+use App\Jobs\DownloadCommentsJob;
+use App\Jobs\PullVideoInfoJob;
 
 class VideoController extends Controller
 {
@@ -182,5 +185,53 @@ class VideoController extends Controller
             'code' => 0,
             'data' => $video->tags ?? []
         ]);
+    }
+
+    /**
+     * 手动投递弹幕更新任务
+     */
+    public function updateDanmaku($id)
+    {
+        $video = Video::find($id);
+        if (!$video) {
+            return response()->json(['code' => 404, 'message' => 'Video not found']);
+        }
+
+        // 推送弹幕拉取任务到队列
+        DownloadDanmakuJob::dispatch($video);
+
+        return response()->json(['code' => 0, 'message' => 'Danmaku update job dispatched']);
+    }
+
+    /**
+     * 手动投递评论更新任务
+     */
+    public function updateComments($id)
+    {
+        $video = Video::find($id);
+        if (!$video) {
+            return response()->json(['code' => 404, 'message' => 'Video not found']);
+        }
+
+        // 推送评论拉取任务到队列
+        DownloadCommentsJob::dispatch($video);
+
+        return response()->json(['code' => 0, 'message' => 'Comments update job dispatched']);
+    }
+
+    /**
+     * 手动投递视频数据(播放量、基础信息等)更新任务
+     */
+    public function updateStats($id)
+    {
+        $video = Video::find($id);
+        if (!$video) {
+            return response()->json(['code' => 404, 'message' => 'Video not found']);
+        }
+
+        // 推送视频信息更新任务到队列
+        PullVideoInfoJob::dispatch($video);
+
+        return response()->json(['code' => 0, 'message' => 'Stats update job dispatched']);
     }
 }

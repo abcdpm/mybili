@@ -39,6 +39,11 @@ Route::get('/comments/{rootId}/replies', [VideoController::class, 'replies']);
 // 获取视频标签的路由
 Route::get('/videos/{id}/tags', [VideoController::class, 'tags']);
 
+// 手动更新路由
+Route::post('/videos/{id}/update-danmaku', [VideoController::class, 'updateDanmaku']);
+Route::post('/videos/{id}/update-comments', [VideoController::class, 'updateComments']);
+Route::post('/videos/{id}/update-stats', [VideoController::class, 'updateStats']);
+
 // 下载队列管理
 Route::get('/download-queue', [DownloadQueueController::class, 'index']);
 Route::get('/download-queue/stat', [DownloadQueueController::class, 'stat']);
