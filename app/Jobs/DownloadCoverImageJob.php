@@ -42,7 +42,7 @@ class DownloadCoverImageJob implements ShouldQueue, Silenced
     )
     {
         // 指定 fast 队列
-        $this->onQueue('fast');
+        $this->onQueue('default');
     }
 
     /**

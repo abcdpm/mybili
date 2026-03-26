@@ -125,49 +125,37 @@
                                 </a>
                             </div>
 
-                            <div class="grid grid-cols-1 md:grid-cols-3 gap-3 pt-4 border-t border-gray-200/50">
-                                <button @click="downloadVideo" class="flex flex-col items-center p-4 bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200/50 rounded-xl hover:from-blue-100 hover:to-blue-150 hover:border-blue-300/50 transition-all duration-300 group hover:shadow-md">
-                                    <div class="w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center mb-2 group-hover:scale-110 transition-transform duration-300">
-                                        <span class="text-xl text-white">🎬</span>
-                                    </div>
-                                    <span class="text-sm font-medium text-blue-700 group-hover:text-blue-800">{{ t('video.downloadVideo') }}</span>
+                            <div class="grid grid-cols-2 md:grid-cols-3 gap-3 pt-4 border-t border-gray-200/50">
+                                <button @click="downloadVideo" class="flex items-center justify-center space-x-2 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-3 border border-blue-200/50 hover:shadow hover:from-blue-100 hover:to-indigo-100 transition-all duration-300 group">
+                                    <span class="text-blue-500 text-lg group-hover:scale-110 transition-transform duration-300">🎬</span>
+                                    <span class="text-sm font-semibold text-gray-700 group-hover:text-blue-800">{{ t('video.downloadVideo') }}</span>
                                 </button>
 
-                                <button @click="downloadDanmaku" class="flex flex-col items-center p-4 bg-gradient-to-br from-purple-50 to-purple-100 border border-purple-200/50 rounded-xl hover:from-purple-100 hover:to-purple-150 hover:border-purple-300/50 transition-all duration-300 group hover:shadow-md">
-                                    <div class="w-12 h-12 bg-gradient-to-br from-purple-500 to-purple-600 rounded-full flex items-center justify-center mb-2 group-hover:scale-110 transition-transform duration-300">
-                                        <span class="text-xl text-white">💬</span>
-                                    </div>
-                                    <span class="text-sm font-medium text-purple-700 group-hover:text-purple-800">{{ t('video.downloadDanmaku') }}</span>
+                                <button @click="downloadDanmaku" class="flex items-center justify-center space-x-2 bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg p-3 border border-purple-200/50 hover:shadow hover:from-purple-100 hover:to-pink-100 transition-all duration-300 group">
+                                    <span class="text-purple-500 text-lg group-hover:scale-110 transition-transform duration-300">💬</span>
+                                    <span class="text-sm font-semibold text-gray-700 group-hover:text-purple-800">{{ t('video.downloadDanmaku') }}</span>
                                 </button>
 
-                                <button @click="downloadCover" class="flex flex-col items-center p-4 bg-gradient-to-br from-pink-50 to-pink-100 border border-pink-200/50 rounded-xl hover:from-pink-100 hover:to-pink-150 hover:border-pink-300/50 transition-all duration-300 group hover:shadow-md">
-                                    <div class="w-12 h-12 bg-gradient-to-br from-pink-500 to-pink-600 rounded-full flex items-center justify-center mb-2 group-hover:scale-110 transition-transform duration-300">
-                                        <span class="text-xl text-white">🖼️</span>
-                                    </div>
-                                    <span class="text-sm font-medium text-pink-700 group-hover:text-pink-800">{{ t('video.downloadCover') }}</span>
+                                <button @click="downloadCover" class="flex items-center justify-center space-x-2 bg-gradient-to-r from-pink-50 to-rose-50 rounded-lg p-3 border border-pink-200/50 hover:shadow hover:from-pink-100 hover:to-rose-100 transition-all duration-300 group col-span-2 md:col-span-1">
+                                    <span class="text-pink-500 text-lg group-hover:scale-110 transition-transform duration-300">🖼️</span>
+                                    <span class="text-sm font-semibold text-gray-700 group-hover:text-pink-800">{{ t('video.downloadCover') }}</span>
                                 </button>
                             </div>
 
-                            <div class="grid grid-cols-1 md:grid-cols-3 gap-3 pt-3">
-                                <button @click="handleUpdateStats" class="flex flex-col items-center p-4 bg-gradient-to-br from-indigo-50 to-indigo-100 border border-indigo-200/50 rounded-xl hover:from-indigo-100 hover:to-indigo-150 hover:border-indigo-300/50 transition-all duration-300 group hover:shadow-md">
-                                    <div class="w-12 h-12 bg-gradient-to-br from-indigo-400 to-indigo-500 rounded-full flex items-center justify-center mb-2 group-hover:scale-110 transition-transform duration-300">
-                                        <span class="text-xl text-white">📊</span>
-                                    </div>
-                                    <span class="text-sm font-medium text-indigo-700 group-hover:text-indigo-800">{{ t('video.updateStat') }}</span>
+                            <div class="grid grid-cols-2 md:grid-cols-3 gap-3 pt-1">
+                                <button @click="handleUpdateStats" class="flex items-center justify-center space-x-2 bg-gradient-to-r from-amber-50 to-yellow-50 rounded-lg p-3 border border-amber-200/50 hover:shadow hover:from-amber-100 hover:to-yellow-100 transition-all duration-300 group">
+                                    <span class="text-amber-500 text-lg group-hover:scale-110 transition-transform duration-300">📊</span>
+                                    <span class="text-sm font-semibold text-gray-700 group-hover:text-amber-800">{{ t('video.updateStat') }}</span>
                                 </button>
                                 
-                                <button @click="handleUpdateDanmaku" class="flex flex-col items-center p-4 bg-gradient-to-br from-orange-50 to-orange-100 border border-orange-200/50 rounded-xl hover:from-orange-100 hover:to-orange-150 hover:border-orange-300/50 transition-all duration-300 group hover:shadow-md">
-                                    <div class="w-12 h-12 bg-gradient-to-br from-orange-400 to-orange-500 rounded-full flex items-center justify-center mb-2 group-hover:scale-110 transition-transform duration-300">
-                                        <span class="text-xl text-white">🔄</span>
-                                    </div>
-                                    <span class="text-sm font-medium text-orange-700 group-hover:text-orange-800">{{ t('video.updateDanmaku') }}</span>
+                                <button @click="handleUpdateDanmaku" class="flex items-center justify-center space-x-2 bg-gradient-to-r from-orange-50 to-amber-50 rounded-lg p-3 border border-orange-200/50 hover:shadow hover:from-orange-100 hover:to-amber-100 transition-all duration-300 group">
+                                    <span class="text-orange-500 text-lg group-hover:scale-110 transition-transform duration-300">🔄</span>
+                                    <span class="text-sm font-semibold text-gray-700 group-hover:text-orange-800">{{ t('video.updateDanmaku') }}</span>
                                 </button>
 
-                                <button @click="handleUpdateComments" class="flex flex-col items-center p-4 bg-gradient-to-br from-teal-50 to-teal-100 border border-teal-200/50 rounded-xl hover:from-teal-100 hover:to-teal-150 hover:border-teal-300/50 transition-all duration-300 group hover:shadow-md">
-                                    <div class="w-12 h-12 bg-gradient-to-br from-teal-400 to-teal-500 rounded-full flex items-center justify-center mb-2 group-hover:scale-110 transition-transform duration-300">
-                                        <span class="text-xl text-white">📝</span>
-                                    </div>
-                                    <span class="text-sm font-medium text-teal-700 group-hover:text-teal-800">{{ t('video.updateComment') }}</span>
+                                <button @click="handleUpdateComments" class="flex items-center justify-center space-x-2 bg-gradient-to-r from-teal-50 to-emerald-50 rounded-lg p-3 border border-teal-200/50 hover:shadow hover:from-teal-100 hover:to-emerald-100 transition-all duration-300 group col-span-2 md:col-span-1">
+                                    <span class="text-teal-500 text-lg group-hover:scale-110 transition-transform duration-300">📝</span>
+                                    <span class="text-sm font-semibold text-gray-700 group-hover:text-teal-800">{{ t('video.updateComment') }}</span>
                                 </button>
                             </div>
                         </div>
@@ -235,6 +223,28 @@
                 </button>
             </transition>
         </div>
+
+        <transition
+            enter-active-class="transition duration-300 ease-out transform"
+            enter-from-class="translate-y-[-1rem] opacity-0"
+            enter-to-class="translate-y-0 opacity-100"
+            leave-active-class="transition duration-200 ease-in transform"
+            leave-from-class="translate-y-0 opacity-100"
+            leave-to-class="translate-y-[-1rem] opacity-0"
+        >
+            <div v-if="showToast" class="fixed top-6 right-6 z-[60] bg-white border border-green-200 rounded-lg shadow-xl p-4 w-80 overflow-hidden">
+                <div class="flex items-start space-x-3 relative z-10">
+                    <div class="flex-shrink-0 text-green-500 mt-0.5">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    </div>
+                    <div class="flex-1">
+                        <h4 class="text-sm font-bold text-gray-800">信息提示</h4>
+                        <p class="text-sm text-gray-600 mt-1">{{ toastMsg }}</p>
+                    </div>
+                </div>
+                <div class="absolute bottom-0 left-0 h-1 bg-green-500 animate-shrink" style="width: 100%"></div>
+            </div>
+        </transition>
     </div>
 </template>
 <script lang="ts" setup>
@@ -384,33 +394,63 @@ const downloadCover = () => {
     console.log('Download cover clicked for:', videoInfo.value?.bvid)
 }
 
+// --- 新增：通知状态管理 ---
+const toastMsg = ref('');
+const showToast = ref(false);
+let toastTimer: ReturnType<typeof setTimeout> | null = null;
+
+const showNotification = (msg: string) => {
+    toastMsg.value = msg;
+    showToast.value = false; // 先重置状态，以重置进度条动画
+    
+    nextTick(() => {
+        showToast.value = true;
+        if (toastTimer) clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => {
+            showToast.value = false;
+        }, 5000); // 5秒后自动消失
+    });
+};
+
 const handleUpdateDanmaku = async () => {
     if (!videoInfo.value?.id) return;
     try {
-        await triggerUpdateDanmaku(videoInfo.value.id);
-        alert('弹幕更新任务已提交后台处理'); // 如果你项目里有 toast 组件如 ElMessage，建议用组件替换 alert
+        const res = await triggerUpdateDanmaku(videoInfo.value.id);
+        if (res && res.code === 0) {
+            showNotification(res.message || '弹幕更新任务已插队执行，请稍后刷新页面。');
+        } else {
+            showNotification(res?.message || '弹幕更新任务投递失败。');
+        }
     } catch (e) {
-        alert('弹幕更新失败，请检查网络或日志');
+        showNotification('网络请求异常，请查看日志。');
     }
 };
 
 const handleUpdateComments = async () => {
     if (!videoInfo.value?.id) return;
     try {
-        await triggerUpdateComments(videoInfo.value.id);
-        alert('评论区更新任务已提交后台处理');
+        const res = await triggerUpdateComments(videoInfo.value.id);
+        if (res && res.code === 0) {
+            showNotification(res.message || '评论更新任务已插队执行，请稍后刷新页面。');
+        } else {
+            showNotification(res?.message || '评论更新任务投递失败。');
+        }
     } catch (e) {
-        alert('评论更新失败，请检查网络或日志');
+        showNotification('网络请求异常，请查看日志。');
     }
 };
 
 const handleUpdateStats = async () => {
     if (!videoInfo.value?.id) return;
     try {
-        await triggerUpdateStats(videoInfo.value.id);
-        alert('播放量等数据更新任务已提交后台处理');
+        const res = await triggerUpdateStats(videoInfo.value.id);
+        if (res && res.code === 0) {
+            showNotification(res.message || '数据更新任务已插队执行，请稍后刷新页面。');
+        } else {
+            showNotification(res?.message || '数据更新任务投递失败。');
+        }
     } catch (e) {
-        alert('数据更新失败，请检查网络或日志');
+        showNotification('网络请求异常，请查看日志。');
     }
 };
 

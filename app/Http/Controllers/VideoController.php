@@ -188,23 +188,30 @@ class VideoController extends Controller
     }
 
     /**
-     * 手动投递弹幕更新任务
+     * 手动投递弹幕更新任务 (最高优先级：异步插队)
      */
     public function updateDanmaku($id)
     {
-        $video = Video::find($id);
+        $video = Video::with('parts')->find($id);
         if (!$video) {
             return response()->json(['code' => 404, 'message' => 'Video not found']);
         }
 
-        // 推送弹幕拉取任务到队列
-        DownloadDanmakuJob::dispatch($video);
-
-        return response()->json(['code' => 0, 'message' => 'Danmaku update job dispatched']);
+        try {
+            if ($video->parts) {
+                foreach ($video->parts as $part) {
+                    // 使用 ->onQueue('fast') 强行推入最高优先级队列插队
+                    DownloadDanmakuJob::dispatch($part)->onQueue('fast');
+                }
+            }
+            return response()->json(['code' => 0, 'message' => '弹幕更新任务已优先插队执行']);
+        } catch (\Exception $e) {
+            return response()->json(['code' => 500, 'message' => '任务投递失败: ' . $e->getMessage()]);
+        }
     }
 
     /**
-     * 手动投递评论更新任务
+     * 手动投递评论更新任务 (最高优先级：异步插队)
      */
     public function updateComments($id)
     {
@@ -213,14 +220,18 @@ class VideoController extends Controller
             return response()->json(['code' => 404, 'message' => 'Video not found']);
         }
 
-        // 推送评论拉取任务到队列
-        DownloadCommentsJob::dispatch($video);
-
-        return response()->json(['code' => 0, 'message' => 'Comments update job dispatched']);
+        try {
+            // 使用 ->onQueue('fast') 强行推入最高优先级队列插队
+            DownloadCommentsJob::dispatch($video)->onQueue('fast');
+            
+            return response()->json(['code' => 0, 'message' => '评论更新任务已优先插队执行']);
+        } catch (\Exception $e) {
+            return response()->json(['code' => 500, 'message' => '任务投递失败: ' . $e->getMessage()]);
+        }
     }
 
     /**
-     * 手动投递视频数据(播放量、基础信息等)更新任务
+     * 手动投递视频数据(播放量、基础信息等)更新任务 (最高优先级：异步插队)
      */
     public function updateStats($id)
     {
@@ -229,9 +240,13 @@ class VideoController extends Controller
             return response()->json(['code' => 404, 'message' => 'Video not found']);
         }
 
-        // 推送视频信息更新任务到队列
-        PullVideoInfoJob::dispatch($video);
-
-        return response()->json(['code' => 0, 'message' => 'Stats update job dispatched']);
+        try {
+            // 使用 ->onQueue('fast') 强行推入最高优先级队列插队
+            PullVideoInfoJob::dispatch($video->bvid)->onQueue('fast');
+            
+            return response()->json(['code' => 0, 'message' => '数据更新任务已优先插队执行']);
+        } catch (\Exception $e) {
+            return response()->json(['code' => 500, 'message' => '任务投递失败: ' . $e->getMessage()]);
+        }
     }
 }
