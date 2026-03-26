@@ -6,13 +6,21 @@ use App\Events\VideoPartUpdated;
 use App\Events\VideoUpdated;
 use App\Services\VideoManager\Contracts\VideoServiceInterface;
 use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Cache;
 use Laravel\Horizon\Contracts\Silenced;
 
-class UpdateVideosCache implements ShouldQueue, Silenced
+class UpdateVideosCache implements ShouldQueue, ShouldBeUnique, Silenced
 {
     public $queue = 'fast';
+
+    // 收到事件后，任务会等待 5 秒再执行。在这 5 秒的缓冲期内，
+    // 刚好可以等待大批量的数据库写操作完成。
+    public $delay = 5;
+
+    // 保证 10 秒内，Redis 队列里绝对不会出现第二个名为 `rebuild_videos_cache` 的任务。
+    public $uniqueFor = 10;
 
     /**
      * Create the event listener.
@@ -26,23 +34,8 @@ class UpdateVideosCache implements ShouldQueue, Silenced
      */
     public function handle(VideoUpdated|VideoPartUpdated|VideoPartDownloaded $event): void
     {
-        // [新增] 防抖逻辑
-        // 尝试获取一个持续 20 秒的锁
-        // 如果获取失败（说明最近 20 秒内已经有一个任务在跑了），则直接跳过本次任务
-        // block(0) 表示不等待，立即返回 false
-        $lock = Cache::lock('locking:update_all_videos_cache', 20);
-        
-        if ($lock->get()) {
-            try {
-                // 只有拿到锁的任务才执行全量更新
-                app(VideoServiceInterface::class)->updateVideosCache();
-            } finally {
-                // [可选] 这里不释放锁，让它自动过期
-                // 这样可以强制保证 20 秒内只执行一次，给数据库喘息的机会
-                // $lock->release(); 
-            }
-        } else {
-            // Log::debug('Update videos cache skipped (throttled)');
-        }
+        // Laravel 底层会自动在 dispatch 时拦截重复事件，
+        // 连队列都不会进，彻底告别刷屏和队列风暴。
+        $this->videoService->updateVideosCache();
     }
 }
