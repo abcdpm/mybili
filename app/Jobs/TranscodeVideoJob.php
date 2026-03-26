@@ -9,6 +9,8 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use App\Enums\SettingKey;
+use App\Services\SettingsService;
 
 class TranscodeVideoJob implements ShouldQueue
 {
@@ -21,12 +23,19 @@ class TranscodeVideoJob implements ShouldQueue
         public VideoPart $videoPart,
         public string $mode = 'cpu' // cpu, qsv, nvenc
     ) {
-        // [新增] 指定专属的转码队列，不再占用公共的 slow 队列
+        // 指定专属的转码队列，不再占用公共的 slow 队列
         $this->onQueue('transcode');
     }
 
     public function handle(): void
     {
+        // 检查系统设置
+        $transcodeEnabled = app(SettingsService::class)->get(SettingKey::TRANSCODE_VIDEO_ENABLED) ?? 'off';
+        if ($transcodeEnabled !== 'on') {
+            Log::info("[视频转码] 系统设置已关闭视频转码功能，跳过任务", ['cid' => $this->videoPart->cid]);
+            return;
+        }
+
         $part = $this->videoPart;
 
         // 定义一个基于视频分P CID 的唯一锁

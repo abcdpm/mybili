@@ -17,16 +17,18 @@ class SettingsController extends Controller
     public function getSettings()
     {
         $presets = [
-            SettingKey::DANMAKU_DOWNLOAD_ENABLED->value         => 'off',
-            SettingKey::VIDEO_DOWNLOAD_ENABLED->value           => 'off',
-            SettingKey::FAVORITE_SYNC_ENABLED->value            => 'off',
-            SettingKey::HUMAN_READABLE_NAME_ENABLED->value      => 'off',
-            SettingKey::USAGE_ANALYTICS_ENABLED->value          => 'on',
+            SettingKey::DANMAKU_DOWNLOAD_ENABLED->value         => 'on',
+            SettingKey::VIDEO_DOWNLOAD_ENABLED->value           => 'on',
+            SettingKey::FAVORITE_SYNC_ENABLED->value            => 'on',
+            SettingKey::HUMAN_READABLE_NAME_ENABLED->value      => 'on',
+            SettingKey::USAGE_ANALYTICS_ENABLED->value          => 'off',
+            SettingKey::TRANSCODE_VIDEO_ENABLED->value          => 'off',
+            SettingKey::DOWNLOAD_COMMENTS_ENABLED->value        => 'on',
             SettingKey::FAVORITE_EXCLUDE->value                 => [
                 'enabled'  => false,
                 'selected' => [],
             ],
-            SettingKey::MULTI_PARTITION_DOWNLOAD_ENABLED->value => 'off',
+            SettingKey::MULTI_PARTITION_DOWNLOAD_ENABLED->value => 'on',
             SettingKey::NAME_EXCLUDE->value                     => [
                 'contains' => '',
                 'regex'    => '',
@@ -72,6 +74,8 @@ class SettingsController extends Controller
             SettingKey::FAVORITE_SYNC_ENABLED->value                            => 'required|string|in:on,off',
             SettingKey::HUMAN_READABLE_NAME_ENABLED->value                      => 'required|string|in:on,off',
             SettingKey::USAGE_ANALYTICS_ENABLED->value                          => 'required|string|in:on,off',
+            SettingKey::TRANSCODE_VIDEO_ENABLED->value                          => 'required|string|in:on,off',
+            SettingKey::DOWNLOAD_COMMENTS_ENABLED->value                        => 'required|string|in:on,off',
 
             SettingKey::NAME_EXCLUDE->value                                     => 'required|array',
             SettingKey::NAME_EXCLUDE->value . '.contains'                       => 'required_if:name_exclude.type,contains|string',

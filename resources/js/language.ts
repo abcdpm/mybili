@@ -200,6 +200,8 @@ const messages = {
                 videoDownload: '视频下载',
                 danmakuDownload: '弹幕下载',
                 multiPartitionDownload: '多分P下载',
+                downloadComments: '评论下载',
+                transcodeVideo: '视频转码',
                 humanReadableName: '可读文件名',
                 usageAnalytics: '使用情况统计',
                 usageAnalyticsDescription: '帮助我们了解功能使用情况，改进产品体验（完全匿名）'
@@ -615,6 +617,8 @@ const messages = {
                 videoDownload: 'Video Download',
                 danmakuDownload: 'Danmaku Download',
                 multiPartitionDownload: 'Multi-Partition Download',
+                downloadComments: 'Comment Download',
+                transcodeVideo: 'Video Transcode',
                 humanReadableName: 'Human Readable Name',
                 usageAnalytics: 'Usage Analytics',
                 usageAnalyticsDescription: 'Help us understand feature usage and improve product experience (completely anonymous)'

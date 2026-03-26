@@ -7,6 +7,8 @@ use App\Models\Comment; // 引入 Comment 模型
 use Carbon\Carbon;
 use App\Jobs\DownloadCommentsJob;
 use Illuminate\Console\Command;
+use App\Enums\SettingKey;
+use App\Services\SettingsService;
 
 class DownloadAllComments extends Command
 {
@@ -33,7 +35,14 @@ class DownloadAllComments extends Command
 
     public function handle(): void
     {
-        // [新增] 状态查看模式
+        // 检查系统设置：是否允许评论下载
+        $downloadCommentsEnabled = app(SettingsService::class)->get(SettingKey::DOWNLOAD_COMMENTS_ENABLED) ?? 'on';
+        if ($downloadCommentsEnabled !== 'on') {
+            $this->info("[视频评论] 系统设置已关闭评论下载功能，跳过执行");
+            return;
+        }
+
+        // 状态查看模式
         if ($this->option('status')) {
             $this->showStatus();
             return;

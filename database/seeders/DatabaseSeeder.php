@@ -17,6 +17,8 @@ class DatabaseSeeder extends Seeder
             SettingKey::DANMAKU_DOWNLOAD_ENABLED->value         => 'on',
             SettingKey::MULTI_PARTITION_DOWNLOAD_ENABLED->value => 'on',
             SettingKey::HUMAN_READABLE_NAME_ENABLED->value      => 'on',
+            SettingKey::DOWNLOAD_COMMENTS_ENABLED->value        => 'on',
+            SettingKey::TRANSCODE_VIDEO_ENABLED->value          => 'off',
             SettingKey::USAGE_ANALYTICS_ENABLED->value          => 'off',
         ];
 
