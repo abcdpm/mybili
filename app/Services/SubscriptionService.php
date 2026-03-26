@@ -312,7 +312,7 @@ class SubscriptionService
                     $subscriptionVideo->video_id        = $archive['aid'];
                     $subscriptionVideo->save();
 
-                    PullVideoInfoJob::dispatchWithRateLimit($archive['bvid']);
+                    PullVideoInfoJob::dispatch($archive['bvid']);
                 }
 
                 if ($loaded >= $subscription->total) {
@@ -397,7 +397,7 @@ class SubscriptionService
                 }
                 event(new VideoUpdated([], $video->getAttributes()));
 
-                PullVideoInfoJob::dispatchWithRateLimit($item['bvid']);
+                PullVideoInfoJob::dispatch($item['bvid']);
             }
             $loaded += count($upVideos['list']);
 
@@ -480,7 +480,7 @@ class SubscriptionService
                 ]);
 
                 // 派发下载详情任务
-                PullVideoInfoJob::dispatchWithRateLimit($item['bvid']);
+                PullVideoInfoJob::dispatch($item['bvid']);
             }
 
             $loaded += count($videos);
