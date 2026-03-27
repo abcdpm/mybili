@@ -4,11 +4,11 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use App\Models\AudioPart;
+use App\Traits\LocalImagePrioritizerTrait;
 
 class Video extends Model
 {
-
-    use SoftDeletes;
+    use SoftDeletes, LocalImagePrioritizerTrait;
 
     protected $table      = 'videos';
     protected $fillable   = [

@@ -7,9 +7,12 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Cache; // 【新增】
+use App\Traits\ImageOptimizerTrait;
 
 class CommentImageService
 {
+    use ImageOptimizerTrait; // 【使用Trait】
+
     /**
      * 处理评论内容中的表情包
      */
@@ -24,7 +27,7 @@ class CommentImageService
             $cached = Emote::where('url_hash', $hash)->first();
             if ($cached) {
                 // 如果存在，直接使用，不管后缀是什么
-                $localEmotes[$text] = Storage::url('emotes/' . $cached->filename);
+                $localEmotes[$text] = asset(Storage::url('emotes/' . $cached->filename));
                 continue;
             }
 
@@ -40,7 +43,7 @@ class CommentImageService
                             'text' => $text,
                         ]
                     );
-                    $localEmotes[$text] = Storage::url('emotes/' . $filename);
+                    $localEmotes[$text] = asset(Storage::url('emotes/' . $filename));
                 } catch (\Exception $e) {
                      // 忽略并发冲突
                      $localEmotes[$text] = $url;
@@ -62,7 +65,7 @@ class CommentImageService
         foreach ($pictures as $url) {
             $filename = $this->downloadAndSave($url, 'comments');
             if ($filename) {
-                $localPictures[] = Storage::url('comments/' . $filename);
+                $localPictures[] = asset(Storage::url('comments/' . $filename));
             }
         }
         return $localPictures;
@@ -123,12 +126,37 @@ class CommentImageService
             // 因为 $content 是字符串格式的二进制流，strlen 就是准确的字节大小
             Cache::increment('stat_images_size', strlen($content));
             // ==========================
+
+            // 【核心新增逻辑】：触发转码优化
+            $fullPath = Storage::disk('public')->path($path);
+            $optimizedFullPath = $this->optimizeImage($fullPath);
             
-            return $filename;
+            // 获取最终入库的文件名 (可能是 md5.jpg，也可能是转好的 md5.avif/md5.webp)
+            $finalFilename = basename($optimizedFullPath);
+
+            return $finalFilename;
 
         } catch (\Exception $e) {
             Log::error("图片处理异常: " . $e->getMessage());
             return null;
         }
+    }
+
+    /**
+     * 【新增】处理评论区用户头像
+     */
+    public function processAvatar(string $url): string
+    {
+        if (empty($url)) {
+            return $url;
+        }
+
+        // 统一走下载和 AVIF/WebP 优化流水线
+        $filename = $this->downloadAndSave($url, 'avatars');
+        if ($filename) {
+            return asset(Storage::url('avatars/' . $filename));
+        }
+
+        return $url; // 如果处理失败，退回使用原始 B 站头像
     }
 }

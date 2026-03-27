@@ -3,9 +3,12 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use App\Traits\LocalImagePrioritizerTrait;
 
 class Subscription extends Model
 {
+    use LocalImagePrioritizerTrait;
+    
     protected $table = 'subscriptions';
     protected $primaryKey = 'id';
 

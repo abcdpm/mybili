@@ -124,6 +124,12 @@ class DownloadCommentsAction
                 $data['pictures'] = $this->imageService->processPictures($data['pictures']);
             }
 
+            // 3. 【新增】处理评论区用户头像
+            // B站API通常将用户信息放在 member 对象下，头像字段为 avatar
+            if (isset($data['avatar']) && !empty($data['avatar'])) {
+                $data['avatar'] = $this->imageService->processAvatar($data['avatar']);
+            }
+
             // 写入主评论
             Comment::updateOrCreate(
                 ['rpid' => $data['rpid'], 'video_id' => $video->id],

@@ -2,9 +2,12 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use App\Traits\LocalImagePrioritizerTrait;
 
 class FavoriteList extends Model
 {
+    use LocalImagePrioritizerTrait;
+
     protected $table      = 'favorite_lists';
     protected $fillable   = ['id', 'title', 'cover', 'ctime', 'mtime', 'media_count'];
     protected $primaryKey = 'id';
