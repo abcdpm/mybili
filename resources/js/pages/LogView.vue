@@ -16,7 +16,19 @@
         </div>
       </div>
 
-      <button @click="fetchLogs" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg shadow-sm transition-colors text-sm font-medium">手动刷新</button>
+      <div class="flex items-center space-x-0.5">
+        <button 
+          @click="handleClearLogs" 
+          class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg shadow-sm transition-colors text-sm font-medium"
+        >
+          清空日志
+        </button>
+        <button 
+          @click="fetchLogs" 
+          class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg shadow-sm transition-colors text-sm font-medium"
+        >
+          手动刷新</button>
+      </div>
     </div>
 
     <div class="bg-white rounded-xl shadow-sm border border-gray-100 mb-4 p-4 shrink-0">
@@ -65,7 +77,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, nextTick } from 'vue'
-import { getSystemLogs, getQueueStats } from '../api/system' // 引入探针API
+import { getSystemLogs, getQueueStats, clearSystemLogs } from '../api/system'
 
 const logs = ref('')
 const logContainer = ref<HTMLElement | null>(null)
@@ -90,6 +102,21 @@ const switchLogSource = (type: string) => {
   logs.value = 'Switching and loading ' + currentLogType.value + ' logs...'
   isUserScrolling = false
   fetchLogs()
+}
+
+// 清空日志的处理函数
+const handleClearLogs = async () => {
+  try {
+    await clearSystemLogs(currentLogType.value)
+    logs.value = '日志已清空...'
+    // 清空后稍微延迟一下再拉取，确保后端文件写入完成
+    setTimeout(() => {
+      fetchLogs()
+    }, 500)
+  } catch (error) {
+    console.error('清空日志失败', error)
+    alert('清空日志失败，请查看控制台')
+  }
 }
 
 // 【新增】执行队列探针查询

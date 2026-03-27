@@ -29,6 +29,8 @@ Route::apiResource('/subscription', SubscriptionController::class)->only(['index
 Route::get('/system/info', [SystemController::class, 'getSystemInfo']);
 // 系统日志接口
 Route::get('/system/logs', [SystemController::class, 'logs']);
+// 系统日志清空接口
+Route::post('/system/logs/clear', [SystemController::class, 'clearLogs']);
 // 系统运维：队列积压查询
 Route::get('/system/queue-stats', [SystemController::class, 'queueStats']);
 

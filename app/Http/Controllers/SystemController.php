@@ -43,6 +43,32 @@ class SystemController extends Controller
     }
 
     /**
+     * 清空物理日志文件
+     */
+    public function clearLogs(Request $request)
+    {
+        $type = $request->input('type', 'laravel');
+
+        $logPaths = [
+            'laravel'    => storage_path('logs/laravel.log'),
+            'supervisor' => '/var/log/supervisord.log',
+        ];
+        $logFile = $logPaths[$type] ?? null;
+
+        if (!$logFile || !file_exists($logFile)) {
+            return response()->json(['success' => false, 'message' => "日志文件不存在"], 404);
+        }
+
+        try {
+            // 将文件内容置空 (物理截断)
+            file_put_contents($logFile, '');
+            return response()->json(['success' => true, 'message' => '日志已清空']);
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'message' => '清空失败: ' . $e->getMessage()], 500);
+        }
+    }
+
+    /**
      * 运维小工具：获取 Horizon 队列积压统计
      */
     public function queueStats(Request $request)
