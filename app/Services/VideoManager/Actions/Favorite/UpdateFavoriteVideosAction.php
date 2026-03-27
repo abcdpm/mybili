@@ -29,10 +29,27 @@ class UpdateFavoriteVideosAction
     public function execute(array $fav, ?int $page = null): void
     {
         $favId  = $fav['id'];
+        $currentPage = $page ?: 1; // 统一处理 null 为 1
+
+        // 【安全修复1】：只有在开启新一轮同步（拉取第 1 页）时，才清空旧缓存。
+        // 这样可以彻底斩断过去的幽灵数据，同时在多页拉取时能安全累加。
+        if ($currentPage === 1) {
+            redis()->del(sprintf('favorite_video_saving:%s', $favId));
+            Log::info('[收藏夹管理] 开启新一轮同步，已清空旧的 Redis 暂存数据', ['favId' => $favId]);
+        }
+
         $videos = $this->bilibiliService->pullFavVideoList($favId, $page);
 
         if (count($videos) === 0) {
             Log::info('[收藏夹管理] 未获取到视频数据', ['favId' => $favId]);
+            // 特殊情况：如果第一页就为空，且B站返回总数也是0，说明用户清空了整个收藏夹
+            if ($currentPage === 1 && intval($fav['media_count']) === 0) {
+                $localVideoIds = DB::table('favorite_list_videos')->where('favorite_list_id', $favId)->pluck('video_id')->toArray();
+                if (!empty($localVideoIds)) {
+                    FavoriteList::query()->where('id', $favId)->first()->videos()->detach($localVideoIds);
+                    Log::info('[收藏夹管理] 收藏夹已被完全清空，同步解绑所有视频', ['favId' => $favId]);
+                }
+            }
             return;
         }
 
@@ -172,16 +189,54 @@ class UpdateFavoriteVideosAction
             Log::info('[收藏夹管理] 视频信息更新成功', ['id' => $item['id'], 'title' => $item['title']]);
         }
 
-        $savedVideos = $this->getFavoriteVideo($favId);
-        // media_count 是不准确的，可能是用户手动取消收藏视频系统没更新、也可能是哔哩哔哩自己故意把用户视频搞丢失
-        // 经过测试，用户收藏夹的视频获取没有错误，但收藏夹的media_count 是错误的，目前没有合适的方法更新
-        if (intval($fav['media_count']) == count($savedVideos)) {
-            $remoteCacheVideoIds = array_column($savedVideos, 'id');
-            $deleteVideoIds      = array_diff($localVideoIds, $remoteCacheVideoIds);
-            if (! empty($deleteVideoIds)) {
-                FavoriteList::query()->where('id', $favId)->first()->videos()->detach($deleteVideoIds);
-                Log::info('[收藏夹管理] 从收藏夹中解绑已删除视频', ['favId' => $favId, 'videoIds' => $deleteVideoIds]);
+        // =========================================================
+        // 【核心大扫除逻辑 - 安全拦截版】
+        // =========================================================
+        $pageSize = 40; // B站 API 每页数量
+        $isLastPage = false;
+        
+        // 判定当前是否为该收藏夹的“最后一页”
+        if (count($videos) < $pageSize) {
+            // 如果本页获取的视频数不足 40，毫无疑问这是最后一页
+            $isLastPage = true;
+        } elseif (($currentPage * $pageSize) >= (intval($fav['media_count']) - 10)) {
+            // 如果当前页码算出的总量已经涵盖了 media_count（容忍10个失效视频误差），也是最后一页
+            $isLastPage = true;
+        }
+
+        if ($isLastPage) {
+            $savedVideos = $this->getFavoriteVideo($favId);
+            Log::info('[收藏夹管理] 最后一页拉取完毕，开始执行全量视频大扫除校验', [
+                'favId'            => $favId, 
+                'favTitle'         => $fav['title'],
+                'media_count'      => intval($fav['media_count']), 
+                'savedVideosCount' => count($savedVideos)
+            ]);
+
+            if (count($savedVideos) > 0) {
+                $remoteCacheVideoIds = array_column($savedVideos, 'id');
+                // 因为是最后一页，Redis 里的 savedVideos 已经是该收藏夹所有干净的存活视频，可以安全取差集
+                $deleteVideoIds = array_diff($localVideoIds, $remoteCacheVideoIds);
+                
+                if (! empty($deleteVideoIds)) {
+                    Log::info('[收藏夹管理] 检测到视频已被移出或彻底取消收藏，准备同步解绑', [
+                        'favId'          => $favId, 
+                        '解绑的视频数量' => count($deleteVideoIds),
+                        '解绑列表IDs'    => array_values($deleteVideoIds)
+                    ]);
+
+                    FavoriteList::query()->where('id', $favId)->first()->videos()->detach($deleteVideoIds);
+                    Log::info('[收藏夹管理] ============ 解绑清理执行完毕 ============', ['favId' => $favId]);
+                } else {
+                    Log::info('[收藏夹管理] 远端列表与本地一致，无需解绑', ['favId' => $favId]);
+                }
             }
+        } else {
+            // 【保护机制】：定时任务如果只拉取了第一页，绝不能执行清理操作！
+            Log::info('[收藏夹管理] 当前为增量分页同步，为保护后续页数据，跳过大扫除逻辑', [
+                'favId'       => $favId,
+                'currentPage' => $currentPage
+            ]);
         }
     }
 
