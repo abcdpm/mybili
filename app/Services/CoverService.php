@@ -32,11 +32,10 @@ class CoverService extends DownloadImageService
         $baseFilename = pathinfo($originalFilename, PATHINFO_FILENAME);
         
         // 2. 优先检查数据库中是否已存在该封面的 WebP 版本
-        // 【修改1】：数据库检查不仅要查 webp，还要查 avif 兼容后续升级
+        // 【修改】只查原图和 WebP，彻底移除 avif
         $cover = Cover::whereIn('filename', [
             $originalFilename,
-            $baseFilename . '.webp',
-            $baseFilename . '.avif'
+            $baseFilename . '.webp'
         ])->first();
         
         // 3. 如果封面不存在，执行下载与转换流程
@@ -126,10 +125,10 @@ class CoverService extends DownloadImageService
         $filename = $this->convertToFilename($url);
         $baseFilename = pathinfo($filename, PATHINFO_FILENAME);
         
+        // 【修改】彻底移除 avif
         return Cover::whereIn('filename', [
             $filename,
-            $baseFilename . '.webp',
-            $baseFilename . '.avif'
+            $baseFilename . '.webp'
         ])->exists();
     }
 

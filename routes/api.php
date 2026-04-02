@@ -8,7 +8,6 @@ use App\Http\Controllers\SubscriptionController;
 use App\Http\Controllers\VideoController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\SystemController;
-use App\Http\Controllers\ImageProxyController;
 
 Route::apiResource('/fav', FavController::class)->only(['show', 'index']);
 Route::post('/fav/reorder', [FavController::class, 'reorder']);
@@ -41,8 +40,6 @@ Route::get('/videos/{id}/comments', [VideoController::class, 'comments']);
 Route::get('/comments/{rootId}/replies', [VideoController::class, 'replies']);
 // 获取视频标签的路由
 Route::get('/videos/{id}/tags', [VideoController::class, 'tags']);
-// 图片智能本地化代理接口
-Route::get('/image/proxy', [ImageProxyController::class, 'proxy']);
 
 // 手动更新路由
 Route::post('/videos/{id}/update-danmaku', [VideoController::class, 'updateDanmaku']);

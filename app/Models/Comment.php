@@ -35,35 +35,33 @@ class Comment extends Model
     {
         $array = parent::toArray();
 
-        // 1. 拦截评论区头像 (avatar)
-        if (!empty($array['avatar']) && str_contains($array['avatar'], 'hdslb.com')) {
-            $array['avatar'] = url('/api/image/proxy?type=avatar&url=' . urlencode($array['avatar']));
-        } elseif (!empty($array['avatar']) && str_starts_with($array['avatar'], '/storage/')) {
-            $array['avatar'] = asset($array['avatar']); // 补齐历史遗留的无 http 前缀数据
+        // 1. 头像
+        if (!empty($array['avatar']) && str_starts_with($array['avatar'], '/storage/')) {
+            $array['avatar'] = asset($array['avatar']);
         }
 
-        // 2. 拦截评论配图 (pictures)
-        if (!empty($array['pictures']) && is_array($array['pictures'])) {
-            foreach ($array['pictures'] as $idx => $url) {
-                if (str_contains($url, 'hdslb.com')) {
-                    $array['pictures'][$idx] = url('/api/image/proxy?type=comment&url=' . urlencode($url));
-                } elseif (str_starts_with($url, '/storage/')) {
-                    $array['pictures'][$idx] = asset($url);
-                }
-            }
-        }
+        // 2. 评论配图
+        $array['pictures'] = $this->formatDualPaths($array['pictures'] ?? []);
 
-        // 3. 拦截表情包 (emotes)
-        if (!empty($array['emotes']) && is_array($array['emotes'])) {
-            foreach ($array['emotes'] as $key => $url) {
-                if (str_contains($url, 'hdslb.com')) {
-                    $array['emotes'][$key] = url('/api/image/proxy?type=emote&url=' . urlencode($url));
-                } elseif (str_starts_with($url, '/storage/')) {
-                    $array['emotes'][$key] = asset($url);
-                }
-            }
-        }
+        // 3. 表情包
+        $array['emotes'] = $this->formatDualPaths($array['emotes'] ?? [], true);
 
         return $array;
+    }
+
+    private function formatDualPaths(array $items, bool $isAssoc = false): array
+    {
+        foreach ($items as $key => $item) {
+            if (is_array($item) && isset($item['webp'])) {
+                $items[$key]['webp'] = str_starts_with($item['webp'], '/storage/') ? asset($item['webp']) : $item['webp'];
+                if (isset($item['raw'])) {
+                    $items[$key]['raw'] = str_starts_with($item['raw'], '/storage/') ? asset($item['raw']) : $item['raw'];
+                }
+            } elseif (is_string($item) && str_starts_with($item, '/storage/')) {
+                // 兼容未跑清理脚本前的老字符串数据
+                $items[$key] = asset($item);
+            }
+        }
+        return $items;
     }
 }
