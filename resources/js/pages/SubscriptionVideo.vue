@@ -2,7 +2,7 @@
     <div class="m-4">
         <Breadcrumbs :items="breadcrumbItems">
             <template #actions>
-                <div class="flex items-center  gap-2">
+                <div class="flex items-center gap-2">
                     <label class="text-slate-500">{{ t('favorites.downloaded') }}</label>
                     <div class="checkbox-wrapper-7">
                         <input class="tgl tgl-ios" id="cb2-7" type="checkbox" v-model="isFilterDownloaded" />
@@ -12,12 +12,12 @@
             </template>
         </Breadcrumbs>
 
-        <div class="grid grid-cols-1 md:grid-cols-5 w-full gap-4">
+        <div class="grid grid-cols-1 md:grid-cols-5 w-full gap-4 mt-4">
             <div class="flex flex-col relative" v-for="item in displayedVideoList" :key="item.id">
-                <RouterLink :to="{ name: 'video-id', params: { id: item.id } }">
+                <RouterLink :to="{ name: 'subscription-video-id', params: { id: id, video_id: item.id } }">
                     <div class="rounded-lg overflow-hidden aspect-video w-full bg-gray-100 relative group">
                         <Image class="w-full h-full object-cover group-hover:scale-105 transition-all duration-300"
-                            :src="item.cover ? (item.cover.startsWith('http') ? item.cover : image(item.cover)) : '/assets/images/notfound.webp'" 
+                            :src="item.cover_info?.image_url || (item.cover ? (item.cover.startsWith('http') ? item.cover : image(item.cover)) : '/assets/images/notfound.webp')" 
                             :title="item.title"
                             referrerpolicy="no-referrer"
                             :class="{ 'grayscale-image': item.video_downloaded_num == 0 && item.audio_downloaded_num == 0 }" />
@@ -31,31 +31,17 @@
                                 <span>{{ formatDuration(item.duration || 0) }}</span>
                             </div>
                         </div>
+
+                        <div class="absolute top-2 left-2 z-10" v-if="item.frozen == 1">💾</div>
+                        <span v-if="item.page > 1" class="text-sm text-white bg-gray-600 rounded-lg min-w-10 px-1.5 text-center absolute top-2 right-2 z-10">{{ item.page }}</span>
                     </div>
                 </RouterLink>
                 
-                <span class="mt-4 text-center  h-12 line-clamp-2" :title="item.title">{{ item.title }}</span>
+                <span class="mt-4 text-center h-12 line-clamp-2" :title="item.title">{{ item.title }}</span>
                 <div class="mt-2 flex justify-between text-xs text-gray-400 px-1">
                     <span>{{ t('favorites.published') }}: {{ formatTimestamp(item.pubtime, "yyyy.mm.dd") }}</span>
                 </div>
             </div>
-        </template>
-    </Breadcrumbs>
-
-    <div class="grid grid-cols-1 md:grid-cols-4 w-full gap-4">
-        <div class="flex flex-col relative" v-for="item in showVideoList">
-            <RouterLink :to="{ name: 'subscription-video-id', params: { id: id, video_id: item.id } }">
-                <Image class="rounded-lg w-full h-auto md:w-96 md:h-56 hover:scale-105 transition-all duration-300"
-                    :src="item.cover_info?.image_url ?? '/assets/images/notfound.webp'" :title="item.title" />
-            </RouterLink>
-            <div class="absolute top-4 left-4" v-if="item.frozen == 1">💾</div>
-            <span class="mt-4 text-center  h-12 line-clamp-2" :title="item.title">{{ item.title }}</span>
-            <div class="mt-2 flex justify-between text-xs text-gray-400 px-1">
-                <span>{{ t('favorites.published') }}: {{ formatTimestamp(item.pubtime, "yyyy.mm.dd") }}</span>
-            </div>
-            <span v-if="item.page > 1"
-                class="text-sm text-white bg-gray-600 rounded-lg min-w-10 px-1.5 text-center absolute top-2 right-2">{{
-                    item.page }}</span>
         </div>
 
         <div ref="sentinel" class="w-full h-12 mt-6 flex justify-center items-center">
@@ -64,6 +50,7 @@
         </div>
     </div>
 </template>
+
 <script lang="ts" setup>
 import { computed, ref, onMounted, onUnmounted, watch } from 'vue';
 import { useRoute } from 'vue-router';
@@ -93,7 +80,6 @@ const breadcrumbItems = computed(() => {
 const showVideoList = computed(() => {
     return (subscription.value?.videos ?? []).filter((value: Video) => {
         if (isFilterDownloaded.value) {
-            console.log(value.video_downloaded_num)
             return value.video_downloaded_num > 0;
         }
         return true;
@@ -133,4 +119,5 @@ getSubscriptionDetail(Number(id)).then((result) => {
     subscription.value = result
 })
 </script>
+
 <style scoped></style>

@@ -6,6 +6,7 @@ use App\Services\SettingsService;
 use App\Services\VideoManager\Contracts\VideoServiceInterface;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schedule;
+use Illuminate\Support\Facades\Log;
 
 // ==========================================================================
 // 1. 收藏夹元数据同步
