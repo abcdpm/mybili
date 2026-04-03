@@ -11,8 +11,11 @@
         <div class="space-y-4" v-if="videoInfo != null">
             <div class="flex flex-col lg:flex-row gap-4">
                 
-                <div class="flex-1 min-w-0"> <div ref="playerContainer" id="playerContainer" class="-mx-6 md:mx-0 bg-white shadow-lg overflow-hidden md:border border-gray-200/50 mb-4">
-                        <Player ref="playerRef" @ready="onPlayerReady" :danmaku="danmaku" :url="currentPart?.url ?? ''" />
+                <div class="flex-1 min-w-0"> 
+                    <div ref="playerContainer" id="playerContainer" 
+                        class="-mx-6 md:mx-0 bg-white shadow-lg overflow-hidden md:border border-gray-200/50 mb-4">
+                        <Player ref="playerRef" @ready="onPlayerReady" :danmaku="danmaku" 
+                            :url="currentPart?.url ?? ''" />
                     </div>
 
                     <div class="bg-white/90 backdrop-blur-sm rounded-xl shadow-lg border border-gray-200/50 p-4 mb-4">
@@ -191,6 +194,160 @@
                     </div>
                 </div>
             </div>
+
+            <!-- Video Info Section -->
+            <div v-if="videoInfo != null"
+                class="bg-white/90 backdrop-blur-sm rounded-xl shadow-lg border border-gray-200/50 p-4">
+                <div class="space-y-4">
+                    <!-- Title -->
+                    <div>
+                        <h2 class="text-2xl font-bold text-gray-800 mb-2 leading-tight">{{ videoInfo.title }}</h2>
+                        <div class="w-16 h-1 bg-gradient-to-r from-pink-500 to-purple-600 rounded-full"></div>
+                    </div>
+
+                    <!-- UP主信息 -->
+                    <div v-if="videoInfo.upper"
+                        class="flex items-center justify-between p-3 bg-gradient-to-r from-gray-50 to-gray-100 rounded-lg border border-gray-200/50">
+                        <div class="flex items-center space-x-3">
+                            <!-- 预留头像位置 -->
+                            <div
+                                class="w-10 h-10 bg-gradient-to-br from-pink-400 to-purple-500 rounded-full flex items-center justify-center flex-shrink-0">
+                                <img :src="videoInfo.upper.cover_info?.image_url" alt="UP主头像"
+                                    class="w-full h-full object-cover rounded-full">
+                            </div>
+                            <div class="min-w-0 flex-1" @click="openUpperSpace(videoInfo.upper.mid)">
+                                <div class="flex items-center space-x-2">
+                                    <h3 class="font-semibold text-gray-800 truncate">{{ videoInfo.upper.name }}</h3>
+                                    <span class="text-xs text-gray-500 bg-gray-200 px-2 py-0.5 rounded-full">UID: {{
+                                        videoInfo.upper.mid }}</span>
+                                </div>
+                            </div>
+                        </div>
+                        <a :href="upperSpaceUrl(videoInfo.upper.mid)" target="_blank" rel="noopener noreferrer"
+                            class="hidden md:inline-flex items-center space-x-1 px-3 py-1.5 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-all duration-200 text-sm font-medium text-gray-700 hover:text-gray-900 flex-shrink-0">
+                            <span>{{ t('video.visitSpace') }}</span>
+                            <span class="text-gray-400">↗</span>
+                        </a>
+                    </div>
+
+                    <!-- Description -->
+                    <div v-if="videoInfo.intro" class="bg-gray-50 rounded-lg p-4">
+                        <h3 class="text-lg font-semibold text-gray-700 mb-2 flex items-center">
+                            <span class="w-1.5 h-1.5 bg-gray-400 rounded-full mr-2"></span>
+                            {{ t('video.videoDescription') }}
+                        </h3>
+                        <p class="text-gray-600 leading-relaxed break-words">{{ videoInfo.intro }}</p>
+                    </div>
+
+                    <!-- Meta Information -->
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <div
+                            class="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-3 border border-blue-200/50">
+                            <div class="flex items-center space-x-2">
+                                <span class="text-blue-500">📅</span>
+                                <span class="text-sm text-gray-600">{{ t('video.publishTime') }}</span>
+                            </div>
+                            <div class="text-base font-semibold text-gray-800 mt-1">
+                                {{ formatTimestamp(videoInfo.pubtime, "yyyy-mm-dd hh:ii") }}
+                            </div>
+                        </div>
+
+                        <div
+                            class="bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg p-3 border border-green-200/50">
+                            <div class="flex items-center space-x-2">
+                                <span class="text-green-500">⭐</span>
+                                <span class="text-sm text-gray-600">{{ t('video.favoriteTime') }}</span>
+                            </div>
+                            <div class="text-base font-semibold text-gray-800 mt-1">
+                                {{ videoInfo.fav_time ? formatTimestamp(videoInfo.fav_time, "yyyy-mm-dd hh:ii") : '-' }}
+                            </div>
+                        </div>
+
+                        <div
+                            class="bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg p-3 border border-purple-200/50">
+                            <div class="flex items-center space-x-2">
+                                <span class="text-purple-500">💬</span>
+                                <span class="text-sm text-gray-600">{{ t('video.danmakuCount') }}</span>
+                            </div>
+                            <div class="text-base font-semibold text-gray-800 mt-1">
+                                {{ videoInfo.danmaku_count.toLocaleString() }}
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- External Link -->
+                    <div class="flex justify-center pt-2">
+                        <a class="inline-flex items-center space-x-2 px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-lg hover:from-green-600 hover:to-emerald-700 transition-all duration-300 shadow hover:shadow-lg transform hover:-translate-y-0.5"
+                            :href="bilibiliUrl(videoInfo)" target="_blank" rel="noopener noreferrer">
+                            <span class="text-lg">📺</span>
+                            <span class="font-semibold">{{ t('video.watchOnBilibili') }}</span>
+                            <span class="text-white/80">↗</span>
+                        </a>
+                    </div>
+
+                    <!-- Download Actions（音频稿件隐藏「更新弹幕」） -->
+                    <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-4 border-t border-gray-200/50"
+                        :class="isAudioVideo ? 'xl:grid-cols-4' : 'xl:grid-cols-5'">
+                        <!-- Download Video Button -->
+                        <button @click="downloadVideo"
+                            class="flex flex-col items-center p-4 bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200/50 rounded-xl hover:from-blue-100 hover:to-blue-150 hover:border-blue-300/50 transition-all duration-300 group hover:shadow-md">
+                            <div
+                                class="w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center mb-2 group-hover:scale-110 transition-transform duration-300">
+                                <span class="text-xl text-white">🎬</span>
+                            </div>
+                            <span class="text-sm font-medium text-blue-700 group-hover:text-blue-800">{{
+                                t('video.downloadVideo') }}</span>
+                        </button>
+
+                        <!-- Download Danmaku Button -->
+                        <button @click="downloadDanmaku"
+                            class="flex flex-col items-center p-4 bg-gradient-to-br from-purple-50 to-purple-100 border border-purple-200/50 rounded-xl hover:from-purple-100 hover:to-purple-150 hover:border-purple-300/50 transition-all duration-300 group hover:shadow-md">
+                            <div
+                                class="w-12 h-12 bg-gradient-to-br from-purple-500 to-purple-600 rounded-full flex items-center justify-center mb-2 group-hover:scale-110 transition-transform duration-300">
+                                <span class="text-xl text-white">💬</span>
+                            </div>
+                            <span class="text-sm font-medium text-purple-700 group-hover:text-purple-800">{{
+                                t('video.downloadDanmaku') }}</span>
+                        </button>
+
+                        <!-- Download Cover Button -->
+                        <button @click="downloadCover"
+                            class="flex flex-col items-center p-4 bg-gradient-to-br from-pink-50 to-pink-100 border border-pink-200/50 rounded-xl hover:from-pink-100 hover:to-pink-150 hover:border-pink-300/50 transition-all duration-300 group hover:shadow-md">
+                            <div
+                                class="w-12 h-12 bg-gradient-to-br from-pink-500 to-pink-600 rounded-full flex items-center justify-center mb-2 group-hover:scale-110 transition-transform duration-300">
+                                <span class="text-xl text-white">🖼️</span>
+                            </div>
+                            <span class="text-sm font-medium text-pink-700 group-hover:text-pink-800">{{
+                                t('video.downloadCover') }}</span>
+                        </button>
+
+                        <!-- Refresh danmaku from server -->
+                        <button v-if="!isAudioVideo" type="button" @click="openRefreshDanmakuModal"
+                            :disabled="refreshingDanmaku || !videoInfo?.video_parts?.length"
+                            class="flex flex-col items-center p-4 bg-gradient-to-br from-cyan-50 to-teal-100 border border-cyan-200/50 rounded-xl hover:from-cyan-100 hover:to-teal-100 hover:border-cyan-300/50 transition-all duration-300 group hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-none">
+                            <div
+                                class="w-12 h-12 bg-gradient-to-br from-cyan-500 to-teal-600 rounded-full flex items-center justify-center mb-2 group-hover:scale-110 transition-transform duration-300">
+                                <span class="text-xl text-white">🔄</span>
+                            </div>
+                            <span class="text-sm font-medium text-teal-800 group-hover:text-teal-900 text-center">{{
+                                refreshingDanmaku ? t('common.loading') : t('video.refreshDanmaku') }}</span>
+                        </button>
+
+
+
+                        <button @click="openDeleteModal"
+                            class="flex flex-col items-center p-4 bg-gradient-to-br from-red-50 to-rose-100 border border-red-200/50 rounded-xl hover:from-red-100 hover:to-rose-150 hover:border-red-300/50 transition-all duration-300 group hover:shadow-md">
+                            <div
+                                class="w-12 h-12 bg-gradient-to-br from-red-500 to-rose-600 rounded-full flex items-center justify-center mb-2 group-hover:scale-110 transition-transform duration-300">
+                                <span class="text-xl text-white">🗑️</span>
+                            </div>
+                            <span class="text-sm font-medium text-red-700 group-hover:text-red-800">{{
+                                t('video.deleteVideo')
+                                }}</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <div v-if="notfound" class="text-center py-16">
@@ -245,20 +402,91 @@
                 <div class="absolute bottom-0 left-0 h-1 bg-green-500 animate-shrink" style="width: 100%"></div>
             </div>
         </transition>
+
+        <div v-if="showDeleteModal" class="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 px-4">
+            <div class="w-full max-w-md rounded-xl bg-white shadow-2xl border border-gray-200 p-5">
+                <h3 class="text-lg font-semibold text-gray-900">{{ t('video.deleteVideoTitle') }}</h3>
+                <p class="text-sm text-gray-600 mt-2">
+                    {{ t('video.deleteVideoDescription') }}
+                </p>
+
+                <div class="mt-4 space-y-3">
+                    <label class="flex items-start gap-2 cursor-pointer">
+                        <input type="checkbox" class="mt-0.5" v-model="deletePermanent" @change="onPermanentChange" />
+                        <span class="text-sm text-gray-700">
+                            {{ t('video.deletePermanentLabel') }}
+                        </span>
+                    </label>
+
+                    <label class="flex items-start gap-2 cursor-pointer">
+                        <input type="checkbox" class="mt-0.5" v-model="deleteAndRequeue" :disabled="deletePermanent" />
+                        <span class="text-sm text-gray-700" :class="{ 'opacity-50': deletePermanent }">
+                            {{ t('video.deleteRequeueLabel') }}
+                        </span>
+                    </label>
+                </div>
+
+                <div class="mt-5 flex justify-end gap-2">
+                    <button class="px-3 py-2 rounded border border-gray-300 text-gray-700 hover:bg-gray-50"
+                        :disabled="deletingVideo" @click="closeDeleteModal">
+                        {{ t('video.deleteCancel') }}
+                    </button>
+                    <button class="px-3 py-2 rounded bg-red-600 text-white hover:bg-red-700 disabled:opacity-60"
+                        :disabled="deletingVideo" @click="confirmDeleteVideo">
+                        {{ deletingVideo ? t('video.deleting') : t('video.deleteConfirm') }}
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div v-if="showRefreshDanmakuModal && !isAudioVideo"
+            class="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 px-4">
+            <div
+                class="w-full max-w-md rounded-xl bg-white shadow-2xl border border-cyan-100 p-5 ring-1 ring-cyan-500/10">
+                <div class="flex items-center gap-2 mb-1">
+                    <span
+                        class="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-cyan-500 to-teal-600 text-white text-sm">🔄</span>
+                    <h3 class="text-lg font-semibold text-gray-900">{{ t('video.refreshDanmakuTitle') }}</h3>
+                </div>
+                <p class="text-sm text-gray-600 mt-2 leading-relaxed">
+                    <template v-if="(videoInfo?.video_parts?.length ?? 0) <= 1">{{ t('video.refreshDanmakuDescSingle')
+                    }}</template>
+                    <template v-else>{{ t('video.refreshDanmakuDescMulti', {
+                        count: videoInfo?.video_parts?.length ?? 0
+                    })
+                        }}</template>
+                </p>
+
+                <div class="mt-5 flex flex-col-reverse sm:flex-row sm:justify-end gap-2">
+                    <button type="button"
+                        class="px-3 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50"
+                        :disabled="refreshingDanmaku" @click="closeRefreshDanmakuModal">
+                        {{ t('common.cancel') }}
+                    </button>
+                    <button type="button"
+                        class="px-3 py-2 rounded-lg bg-gradient-to-r from-cyan-600 to-teal-600 text-white hover:from-cyan-700 hover:to-teal-700 disabled:opacity-60 shadow-sm"
+                        :disabled="refreshingDanmaku" @click="confirmRefreshDanmaku">
+                        {{ refreshingDanmaku ? t('common.loading') : t('video.refreshDanmakuConfirm') }}
+                    </button>
+                </div>
+            </div>
+        </div>
     </div>
 </template>
 <script lang="ts" setup>
 import { computed, onMounted, ref, nextTick, onUnmounted, watch } from 'vue';
 import { useRoute } from 'vue-router';
+import { useToast } from '@/composables/toast';
 import { useI18n } from 'vue-i18n';
 import { formatTimestamp } from '../lib/helper';
 import Player from '../components/Player.vue';
 import Breadcrumbs from '../components/Breadcrumbs.vue';
 import type { Video, VideoPartType } from '@/api/fav';
-import { getVideoDanmaku, getVideoInfo, getVideoTags, triggerUpdateDanmaku, triggerUpdateComments, triggerUpdateStats } from '@/api/video';
+import { getVideoDanmaku, getVideoInfo, getVideoTags, triggerUpdateDanmaku, triggerUpdateComments, triggerUpdateStats, refreshVideoDanmaku, deleteVideo } from '@/api/video';
 import VideoComments from '@/components/VideoComments.vue';
 
 const { t } = useI18n();
+const toast = useToast();
 const playerRef = ref()
 const playerContainer = ref<HTMLDivElement | null>(null)
 const sidebarHeight = ref('auto')
@@ -366,18 +594,14 @@ const downloadDanmaku = () => {
         for (let i in parts) {
             const part = parts[i]
             const partId = part.id
-            fetch(`/api/danmaku/v3/?id=${partId}`).then(async (rsp) => {
-                if (rsp.ok) {
-                    const jsonData = await rsp.json()
-                    const danmaku = jsonData.data
-                    if (danmaku) {
-                        // 按照第一个元素排序,时间
-                        danmaku.sort((a: any, b: any) => a[0] - b[0])
-                        const json = JSON.stringify(danmaku)
-                        const file = new File([json], part.title + ".json", { type: "application/json" })
-                        const url = URL.createObjectURL(file)
-                        downloadFile(url, part.title + ".json")
-                    }
+            getVideoDanmaku(partId).then((danmaku: any[]) => {
+                if (danmaku) {
+                    // 按照第一个元素排序,时间
+                    danmaku.sort((a: any, b: any) => a.time - b.time)
+                    const json = JSON.stringify(danmaku)
+                    const file = new File([json], part.title + ".json", { type: "application/json" })
+                    const url = URL.createObjectURL(file)
+                    downloadFile(url, part.title + ".json")
                 }
             })
         }
@@ -455,11 +679,20 @@ const handleUpdateStats = async () => {
 };
 
 const videoInfo = ref<Video | null>()
+/** 与后端 Video::isAudio() 一致，type === 12 为音频稿 */
+const isAudioVideo = computed(() => Number(videoInfo.value?.type) === 12)
 const notfound = ref(false)
 
 const currentPart = ref<VideoPartType | null>(null)
 
 const danmaku = ref<any[]>([])
+const showDeleteModal = ref(false)
+const deletePermanent = ref(false)
+const deleteAndRequeue = ref(false)
+const deletingVideo = ref(false)
+
+const showRefreshDanmakuModal = ref(false)
+const refreshingDanmaku = ref(false)
 
 // Player 准备就绪时的回调
 const onPlayerReady = () => {
@@ -485,6 +718,80 @@ const playPart = (partId: number) => {
             })
         })
         currentPart.value = part as VideoPartType
+    }
+}
+
+const openDeleteModal = () => {
+    showDeleteModal.value = true
+}
+
+const closeDeleteModal = () => {
+    if (deletingVideo.value) return
+    showDeleteModal.value = false
+}
+
+const onPermanentChange = () => {
+    if (deletePermanent.value) {
+        deleteAndRequeue.value = false
+    }
+}
+
+const confirmDeleteVideo = async () => {
+    if (!videoInfo.value) return
+    deletingVideo.value = true
+    try {
+        const res = await deleteVideo(Number(videoInfo.value.id), undefined, {
+            permanent: deletePermanent.value,
+            requeue: deleteAndRequeue.value,
+        })
+        if (res.code === 0) {
+            toast.success(t('video.deleteSuccess'))
+            showDeleteModal.value = false
+        } else {
+            toast.error(res.message ?? t('video.deleteFailed'))
+        }
+    } catch {
+        toast.error(t('video.deleteFailed'))
+    } finally {
+        deletingVideo.value = false
+    }
+}
+
+const openRefreshDanmakuModal = () => {
+    if (isAudioVideo.value) {
+        return
+    }
+    if (!videoInfo.value?.video_parts?.length) {
+        toast.error(t('video.refreshDanmakuNoParts'))
+        return
+    }
+    showRefreshDanmakuModal.value = true
+}
+
+const closeRefreshDanmakuModal = () => {
+    if (refreshingDanmaku.value) return
+    showRefreshDanmakuModal.value = false
+}
+
+const confirmRefreshDanmaku = async () => {
+    if (!videoInfo.value) return
+    refreshingDanmaku.value = true
+    try {
+        const res = await refreshVideoDanmaku(Number(videoInfo.value.id))
+        if (res.code === 0 && res.parts_queued > 0) {
+            const msg =
+                res.parts_queued === 1
+                    ? t('video.refreshDanmakuQueuedSingle')
+                    : t('video.refreshDanmakuQueuedMulti', { count: res.parts_queued })
+            toast.success(msg)
+            showRefreshDanmakuModal.value = false
+        } else {
+            toast.error(res.message ?? t('video.refreshDanmakuError'))
+        }
+    } catch {
+        toast.error(t('video.refreshDanmakuError'))
+    } finally {
+        refreshingDanmaku.value = false
     }
 }
 

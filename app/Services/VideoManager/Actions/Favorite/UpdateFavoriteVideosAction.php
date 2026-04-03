@@ -63,9 +63,20 @@ class UpdateFavoriteVideosAction
                 return null;
             }
 
+            // 如果本地存在且已经无效，且远程无效，跳过更新
+            if($exist && $exist->invalid && $videoInvalid) {
+                return null;
+            }
+
+            // 如果本地已经冻结，且远程也无效， 则跳过
+            if($exist && ($exist->video_downloaded_num > 0 || $exist->audio_downloaded_num > 0) && $videoInvalid) {
+                return null;
+            }
+
             // 是否冻结该视频: 是否已经保护备份了该视频
             // 如果已经冻结了该视频, 就不更新该视频的主要信息
-            $frozen          = $exist && $exist['title'] !== '已失效视频' && $videoInvalid;
+            // 2026/03/29 变为：只有本地下载了才认为是冻结，封面标题可修复不算冻结
+            $frozen          = $exist && $videoInvalid && ($exist->video_downloaded_num > 0 || $exist->audio_downloaded_num > 0);
             $item['frozen']  = $frozen;
             $item['invalid'] = $videoInvalid;
 

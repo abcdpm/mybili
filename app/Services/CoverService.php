@@ -1,6 +1,7 @@
 <?php
 namespace App\Services;
 
+use App\Events\CoverImageStored;
 use App\Models\Cover;
 use App\Models\Coverables;
 use Illuminate\Database\Eloquent\Model;
@@ -19,10 +20,11 @@ class CoverService extends DownloadImageService
 
     /**
      * 下载封面并创建关联关系
-     * * @param string $url 图片URL
-     * @param string $type 封面类型 (video, avatar, favorite)
-     * @param Model $model 关联的模型实例
-     * @return Cover
+     *
+     * @param  string  $url  图片URL
+     * @param  string  $type  封面类型 (video, avatar, favorite)
+     * @param  Model  $model  关联的模型实例（Video、FavoriteList、Upper等）
+     *
      * @throws \Exception
      */
     public function downloadCover(string $url, string $type, Model $model): Cover
@@ -84,33 +86,44 @@ class CoverService extends DownloadImageService
         // 4. 创建或更新关联关系
         Coverables::updateOrCreate(
             [
-                'coverable_id'    => $model->id,
-                'coverable_type'  => get_class($model),
+                'coverable_id'   => $model->id,
+                'coverable_type' => get_class($model),
             ],
             [
-                'cover_id'        => $cover->id,
+                'cover_id' => $cover->id,
             ]
         );
-        
+
+        event(new CoverImageStored($cover));
+
         return $cover;
     }
-    
+
     /**
      * 获取图片详细信息
+     *
+     * @param  string  $filePath  图片本地路径
+     *
+     * @throws \Exception
      */
     protected function getImageInfo(string $filePath): array
     {
-        if (!is_file($filePath)) {
+        if (! is_file($filePath)) {
             throw new \Exception("Image file not found: {$filePath}");
         }
-        
+
+        // 获取图片尺寸和类型信息
         $imageSize = @getimagesize($filePath);
         if ($imageSize === false) {
             throw new \Exception("Failed to get image size for: {$filePath}");
         }
-        
+
+        // 获取文件大小（字节）
         $fileSize = filesize($filePath);
-        
+        if ($fileSize === false) {
+            throw new \Exception("Failed to get file size for: {$filePath}");
+        }
+
         return [
             'width'     => $imageSize[0] ?? 0,
             'height'    => $imageSize[1] ?? 0,

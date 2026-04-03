@@ -198,7 +198,8 @@ class SubscriptionService
     {
         $subscriptions = Subscription::where('status', Subscription::STATUS_ACTIVE)->get();
         foreach ($subscriptions as $subscription) {
-            $this->updateSubscription($subscription, $pullAll);
+
+        \App\Jobs\UpdateSubscriptionJob::dispatchWithRateLimit($subscription, $pullAll);
         }
     }
 
@@ -312,7 +313,11 @@ class SubscriptionService
                     $subscriptionVideo->video_id        = $archive['aid'];
                     $subscriptionVideo->save();
 
-                    PullVideoInfoJob::dispatch($archive['bvid']);
+                    // 检查video是否存在，是否需要下载新任务
+                    $video = Video::withTrashed()->where('id', $archive['aid'])->first();
+                    if(!$video || $video->needsMoreDownloadTask()){
+                        PullVideoInfoJob::dispatch($archive['bvid']);
+                    }
                 }
 
                 if ($loaded >= $subscription->total) {
@@ -377,7 +382,13 @@ class SubscriptionService
 
                 // 快速填写一个视频信息
                 // 这里获取到的视频都是有效的，所以可以忽略 invalid 处理和封面判断
-                $video = Video::withTrashed()->where('id', $aid)->firstOrNew();
+                $oldVideo = [];
+                $video = Video::withTrashed()->where('id', $aid)->first();
+                if(!$video){
+                    $video = new Video();
+                }else{
+                    $oldVideo = $video->getAttributes();
+                }
                 $video->fill([
                     'id'       => $aid,
                     'upper_id' => $mid,
@@ -389,15 +400,16 @@ class SubscriptionService
                     'page'     => intval($item['videos']),
                     'pubtime'  => date('Y-m-d H:i:s', $item['ctime']),
                     'link'     => sprintf('https://www.bilibili.com/video/%s', $item['bvid']),
-                    'intro'    => '',
                 ]);
                 $video->save();
                 if($video->trashed()){
                     $video->restore();
                 }
-                event(new VideoUpdated([], $video->getAttributes()));
+                event(new VideoUpdated($oldVideo, $video->getAttributes()));
 
-                PullVideoInfoJob::dispatch($item['bvid']);
+                if(empty($oldVideo)){
+                    PullVideoInfoJob::dispatch($item['bvid']);
+                }
             }
             $loaded += count($upVideos['list']);
 
@@ -414,7 +426,12 @@ class SubscriptionService
             }
             $offsetAid = $upVideos['last_aid'];
         }
-        $subscription->total         = $loaded;
+        
+        if($pullAll){
+            $subscription->total         = $loaded;
+        }else{
+            $subscription->total         = SubscriptionVideo::where('subscription_id', $subscription->id)->count();
+        }
         $subscription->last_check_at = now();
         $subscription->save();
         event(new SubscriptionUpdated($oldSubscription, $subscription->toArray()));

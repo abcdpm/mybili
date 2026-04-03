@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Listeners;
 
 use App\Events\VideoUpdated;
@@ -22,6 +23,10 @@ class VideoImageDownload
     {
         $oldVideo = $event->oldVideo;
         $newVideo = $event->newVideo;
+
+        if (empty($newVideo)) {
+            return;
+        }
 
         $oldCover = $oldVideo['cover'] ?? '';
         $newCover = $newVideo['cover'] ?? '';

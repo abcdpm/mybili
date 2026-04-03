@@ -32,13 +32,14 @@ class CheckVideoPartFileToDownloadAction
             return;
         }
 
+        if ($this->downloadFilterService->shouldExcludeByFavTime($video)) {
+            Log::info('Download excluded by favorite time', ['id' => $videoPart->cid, 'title' => $videoPart->part]);
+            return;
+        }
+
         // 检查是否能下载该收藏夹或订阅的视频：只要有一个收藏夹或订阅未被过滤就继续下载
-        $video->load('favorite', 'subscriptions');
-        $hasFavNotExcluded = $video->favorite->contains(fn ($fav) => ! $this->downloadFilterService->shouldExcludeByFav($fav->id));
-        $hasSubNotExcluded = $video->subscriptions->contains(fn ($sub) => ! $this->downloadFilterService->shouldExcludeByFav(-$sub->id));
-        $hasAnyRelation = $video->favorite->isNotEmpty() || $video->subscriptions->isNotEmpty();
-        if ($hasAnyRelation && ! $hasFavNotExcluded && ! $hasSubNotExcluded) {
-            Log::info('[视频下载] 收藏夹或订阅触发排除规则, 跳过下载', ['id' => $videoPart->cid, 'title' => $videoPart->part]);
+        if ($this->downloadFilterService->shouldExcludeByVideo($video)) {
+            Log::info('Download excluded by favorite and subscription', ['id' => $videoPart->cid, 'title' => $videoPart->part]);
             return;
         }
 

@@ -118,4 +118,9 @@ class SystemController extends Controller
             return response()->json(['error' => $e->getMessage()], 500);
         }
     }
+    
+    public function getMediaUsage()
+    {
+        return response()->json($this->systemService->getMediaUsage());
+    }
 }

@@ -39,6 +39,23 @@
                     <span>{{ t('favorites.published') }}: {{ formatTimestamp(item.pubtime, "yyyy.mm.dd") }}</span>
                 </div>
             </div>
+        </template>
+    </Breadcrumbs>
+
+    <div class="grid grid-cols-1 md:grid-cols-4 w-full gap-4">
+        <div class="flex flex-col relative" v-for="item in showVideoList">
+            <RouterLink :to="{ name: 'subscription-video-id', params: { id: id, video_id: item.id } }">
+                <Image class="rounded-lg w-full h-auto md:w-96 md:h-56 hover:scale-105 transition-all duration-300"
+                    :src="item.cover_info?.image_url ?? '/assets/images/notfound.webp'" :title="item.title" />
+            </RouterLink>
+            <div class="absolute top-4 left-4" v-if="item.frozen == 1">💾</div>
+            <span class="mt-4 text-center  h-12 line-clamp-2" :title="item.title">{{ item.title }}</span>
+            <div class="mt-2 flex justify-between text-xs text-gray-400 px-1">
+                <span>{{ t('favorites.published') }}: {{ formatTimestamp(item.pubtime, "yyyy.mm.dd") }}</span>
+            </div>
+            <span v-if="item.page > 1"
+                class="text-sm text-white bg-gray-600 rounded-lg min-w-10 px-1.5 text-center absolute top-2 right-2">{{
+                    item.page }}</span>
         </div>
 
         <div ref="sentinel" class="w-full h-12 mt-6 flex justify-center items-center">

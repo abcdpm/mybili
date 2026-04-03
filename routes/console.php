@@ -1,8 +1,9 @@
 <?php
 
-use App\Services\VideoManager\Contracts\VideoServiceInterface;
 use App\Enums\SettingKey;
+use App\Jobs\SyncCoverThumbnailsJob;
 use App\Services\SettingsService;
+use App\Services\VideoManager\Contracts\VideoServiceInterface;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schedule;
 
@@ -13,13 +14,13 @@ use Illuminate\Support\Facades\Schedule;
 // 频率：每 10 分钟执行一次
 Schedule::call(function () {
     $updateFavEnable = app(SettingsService::class)->get(SettingKey::FAVORITE_SYNC_ENABLED);
-    if ($updateFavEnable == "on") {
+    if ($updateFavEnable == 'on') {
         Artisan::call('app:sync-media', ['--fav-list' => true]);
     }
 })
-->name('update-fav')
-->withoutOverlapping()
-->everyTenMinutes();
+    ->name('update-fav')
+    ->withoutOverlapping()
+    ->everyTenMinutes();
 
 // ==========================================================================
 // 2. 收藏夹视频增量更新 (快速扫描)
@@ -32,9 +33,10 @@ Schedule::call(function () {
 // 频率：每 10 分钟执行一次
 Schedule::call(function () {
     $updateFavEnable = app(SettingsService::class)->get(SettingKey::FAVORITE_SYNC_ENABLED);
-    if ($updateFavEnable == "on") {
+    if ($updateFavEnable == 'on') {
         if (app(VideoServiceInterface::class)->count() == 0) {
             Artisan::call('app:sync-media', ['--fav-videos' => true]);
+
             return;
         }
         if (now()->format('H') === '04') {
@@ -43,9 +45,9 @@ Schedule::call(function () {
         Artisan::call('app:sync-media', ['--fav-videos' => true, '--fav-page' => 1]);
     }
 })
-->name('update-fav-videos-page-1')
-->withoutOverlapping()
-->everyTenMinutes();
+    ->name('update-fav-videos-page-1')
+    ->withoutOverlapping()
+    ->everyTenMinutes();
 
 // ==========================================================================
 // 3. 收藏夹视频全量同步 (深度扫描)
@@ -55,13 +57,13 @@ Schedule::call(function () {
 // 频率：每天凌晨 04:00 执行一次
 Schedule::call(function () {
     $updateFavEnable = app(SettingsService::class)->get(SettingKey::FAVORITE_SYNC_ENABLED);
-    if ($updateFavEnable == "on") {
+    if ($updateFavEnable == 'on') {
         Artisan::call('app:sync-media', ['--fav-videos' => true]);
     }
 })
-->name('update-fav-videos-all')
-->withoutOverlapping()
-->dailyAt('04:00');
+    ->name('update-fav-videos-all')
+    ->withoutOverlapping()
+    ->dailyAt('04:00');
 
 // ==========================================================================
 // 4. 修复失效视频状态
@@ -96,7 +98,7 @@ Schedule::command('horizon:snapshot')->everyMinute();
 // 频率：每天早晨 06:00 执行一次
 Schedule::call(function () {
     $humanReadableNameEnable = app(SettingsService::class)->get(SettingKey::HUMAN_READABLE_NAME_ENABLED);
-    if ($humanReadableNameEnable == "on") {
+    if ($humanReadableNameEnable == 'on') {
         Artisan::call('app:make-human-readable-names');
     }
 })
@@ -195,3 +197,8 @@ Schedule::command('app:update-video-stats --auto-update --percent=3 --sleep=5')
     ->name('update-video-stats-daily')
     ->withoutOverlapping()
     ->dailyAt('05:00');
+
+// 每天凌晨修复视频冻结状态，只有冻结且无效的视频才修复
+Schedule::command('app:fix-freeze-status')
+    ->daily()
+    ->withoutOverlapping();

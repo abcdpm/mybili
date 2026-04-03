@@ -2,6 +2,7 @@
 namespace App\Http\Controllers;
 
 use App\Services\VideoManager\Contracts\FavoriteServiceInterface;
+use App\Services\VideoManager\Contracts\VideoServiceInterface;
 use Illuminate\Http\Request;
 use \App\Models\FavoriteList;
 use App\Models\Subscription;
@@ -88,5 +89,24 @@ class FavController extends Controller
             });
         }
         return response()->json(['code' => 0, 'message' => 'success']);
+    }
+    
+    /**
+     * 获取收藏夹/订阅的轻量视频列表（走 Redis 缓存）
+     */
+    public function videos(string $id)
+    {
+        $id = intval($id);
+        $videoService = app(VideoServiceInterface::class);
+
+        if ($id > 0) {
+            $data = $videoService->getFavVideosLightweight($id);
+        } elseif ($id < 0) {
+            $data = $videoService->getSubVideosLightweight(abs($id));
+        } else {
+            return response()->json([]);
+        }
+
+        return response()->json($data);
     }
 }

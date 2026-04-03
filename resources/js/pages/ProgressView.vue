@@ -32,56 +32,38 @@
                     </div>
                 </div>
 
-                <!-- PC端搜索框 -->
-                <div v-if="showDesktopSearch" class="hidden md:block mb-4">
-                    <div class="relative">
-                        <input ref="searchInputRef" v-model="searchQuery" type="text"
-                            :placeholder="t('progress.searchPlaceholder')"
-                            class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                            @keydown.esc="closeSearch" @keydown.enter.prevent="navigateToNextResult" />
-                        <span class="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400">🔍</span>
-                        <button v-if="searchQuery" @click="clearSearch"
-                            class="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                            ✕
-                        </button>
-                    </div>
-                    <div v-if="searchQuery && searchResults.length > 0"
-                        class="mt-2 text-sm text-gray-600 flex items-center gap-2">
-                        <span>{{ t('progress.searchResultsFound', { count: searchResults.length }) }}</span>
-                        <span v-if="currentSearchIndex >= 0" class="text-blue-600 font-semibold">
-                            ({{ currentSearchIndex + 1 }}/{{ searchResults.length }})
-                        </span>
-                        <span class="text-xs text-gray-500">{{ t('progress.searchNavigateHint') }}</span>
-                    </div>
-                    <div v-if="searchQuery && searchResults.length === 0" class="mt-2 text-sm text-red-600">
-                        {{ t('progress.searchNoResults') }}
-                    </div>
-                </div>
+                <SearchBar
+                    v-if="showDesktopSearch"
+                    ref="desktopSearchBarRef"
+                    class="hidden md:block mb-4"
+                    :model-value="searchQuery"
+                    :placeholder="t('progress.searchPlaceholder')"
+                    :result-count="searchResults.length"
+                    :current-index="currentSearchIndex"
+                    :result-found-text="t('progress.searchResultsFound', { count: searchResults.length })"
+                    :navigate-hint-text="t('progress.searchNavigateHint')"
+                    :no-result-text="t('progress.searchNoResults')"
+                    @update:model-value="searchQuery = $event"
+                    @enter="navigateToNextResult"
+                    @esc="closeSearch"
+                    @clear="clearSearch"
+                />
 
-                <!-- 移动端搜索框 -->
-                <div v-if="showMobileSearch" class="md:hidden mb-4">
-                    <div class="relative">
-                        <input ref="mobileSearchInputRef" v-model="searchQuery" type="text"
-                            :placeholder="t('progress.searchPlaceholderMobile')"
-                            class="w-full pl-10 pr-10 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                            @keydown.esc="closeSearch" @keydown.enter.prevent="navigateToNextResult" />
-                        <span class="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400">🔍</span>
-                        <button @click="closeSearch"
-                            class="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                            ✕
-                        </button>
-                    </div>
-                    <div v-if="searchQuery && searchResults.length > 0"
-                        class="mt-2 text-sm text-gray-600 flex items-center gap-2 flex-wrap">
-                        <span>{{ t('progress.searchResultsFound', { count: searchResults.length }) }}</span>
-                        <span v-if="currentSearchIndex >= 0" class="text-blue-600 font-semibold">
-                            ({{ currentSearchIndex + 1 }}/{{ searchResults.length }})
-                        </span>
-                    </div>
-                    <div v-if="searchQuery && searchResults.length === 0" class="mt-2 text-sm text-red-600">
-                        {{ t('progress.searchNoResults') }}
-                    </div>
-                </div>
+                <SearchBar
+                    v-if="showMobileSearch"
+                    ref="mobileSearchBarRef"
+                    class="md:hidden mb-4"
+                    :model-value="searchQuery"
+                    :placeholder="t('progress.searchPlaceholderMobile')"
+                    :result-count="searchResults.length"
+                    :current-index="currentSearchIndex"
+                    :result-found-text="t('progress.searchResultsFound', { count: searchResults.length })"
+                    :no-result-text="t('progress.searchNoResults')"
+                    @update:model-value="searchQuery = $event"
+                    @enter="navigateToNextResult"
+                    @esc="closeSearch"
+                    @clear="closeSearch"
+                />
 
                 <div class="flex flex-col md:flex-row md:justify-between gap-4 md:gap-0">
                     <h2 class="text-xl" :title="t('progress.cacheRateDescription')">{{ t('progress.cacheRate') }} {{
@@ -198,7 +180,7 @@
 
                 <!-- 最小模式：Tab样式筛选器 - 固定在顶部 -->
                 <div v-if="isScrolled"
-                    class="md:hidden bg-white border-b border-gray-300 shadow-md fixed top-0 left-0 right-0 z-50 transition-all duration-300 ease-in-out"
+                    class="md:hidden bg-white border-b border-gray-300 shadow-md fixed top-0 left-0 right-0 z-40 transition-all duration-300 ease-in-out"
                     :style="{ opacity: showMiniFilter ? 1 : 0, transform: showMiniFilter ? 'translateY(0)' : 'translateY(-10px)' }">
                     <div class="grid grid-cols-4 divide-x divide-gray-300">
                         <button
@@ -274,8 +256,20 @@
                         <ProgressVideoRow :source="record" :key="index" />
                     </template>
                 </virtualList> -->
-            </div>
 
+                <VirtualGroupedList
+                    class="scroller-container md:px-4 md:-mx-4 md:py-2 py-4 px-2"
+                    :items="dataList"
+                    :columns="progressColumns"
+                    :keeps="100"
+                    :size="340"
+                    :container-class="'scroller-container'"
+                >
+                    <template #item="{ record, index }">
+                        <ProgressVideoRow :source="record" :image-class="progressImageClass" :key="index" />
+                    </template>
+                </VirtualGroupedList>
+            </div>
         </div>
     </div>
 </template>
@@ -290,13 +284,18 @@ import type { Cover } from '../api/cover';
 
 import Image from '@/components/Image.vue'; 
 import { formatTimestamp, formatViewCount, formatDuration } from '../lib/helper';
+import type { ProgressVideo } from '../api/fav';
+import ProgressVideoRow from '../components/ProgressVideoRow.vue';
+import SearchBar from '../components/SearchBar.vue';
+import VirtualGroupedList from '../components/VirtualGroupedList.vue';
+import { PROGRESS_IMAGE_CLASS } from '../constants/videoImageClasses';
 
 const { t } = useI18n();
 const route = useRoute();
 const router = useRouter();
 
 
-const videoList = ref<VideoType[]>([])
+const videoList = ref<ProgressVideo[]>([])
 const progress = ref(0)
 const showCachedOnly = ref(false)
 const isScrolled = ref(false) // 是否已滚动
@@ -306,9 +305,13 @@ const showMiniFilter = computed(() => !isRestoringScroll.value && isScrolled.val
 const searchQuery = ref('') // 搜索关键词
 const showMobileSearch = ref(false) // 移动端搜索框显示状态
 const showDesktopSearch = ref(false) // PC端搜索框显示状态
-const searchInputRef = ref<HTMLInputElement>() // PC端搜索输入框引用
-const mobileSearchInputRef = ref<HTMLInputElement>() // 移动端搜索输入框引用
+const desktopSearchBarRef = ref<any>(null) // PC端搜索组件引用
+const mobileSearchBarRef = ref<any>(null) // 移动端搜索组件引用
 const currentSearchIndex = ref(-1) // 当前搜索结果索引
+const progressColumns = 4
+const progressImageClass = PROGRESS_IMAGE_CLASS
+const scrollMemory = ref<Record<string, number>>({})
+const currentScrollMemoryKey = ref('')
 
 const stat = ref({
     count: 0,
@@ -324,20 +327,6 @@ const filter = ref<{
     class: null
 })
 
-interface VideoType {
-    id: string
-    title: string
-    video_downloaded_at: string
-    invalid: boolean
-    frozen: boolean
-    pubtime: number
-    fav_time: number
-    page: number
-    video_downloaded_num: number
-    audio_downloaded_num: number
-    cover_info: Cover | null
-}
-
 // 从URL参数初始化过滤器状态
 const initFilterFromUrl = () => {
     const filterParam = route.query.filter as string;
@@ -350,6 +339,7 @@ const initFilterFromUrl = () => {
 
 // 设置过滤器并更新URL
 const setFilter = (filterValue: string | null) => {
+    saveCurrentScrollPosition();
     filter.value.class = filterValue;
 
     // 更新URL参数
@@ -361,6 +351,9 @@ const setFilter = (filterValue: string | null) => {
     }
 
     router.replace({ query });
+    nextTick(() => {
+        restoreScrollPositionByCurrentState();
+    });
 }
 
 
@@ -451,13 +444,49 @@ watch(searchQuery, () => {
     currentSearchIndex.value = -1;
     displayCount.value = 50; 
 });
+const getScrollContainer = (): HTMLElement | null => {
+    return document.querySelector('.scroller-container') as HTMLElement | null
+}
+
+const buildScrollMemoryKey = (): string => {
+    const filterKey = filter.value.class ?? 'all'
+    const cachedKey = showCachedOnly.value ? 'cached=1' : 'cached=0'
+    return `${filterKey}|${cachedKey}`
+}
+
+const saveCurrentScrollPosition = () => {
+    const container = getScrollContainer()
+    if (!container) return
+    const key = currentScrollMemoryKey.value || buildScrollMemoryKey()
+    scrollMemory.value[key] = container.scrollTop
+}
+
+const restoreScrollPositionByCurrentState = () => {
+    const container = getScrollContainer()
+    if (!container) return
+
+    const key = buildScrollMemoryKey()
+    currentScrollMemoryKey.value = key
+    const savedTop = scrollMemory.value[key] ?? 0
+    const maxTop = Math.max(0, container.scrollHeight - container.clientHeight)
+    container.scrollTop = Math.min(savedTop, maxTop)
+}
 
 // 监听路由变化，更新过滤器状态
 watch(() => route.query.filter, () => {
     initFilterFromUrl();
+    nextTick(() => {
+        restoreScrollPositionByCurrentState();
+    });
 }, { immediate: true });
 
-// === UI与交互逻辑 ===
+watch(showCachedOnly, () => {
+    saveCurrentScrollPosition();
+    nextTick(() => {
+        restoreScrollPositionByCurrentState();
+    });
+});
+
 // 使用 IntersectionObserver 监测筛选器是否离开可视区（仅移动端）
 let filterObserver: IntersectionObserver | null = null;
 const setupFilterObserver = () => {
@@ -504,11 +533,15 @@ onMounted(() => {
     // 添加键盘事件监听（搜索功能）
     document.addEventListener('keydown', handleKeyDown);
     // 初始同步一次（避免首次闪烁）
-    // 【新增】启动触底监听
-    nextTick(setupScrollObserver);
+    nextTick(setupFilterObserver);
+    nextTick(() => {
+        currentScrollMemoryKey.value = buildScrollMemoryKey();
+        restoreScrollPositionByCurrentState();
+    });
 });
 
 onUnmounted(() => {
+    saveCurrentScrollPosition();
     // 断开 Observer
     if (filterObserver) {
         filterObserver.disconnect();
@@ -575,7 +608,7 @@ const openDesktopSearch = () => {
         // 如果没显示，则显示并聚焦
         showDesktopSearch.value = true
         nextTick(() => {
-            searchInputRef.value?.focus()
+            desktopSearchBarRef.value?.focusInput?.()
         })
     }
 }
@@ -605,7 +638,7 @@ const handleKeyDown = (e: KeyboardEvent) => {
             // 移动端：显示搜索框
             showMobileSearch.value = true
             nextTick(() => {
-                mobileSearchInputRef.value?.focus()
+                mobileSearchBarRef.value?.focusInput?.()
             })
         }
         return false
@@ -691,7 +724,7 @@ watch(searchQuery, () => {
 watch(showMobileSearch, (show) => {
     if (show) {
         nextTick(() => {
-            mobileSearchInputRef.value?.focus()
+            mobileSearchBarRef.value?.focusInput?.()
         })
     }
 })
@@ -700,7 +733,7 @@ watch(showMobileSearch, (show) => {
 watch(showDesktopSearch, (show) => {
     if (show) {
         nextTick(() => {
-            searchInputRef.value?.focus()
+            desktopSearchBarRef.value?.focusInput?.()
         })
     }
 })

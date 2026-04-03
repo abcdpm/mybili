@@ -5,6 +5,7 @@ namespace App\Jobs;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Database\Eloquent\Model;
 use App\Services\CoverService;
+use Illuminate\Support\Facades\Redis;
 use Laravel\Horizon\Contracts\Silenced;
 
 // 【新增】引入队列必须的 Traits
@@ -54,5 +55,17 @@ class DownloadCoverImageJob implements ShouldQueue, Silenced
             return;
         }
         $coverService->downloadCover($this->url, $this->type, $this->model);
+
+        // 防抖触发 progress 页缓存重建，避免封面批量下载时事件风暴
+        $ttlSeconds = 10;
+        $locked = Redis::setnx(RebuildVideosCacheJob::DEBOUNCE_KEY, 1);
+        if (! $locked) {
+            return;
+        }
+        Redis::expire(RebuildVideosCacheJob::DEBOUNCE_KEY, $ttlSeconds);
+
+        RebuildVideosCacheJob::dispatch()
+            ->delay(now()->addSeconds(2))
+            ->onQueue('fast');
     }
 }

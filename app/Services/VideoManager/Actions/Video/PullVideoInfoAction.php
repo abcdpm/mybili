@@ -102,7 +102,7 @@ class PullVideoInfoAction
 
         $oldVideo       = $video->getAttributes();
         $video->invalid = true;
-        $video->frozen  = $video->video_downloaded_num == 0 ? false : true;
+        $video->frozen  = ($video->video_downloaded_num == 0 && $video->audio_downloaded_num == 0) ? false : true;
         $video->save();
 
         event(new VideoUpdated($oldVideo, $video->getAttributes()));

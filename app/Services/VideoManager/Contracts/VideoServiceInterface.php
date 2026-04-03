@@ -21,9 +21,12 @@ interface VideoServiceInterface
 
     public function count(): int;
 
-    public function deleteVideos(array $ids): array;
+    public function deleteVideos(array $ids, array $options = []): array;
 
     public function getVideosCache(): array;
     public function updateVideosCache(?array $videos = null): void;
+
+    public function getFavVideosLightweight(int $favId): array;
+    public function getSubVideosLightweight(int $subId): array;
 
 }

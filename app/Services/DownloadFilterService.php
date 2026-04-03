@@ -2,6 +2,8 @@
 namespace App\Services;
 
 use App\Enums\SettingKey;
+use App\Models\Video;
+use Carbon\Carbon;
 use Log;
 
 class DownloadFilterService
@@ -61,6 +63,29 @@ class DownloadFilterService
         return in_array($favId, $favExclude['selected']);
     }
 
+    /**
+     * 只要视频关联的收藏夹或订阅中，有任意一个未被排除，就允许下载。
+     * 若存在关联但全部被排除，则返回 true（应排除下载）。
+     */
+    public function shouldExcludeByVideo(Video $video): bool
+    {
+        $video->loadMissing('favorite', 'subscriptions');
+
+        $hasAnyRelation = $video->favorite->isNotEmpty() || $video->subscriptions->isNotEmpty();
+        if (! $hasAnyRelation) {
+            return false;
+        }
+
+        $hasFavNotExcluded = $video->favorite->contains(
+            fn ($fav) => ! $this->shouldExcludeByFav($fav->id)
+        );
+        $hasSubNotExcluded = $video->subscriptions->contains(
+            fn ($sub) => ! $this->shouldExcludeByFav(-$sub->id)
+        );
+
+        return ! $hasFavNotExcluded && ! $hasSubNotExcluded;
+    }
+
     public function isMultiPEnabled()
     {
         $multiP = $this->settings->get(SettingKey::MULTI_PARTITION_DOWNLOAD_ENABLED);
@@ -107,5 +132,39 @@ class DownloadFilterService
             return $duration > $durationPartExclude['custom_duration'] * 60;
         }
         return false;
+    }
+
+    public function shouldExcludeByFavTime(Video $video): bool
+    {
+        $config = $this->settings->get(SettingKey::FAV_TIME_EXCLUDE);
+        if (! $config || ($config['type'] ?? 'off') === 'off') {
+            return false;
+        }
+
+        $favTime = $video->fav_time; // accessor: timestamp|null
+        if (! $favTime) {
+            // 如果收藏时间为空，则使用视频发布时间
+            $favTime = $video->pubtime;
+            if (! $favTime) {
+                return false;
+            }
+        }
+
+        $type = (string) ($config['type'] ?? 'off');
+        $cutoff = match ($type) {
+            '1m' => Carbon::now()->subMonthNoOverflow()->startOfDay(),
+            '3m' => Carbon::now()->subMonthsNoOverflow(3)->startOfDay(),
+            '6m' => Carbon::now()->subMonthsNoOverflow(6)->startOfDay(),
+            'custom' => isset($config['custom_date']) && $config['custom_date']
+                ? Carbon::createFromFormat('Y-m-d', (string) $config['custom_date'])->startOfDay()
+                : null,
+            default => null,
+        };
+
+        if (! $cutoff) {
+            return false;
+        }
+
+        return Carbon::createFromTimestamp((int) $favTime)->lt($cutoff);
     }
 }

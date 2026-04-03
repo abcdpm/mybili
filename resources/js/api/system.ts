@@ -23,3 +23,7 @@ export const clearSystemLogs = (type: string = 'laravel') => {
 export const getQueueStats = (queue: string = 'default') => {
   return fetch(`/api/system/queue-stats?queue=${queue}`).then((res) => res.json());
 }
+
+export const getMediaUsage = () => {
+    return fetch('/api/system/media-usage').then((res) => res.json());
+};
