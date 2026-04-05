@@ -33,7 +33,7 @@ fi
 
 # ⚠️ 权限修正：确保所有 storage 目录不仅存在，而且可写
 # 如果容器以 root 运行，这步可能不是强制的，但为了健壮性建议加上
-chmod -R 777 /app/storage/app/public
+# chmod -R 777 /app/storage/app/public
 
 # === 2. 数据库初始化逻辑 ===
 # 读取环境变量中的数据库路径，默认为 /data/database.sqlite
