@@ -6,22 +6,13 @@ use App\Events\VideoPartUpdated;
 use App\Events\VideoUpdated;
 use App\Services\VideoManager\Contracts\VideoServiceInterface;
 use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Cache;
 use Laravel\Horizon\Contracts\Silenced;
 
-class UpdateVideosCache implements ShouldQueue, ShouldBeUnique, Silenced
+class UpdateVideosCache implements ShouldQueue, Silenced
 {
     public $queue = 'fast';
-
-    // 收到事件后，任务会等待 5 秒再执行。在这 5 秒的缓冲期内，
-    // 刚好可以等待大批量的数据库写操作完成。
-    // 延迟 5 秒执行，合并这 5 秒内的所有更新
-    public $delay = 5;
-
-    // 锁的兜底超时时间（可以设长一点，因为一旦开始执行锁就会被主动释放）
-    public $uniqueFor = 60;
 
     /**
      * Create the event listener.
@@ -30,20 +21,28 @@ class UpdateVideosCache implements ShouldQueue, ShouldBeUnique, Silenced
         protected VideoServiceInterface $videoService
     ) {}
 
-    // 指定唯一 ID
-    public function uniqueId(): string
-    {
-        return 'rebuild_videos_cache';
-    }
-
     /**
      * Handle the event.
      */
-    public function handle(VideoUpdated|VideoPartDownloaded $event): void
+    public function handle(VideoUpdated|VideoPartUpdated|VideoPartDownloaded $event): void
     {
-        // Laravel 底层会自动在 dispatch 时拦截重复事件，
-        // 连队列都不会进，彻底告别刷屏和队列风暴。
-        // 直接全量更新缓存，底层会自动防抖且保证不漏尾刀
-        $this->videoService->updateVideosCache();
+        // [新增] 防抖逻辑
+        // 尝试获取一个持续 20 秒的锁
+        // 如果获取失败（说明最近 20 秒内已经有一个任务在跑了），则直接跳过本次任务
+        // block(0) 表示不等待，立即返回 false
+        $lock = Cache::lock('locking:update_all_videos_cache', 20);
+        
+        if ($lock->get()) {
+            try {
+                // 只有拿到锁的任务才执行全量更新
+                app(VideoServiceInterface::class)->updateVideosCache();
+            } finally {
+                // [可选] 这里不释放锁，让它自动过期
+                // 这样可以强制保证 20 秒内只执行一次，给数据库喘息的机会
+                // $lock->release(); 
+            }
+        } else {
+            // Log::debug('Update videos cache skipped (throttled)');
+        }
     }
 }
