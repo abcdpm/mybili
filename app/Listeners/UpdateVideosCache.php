@@ -6,12 +6,12 @@ use App\Events\VideoPartUpdated;
 use App\Events\VideoUpdated;
 use App\Services\VideoManager\Contracts\VideoServiceInterface;
 use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Contracts\Queue\ShouldBeUniqueUntilProcessing;
+use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Cache;
 use Laravel\Horizon\Contracts\Silenced;
 
-class UpdateVideosCache implements ShouldQueue, ShouldBeUniqueUntilProcessing, Silenced
+class UpdateVideosCache implements ShouldQueue, ShouldBeUnique, Silenced
 {
     public $queue = 'fast';
 
@@ -39,7 +39,7 @@ class UpdateVideosCache implements ShouldQueue, ShouldBeUniqueUntilProcessing, S
     /**
      * Handle the event.
      */
-    public function handle(VideoUpdated|VideoPartUpdated|VideoPartDownloaded $event): void
+    public function handle(VideoUpdated|VideoPartDownloaded $event): void
     {
         // Laravel 底层会自动在 dispatch 时拦截重复事件，
         // 连队列都不会进，彻底告别刷屏和队列风暴。
