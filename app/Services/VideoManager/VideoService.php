@@ -141,7 +141,6 @@ class VideoService implements VideoServiceInterface
                 'id'         => $videoPart['cid'],
                 'part'       => $videoPart['page'],
                 'url'        => $videoPart['video_download_url'] ?: null,
-                // 【新增】必须手动加上这一行，前端才能收到移动端地址！
                 'mobile_url' => $videoPart['mobile_url'],
                 'title'      => $videoPart['part'] ?? 'P' . $videoPart['page'],
                 'downloaded' => (bool) $videoPart['video_download_path'],
@@ -153,7 +152,6 @@ class VideoService implements VideoServiceInterface
 
     public function getVideosStat(array $conditions = []): array
     {
-        // 使用单次查询合并所有 COUNT，减少数据库往返
         $stats = Video::selectRaw('
             COUNT(*) as count,
             SUM(CASE WHEN video_downloaded_num > 0 THEN 1 ELSE 0 END) as downloaded,
@@ -189,21 +187,17 @@ class VideoService implements VideoServiceInterface
         $videos             = Video::query()->whereIn('id', $ids)->get();
 
         foreach ($videos as $video) {
-            // 统一先删除本地文件，并清空分P下载状态
             $this->removeVideoFilesAndResetState($video);
 
             if ($permanentDelete) {
                 if ($video->delete()) {
                     $deletedIds[] = $video->id;
-                    // 永久删除模式下同步移除弹幕（保留封面和元信息）
                     Danmaku::query()->where('video_id', $video->id)->delete();
                     event(new VideoUpdated($video->getAttributes(), []));
                 }
-
                 continue;
             }
 
-            // 临时删除：保留视频记录，允许后续自动检查或立即重新下载
             $video->video_downloaded_num = 0;
             $video->video_downloaded_at  = null;
             $video->save();
@@ -258,7 +252,6 @@ class VideoService implements VideoServiceInterface
 
         if ($video->isAudio() && $video->audioPart) {
             $queueService->enqueueAudio($video->audioPart);
-
             return;
         }
 
@@ -309,12 +302,13 @@ class VideoService implements VideoServiceInterface
             })
             ->leftJoin('covers', 'covers.id', '=', 'coverables.cover_id')
             ->where('favorite_list_videos.favorite_list_id', $favId)
+            ->whereNull('videos.deleted_at') // 【修复】：过滤软删除的数据
             ->select([
                 'videos.id', 'videos.title', 'videos.bvid',
                 'videos.pubtime', 'videos.fav_time', 'videos.page',
                 'videos.video_downloaded_num', 'videos.audio_downloaded_num',
                 'videos.frozen', 'videos.invalid', 'videos.cover',
-                'videos.created_at',
+                'videos.created_at', 'videos.duration', 'videos.view', // 【修复】：补充时长和播放量
                 'covers.path as cover_path',
             ])
             ->orderByDesc('videos.fav_time')
@@ -334,12 +328,13 @@ class VideoService implements VideoServiceInterface
             })
             ->leftJoin('covers', 'covers.id', '=', 'coverables.cover_id')
             ->where('subscription_videos.subscription_id', $subId)
+            ->whereNull('videos.deleted_at') // 【修复】：过滤软删除的数据
             ->select([
                 'videos.id', 'videos.title', 'videos.bvid',
                 'videos.pubtime', 'videos.fav_time', 'videos.page',
                 'videos.video_downloaded_num', 'videos.audio_downloaded_num',
                 'videos.frozen', 'videos.invalid', 'videos.cover',
-                'videos.created_at',
+                'videos.created_at', 'videos.duration', 'videos.view', // 【修复】：补充时长和播放量
                 'covers.path as cover_path',
             ])
             ->orderByDesc('videos.pubtime')
@@ -377,8 +372,10 @@ class VideoService implements VideoServiceInterface
                 'audio_downloaded_num'  => $item['audio_downloaded_num'],
                 'frozen'                => $item['frozen'],
                 'invalid'               => $item['invalid'],
-                'cover_image_url'       => $item['cover_info']['image_url'],
+                'cover_image_url'       => $item['cover_info']['image_url'] ?? null,
                 'created_at'            => $item['created_at'],
+                'duration'              => $item['duration'] ?? 0, // 【修复】：进度页时长
+                'view'                  => $item['view'] ?? 0,     // 【修复】：进度页播放量
             ];
 
             return $newItem;
