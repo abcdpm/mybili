@@ -27,7 +27,7 @@
         <h3 class="text-base font-bold text-gray-800">Horizon 队列积压探针 <span class="text-xs font-normal text-gray-400 ml-2">(抽样前 100000 条)</span></h3>
       </div>
       <div class="flex flex-wrap gap-2 mb-3">
-        <button v-for="q in ['default', 'fast', 'slow', 'comments', 'transcode', 'bilibili-rate-limit']" :key="q" @click="checkQueue(q)" :class="['px-3 py-1 text-sm font-medium rounded-lg transition-colors border', activeQueue === q ? 'bg-blue-50 border-blue-200 text-blue-700' : 'bg-gray-100 border-transparent text-gray-700 hover:bg-gray-200']">
+        <button v-for="q in ['default', 'fast', 'slow', 'comments', 'transcode', 'bilibili-rate-limit']" :key="q" @click="checkQueue(q)" :class="['px-3 py-1 text-sm font-medium rounded-lg transition-colors border', activeQueue === q ? 'bg-blue-100 border-blue-400 text-blue-800' : 'bg-gray-100 border-transparent text-gray-700 hover:bg-gray-200']">
           {{ q }}
         </button>
       </div>
@@ -56,89 +56,107 @@
       {{ logs || 'Loading logs...' }}
     </div>
 
-    <div class="mt-4 bg-white rounded-xl shadow-sm border border-gray-100 p-5 shrink-0">
-      <h3 class="text-base font-bold text-gray-800 mb-4 border-b border-gray-100 pb-3 flex items-center">
+    <div class="mt-4 bg-white rounded-xl shadow-sm border border-gray-100 p-6 shrink-0">
+      <h3 class="text-base font-bold text-gray-800 mb-5 border-b border-gray-100 pb-3 flex items-center">
         <svg class="w-5 h-5 mr-2 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
         高级运维工具箱
       </h3>
-
-      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
         
         <div class="space-y-3">
-          <h4 class="text-sm font-semibold text-gray-500 tracking-wide uppercase">数据拉取与同步</h4>
+          <h4 class="text-sm font-semibold text-gray-600 tracking-wide mb-3 flex items-center">
+            <span class="w-1.5 h-4 bg-blue-400 rounded-full mr-2"></span> 数据拉取与同步
+          </h4>
           
-          <button @click="execCmd('sync-fav-list')" class="w-full text-left px-4 py-2 bg-blue-50 text-blue-800 hover:bg-blue-100 rounded-lg shadow-sm font-medium transition-colors border border-blue-100">
-            同步基础收藏夹元数据
+          <button @click="execCmd('sync-fav-list')" class="w-full text-left px-4 py-2.5 text-sm font-medium text-gray-800 bg-blue-200 hover:bg-blue-300 hover:border-blue-300 border border-blue-200 rounded-lg shadow-sm transition-colors flex justify-between items-center">
+            <span>同步基础收藏夹元数据</span>
           </button>
           
-          <div class="bg-gray-50 p-3 rounded-lg border border-gray-200 text-sm space-y-3 shadow-sm">
-            <div class="font-medium text-gray-700">同步指定目录视频信息</div>
+          <div class="bg-slate-50 p-3 rounded-xl border border-slate-200 text-sm space-y-3 shadow-sm">
+            <div class="font-medium text-gray-700 flex items-center">
+              同步指定目录视频信息
+            </div>
             <div class="flex space-x-2">
-              <select v-model="syncType" class="w-1/3 border border-gray-300 rounded-md p-1.5 text-xs text-gray-700 bg-white focus:ring focus:ring-blue-200">
+              <select v-model="syncType" class="w-1/3 border border-slate-300 rounded-md py-1.5 px-2 text-sm text-gray-700 bg-white focus:ring focus:ring-blue-200">
                 <option value="fav">收藏夹</option>
                 <option value="sub">订阅</option>
               </select>
-              <select v-if="syncType === 'fav'" v-model="syncFavId" class="w-2/3 border border-gray-300 rounded-md p-1.5 text-xs text-gray-700 bg-white focus:ring focus:ring-blue-200">
+              <select v-if="syncType === 'fav'" v-model="syncFavId" class="w-2/3 border border-slate-300 rounded-md py-1.5 px-2 text-sm text-gray-700 bg-white focus:ring focus:ring-blue-200">
                 <option v-for="fav in metaFavs" :key="fav.id" :value="fav.id">{{ fav.name }}</option>
               </select>
-              <select v-else v-model="syncSubId" class="w-2/3 border border-gray-300 rounded-md p-1.5 text-xs text-gray-700 bg-white focus:ring focus:ring-blue-200">
+              <select v-else v-model="syncSubId" class="w-2/3 border border-slate-300 rounded-md py-1.5 px-2 text-sm text-gray-700 bg-white focus:ring focus:ring-blue-200">
                 <option v-for="sub in metaSubs" :key="sub.id" :value="sub.id">{{ sub.name }}</option>
               </select>
             </div>
             <label class="flex items-center text-xs text-gray-600">
               <input type="checkbox" v-model="syncPage1" class="mr-1.5 rounded text-blue-500 focus:ring-blue-500" /> 追加仅更新最新一页
             </label>
-            <button @click="execSyncTarget" class="w-full bg-blue-600 hover:bg-blue-700 text-white py-1.5 rounded-md text-xs font-medium transition-colors shadow-sm">
+            <button @click="execSyncTarget" class="w-full text-center px-4 py-2.5 text-sm font-medium text-gray-900 bg-blue-200 hover:bg-blue-300 hover:border-blue-300 border border-blue-200 font-bold rounded-lg shadow-sm transition-colors">
               执行单目录同步
             </button>
           </div>
 
-          <button @click="execCmdConfirm('sync-all-favs', '同步所有收藏夹', '确定全量同步所有收藏夹下的视频？\n由于数据量庞大，此操作可能需要较长时间。')" class="w-full text-left px-4 py-2 bg-red-500 text-white hover:bg-red-600 rounded-lg shadow-sm font-medium transition-colors border border-transparent">
+          <button @click="execCmdConfirm('sync-all-favs', '同步所有收藏夹', '确定全量同步所有收藏夹下的视频？\n由于数据量庞大，此操作可能需要较长时间。')" class="w-full text-left px-4 py-2.5 text-sm font-medium text-gray-800 bg-blue-200 hover:bg-blue-300 hover:border-blue-300 border border-blue-200 rounded-lg shadow-sm transition-colors">
             同步所有收藏夹视频 (耗时操作)
           </button>
-          <button @click="execCmdConfirm('sync-all-subs', '同步所有订阅', '确定全量同步所有订阅文件夹？\n由于数据量庞大，此操作可能需要较长时间。')" class="w-full text-left px-4 py-2 bg-red-500 text-white hover:bg-red-600 rounded-lg shadow-sm font-medium transition-colors border border-transparent">
+          <button @click="execCmdConfirm('sync-all-subs', '同步所有订阅', '确定全量同步所有订阅文件夹？\n由于数据量庞大，此操作可能需要较长时间。')" class="w-full text-left px-4 py-2.5 text-sm font-medium text-gray-800 bg-blue-200 hover:bg-blue-300 hover:border-blue-300 border border-blue-200 rounded-lg shadow-sm transition-colors">
             同步所有订阅视频 (耗时操作)
           </button>
         </div>
 
         <div class="space-y-3">
-          <h4 class="text-sm font-semibold text-gray-500 tracking-wide uppercase">图片缺失与详情更新</h4>
+          <h4 class="text-sm font-semibold text-gray-600 tracking-wide mb-3 flex items-center">
+            <span class="w-1.5 h-4 bg-emerald-400 rounded-full mr-2"></span> 图片缺失与详情更新
+          </h4>
           
-          <div class="grid grid-cols-2 gap-2">
-            <button @click="execCmd('scan-cover', { target: 'video' })" class="px-2 py-2 bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-lg shadow-sm text-xs font-medium transition-colors">缺失视频封面修复</button>
-            <button @click="execCmd('scan-cover', { target: 'favorite' })" class="px-2 py-2 bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-lg shadow-sm text-xs font-medium transition-colors">缺失收藏夹封面修复</button>
-            <button @click="execCmd('scan-cover', { target: 'subscription' })" class="px-2 py-2 bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-lg shadow-sm text-xs font-medium transition-colors">缺失订阅封面修复</button>
-            <button @click="execCmd('scan-cover', { target: 'upper' })" class="px-2 py-2 bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-lg shadow-sm text-xs font-medium transition-colors">缺失UP主头像修复</button>
+          <div class="grid grid-cols-2 gap-3">
+            <button @click="execCmd('scan-cover', { target: 'video' })" class="w-full text-center px-1 py-2.5 text-sm font-medium text-gray-800 bg-emerald-200 hover:bg-emerald-300 hover:border-emerald-300 border border-emerald-200 rounded-lg shadow-sm transition-colors">缺失视频封面修复</button>
+            <button @click="execCmd('scan-cover', { target: 'favorite' })" class="w-full text-center px-1 py-2.5 text-sm font-medium text-gray-800 bg-emerald-200 hover:bg-emerald-300 hover:border-emerald-300 border border-emerald-200 rounded-lg shadow-sm transition-colors">缺失收藏夹封面修复</button>
+            <button @click="execCmd('scan-cover', { target: 'subscription' })" class="w-full text-center px-1 py-2.5 text-sm font-medium text-gray-800 bg-emerald-200 hover:bg-emerald-300 hover:border-emerald-300 border border-emerald-200 rounded-lg shadow-sm transition-colors">缺失订阅封面修复</button>
+            <button @click="execCmd('scan-cover', { target: 'upper' })" class="w-full text-center px-1 py-2.5 text-sm font-medium text-gray-800 bg-emerald-200 hover:bg-emerald-300 hover:border-emerald-300 border border-emerald-200 rounded-lg shadow-sm transition-colors">缺失UP主头像修复</button>
           </div>
 
-          <button @click="execCmd('download-comments')" class="w-full text-left px-4 py-2 bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-lg shadow-sm font-medium transition-colors">全量视频评论下载</button>
-          <button @click="execCmd('download-tags')" class="w-full text-left px-4 py-2 bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-lg shadow-sm font-medium transition-colors">全量视频标签下载</button>
-          <button @click="execCmd('download-danmaku')" class="w-full text-left px-4 py-2 bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-lg shadow-sm font-medium transition-colors">全量视频弹幕</button>
-          <button @click="execCmd('update-stats')" class="w-full text-left px-4 py-2 bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-lg shadow-sm font-medium transition-colors">全量视频统计信息下载(播放量/时长)</button>
+          <button @click="execCmd('download-comments')" class="w-full text-left px-4 py-2.5 text-sm font-medium text-gray-800 bg-emerald-200 hover:bg-emerald-300 hover:border-emerald-300 border border-emerald-200 rounded-lg shadow-sm transition-colors">
+            全量视频评论下载
+          </button>
+          <button @click="execCmd('download-tags')" class="w-full text-left px-4 py-2.5 text-sm font-medium text-gray-800 bg-emerald-200 hover:bg-emerald-300 hover:border-emerald-300 border border-emerald-200 rounded-lg shadow-sm transition-colors">
+            全量视频标签下载
+          </button>
+          <button @click="execCmd('download-danmaku')" class="w-full text-left px-4 py-2.5 text-sm font-medium text-gray-800 bg-emerald-200 hover:bg-emerald-300 hover:border-emerald-300 border border-emerald-200 rounded-lg shadow-sm transition-colors">
+            全量视频弹幕下载
+          </button>
+          <button @click="execCmd('update-stats')" class="w-full text-left px-4 py-2.5 text-sm font-medium text-gray-800 bg-emerald-200 hover:bg-emerald-300 hover:border-emerald-300 border border-emerald-200 rounded-lg shadow-sm transition-colors">
+            全量视频统计信息下载(播放量/时长)
+          </button>
         </div>
 
         <div class="space-y-3">
-          <h4 class="text-sm font-semibold text-gray-500 tracking-wide uppercase">系统清理与重负载维护</h4>
+          <h4 class="text-sm font-semibold text-gray-600 tracking-wide mb-3 flex items-center">
+            <span class="w-1.5 h-4 bg-orange-400 rounded-full mr-2"></span> 系统维护与清理
+          </h4>
           
-          <button @click="execCmdConfirm('make-readable', '全量生成可读文件名', '确定为系统中所有视频重新生成可读文件名？\n此操作将对硬盘进行全量扫盘！')" class="w-full text-left px-4 py-2 bg-orange-50 text-orange-800 hover:bg-orange-100 rounded-lg shadow-sm font-medium transition-colors border border-orange-100">
-            全量视频可读文件名生成
+          <button @click="execCmdConfirm('make-readable', '全量生成可读文件名', '确定为系统中所有视频重新生成可读文件名？\n此操作将对硬盘进行全量扫盘！')" class="w-full text-left px-4 py-2.5 text-sm font-medium text-gray-800 bg-orange-200 hover:bg-orange-300 hover:border-orange-300 border border-orange-200 rounded-lg shadow-sm transition-colors">
+            全量视频可读文件名生成(扫盘)
           </button>
           
-          <button @click="execCmdConfirm('transcode-all', '全量视频转码', '确定执行手动全量视频转码？\n高 CPU 消耗，可能会占用设备极多性能！')" class="w-full text-left px-4 py-2 bg-orange-50 text-orange-800 hover:bg-orange-100 rounded-lg shadow-sm font-medium transition-colors border border-orange-100">
+          <button @click="execCmdConfirm('transcode-all', '全量视频转码', '确定执行手动全量视频转码？\n高 CPU 消耗，可能会占用设备极多性能！')" class="w-full text-left px-4 py-2.5 text-sm font-medium text-gray-800 bg-orange-200 hover:bg-orange-300 hover:border-orange-300 border border-orange-200 rounded-lg shadow-sm transition-colors">
             全量视频转码
           </button>
 
-          <button @click="execCmd('calc-stats')" class="w-full text-left px-4 py-2 bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-lg shadow-sm font-medium transition-colors">
+          <button @click="execCmd('calc-stats')" class="w-full text-left px-4 py-2.5 text-sm font-medium text-gray-800 bg-orange-200 hover:bg-orange-300 hover:border-orange-300 border border-orange-200 rounded-lg shadow-sm transition-colors">
             重算系统信息页缓存数据
           </button>
 
-          <div class="bg-gray-50 p-3 rounded-lg border border-gray-200 text-sm space-y-3 shadow-sm mt-4">
-            <div class="font-medium text-gray-700">清空积压 Job 任务</div>
-            <select v-model="clearQueueName" class="w-full border border-gray-300 bg-white text-gray-700 rounded-md p-1.5 text-xs focus:ring focus:ring-blue-200">
+          <div class="bg-slate-50 p-3 rounded-xl border border-slate-200 text-sm space-y-3 shadow-sm mt-4">
+            <div class="font-medium text-gray-700 flex items-center">
+              清空积压 Job 任务
+            </div>
+            <select v-model="clearQueueName" class="w-full border border-slate-300 rounded-md py-1.5 px-2 text-sm text-gray-700 bg-white focus:ring focus:ring-orange-200">
               <option v-for="q in metaQueues" :key="q" :value="q">清空 {{ q }} 队列</option>
               <option value="all">强制清空所有队列 (Flush)</option>
             </select>
-            <button @click="execClearQueue" class="w-full bg-red-500 hover:bg-red-600 text-white py-1.5 rounded-md text-xs font-medium transition-colors shadow-sm">
+            <button @click="execClearQueue" class="w-full text-center px-4 py-2.5 text-sm font-medium text-gray-900 font-bold bg-orange-300 hover:bg-orange-400 hover:border-orange-400 border border-orange-300 rounded-lg shadow-sm transition-colors">
               强制清理队列积压
             </button>
           </div>
@@ -353,8 +371,7 @@ const execCmd = async (command: string, params: any = {}) => {
     setTimeout(() => { fetchLogs() }, 1000);
   } catch (e) {
     console.error('Fetch caught an error:', e);
-    // 2. 拦截并弹窗说明 504 网页超时错误
-    alert('⚠️ 网络请求等待超时！\n\n您执行的任务数据量过大（如全量同步、转码、重命名），导致了前端与后端的连接等待超时。这属于正常现象！任务此时仍在后端持续稳定运行中，请直接观察上方的【系统日志】输出，无需重新点击按钮。');
+    console.warn('请求已发出，如果数据量庞大将在后台持续执行，请查看日志进展。');
   }
 }
 
