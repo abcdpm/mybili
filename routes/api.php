@@ -35,6 +35,10 @@ Route::get('/system/logs', [SystemController::class, 'logs']);
 Route::post('/system/logs/clear', [SystemController::class, 'clearLogs']);
 // 系统运维：队列积压查询
 Route::get('/system/queue-stats', [SystemController::class, 'queueStats']);
+// 执行系统维护命令
+Route::post('/system/maintenance/run-command', [SystemController::class, 'runMaintenanceCommand']);
+// 获取运维工具箱元数据（动态下拉框数据）
+Route::get('/system/maintenance/metadata', [SystemController::class, 'getMaintenanceMetadata']);
 
 // 获取视频评论
 Route::get('/videos/{id}/comments', [VideoController::class, 'comments']);
