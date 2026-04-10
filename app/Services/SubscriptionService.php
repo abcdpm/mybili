@@ -198,7 +198,8 @@ class SubscriptionService
     {
         $subscriptions = Subscription::where('status', Subscription::STATUS_ACTIVE)->get();
         foreach ($subscriptions as $subscription) {
-            $this->updateSubscription($subscription, $pullAll);
+
+        \App\Jobs\UpdateSubscriptionJob::dispatchWithRateLimit($subscription, $pullAll);
         }
     }
 
@@ -312,7 +313,11 @@ class SubscriptionService
                     $subscriptionVideo->video_id        = $archive['aid'];
                     $subscriptionVideo->save();
 
-                    PullVideoInfoJob::dispatchWithRateLimit($archive['bvid']);
+                    // 检查video是否存在，是否需要下载新任务
+                    $video = Video::withTrashed()->where('id', $archive['aid'])->first();
+                    if(!$video || $video->needsMoreDownloadTask()){
+                        PullVideoInfoJob::dispatch($archive['bvid']);
+                    }
                 }
 
                 if ($loaded >= $subscription->total) {
@@ -350,24 +355,24 @@ class SubscriptionService
         $offsetAid = null;
         $loaded    = 0;
         while (1) {
-            Log::info('get up videos', ['offsetAid' => $offsetAid, 'loaded' => $loaded]);
+            Log::info('[订阅] 获取UP主视频', ['offsetAid' => $offsetAid, 'loaded' => $loaded]);
             while (1) {
                 $retry = 0;
                 try {
                     $upVideos = $this->bilibiliService->getUpVideos($mid, $offsetAid);
                 } catch (\Exception $e) {
-                    Log::error('get up videos error', ['error' => $e->getMessage()]);
+                    Log::error('[订阅] 获取UP主视频失败, 开始重试', ['error' => $e->getMessage()]);
                     $retry++;
                     if ($retry > 3) {
-                        Log::error('get up videos error: ' . $e->getMessage());
-                        throw new \Exception('get up videos error: ' . $e->getMessage());
+                        Log::error('[订阅] 获取UP主视频重试次数达上限: ' . $e->getMessage());
+                        throw new \Exception('[订阅] 获取UP主视频失败: ' . $e->getMessage());
                     }
                     continue;
                 }
                 break;
             }
             foreach ($upVideos['list'] as $item) {
-                Log::info('up video', ['title' => $item['title']]);
+                Log::info('[订阅] 开始下载UP主视频', ['title' => $item['title']]);
                 $aid                                = $item['param'];
                 $subscriptionVideo                  = SubscriptionVideo::where('subscription_id', $subscription->id)->where('video_id', $aid)->firstOrNew();
                 $subscriptionVideo->bvid            = $item['bvid'];
@@ -377,7 +382,13 @@ class SubscriptionService
 
                 // 快速填写一个视频信息
                 // 这里获取到的视频都是有效的，所以可以忽略 invalid 处理和封面判断
-                $video = Video::withTrashed()->where('id', $aid)->firstOrNew();
+                $oldVideo = [];
+                $video = Video::withTrashed()->where('id', $aid)->first();
+                if(!$video){
+                    $video = new Video();
+                }else{
+                    $oldVideo = $video->getAttributes();
+                }
                 $video->fill([
                     'id'       => $aid,
                     'upper_id' => $mid,
@@ -385,18 +396,20 @@ class SubscriptionService
                     'title'    => $item['title'],
                     'cover'    => $item['cover'],
                     'duration' => $item['duration'],
+                    'view'     => $item['play'] ?? $item['stat']['view'] ?? 0,
                     'page'     => intval($item['videos']),
                     'pubtime'  => date('Y-m-d H:i:s', $item['ctime']),
                     'link'     => sprintf('https://www.bilibili.com/video/%s', $item['bvid']),
-                    'intro'    => '',
                 ]);
                 $video->save();
                 if($video->trashed()){
                     $video->restore();
                 }
-                event(new VideoUpdated([], $video->getAttributes()));
+                event(new VideoUpdated($oldVideo, $video->getAttributes()));
 
-                PullVideoInfoJob::dispatchWithRateLimit($item['bvid']);
+                if(empty($oldVideo)){
+                    PullVideoInfoJob::dispatch($item['bvid']);
+                }
             }
             $loaded += count($upVideos['list']);
 
@@ -413,7 +426,12 @@ class SubscriptionService
             }
             $offsetAid = $upVideos['last_aid'];
         }
-        $subscription->total         = $loaded;
+        
+        if($pullAll){
+            $subscription->total         = $loaded;
+        }else{
+            $subscription->total         = SubscriptionVideo::where('subscription_id', $subscription->id)->count();
+        }
         $subscription->last_check_at = now();
         $subscription->save();
         event(new SubscriptionUpdated($oldSubscription, $subscription->toArray()));
@@ -454,6 +472,7 @@ class SubscriptionService
                     'title'    => $item['title'],
                     'cover'    => $item['cover'],
                     'duration' => $item['duration'] ?? 0,
+                    'view'     => $item['cnt_info']['play'] ?? $item['stat']['view'] ?? 0,
                     'pubtime'  => date('Y-m-d H:i:s', $item['ctime'] ?? time()),
                     'link'     => "https://www.bilibili.com/video/" . $item['bvid'],
                     'intro'    => $item['intro'] ?? '',
@@ -478,7 +497,7 @@ class SubscriptionService
                 ]);
 
                 // 派发下载详情任务
-                PullVideoInfoJob::dispatchWithRateLimit($item['bvid']);
+                PullVideoInfoJob::dispatch($item['bvid']);
             }
 
             $loaded += count($videos);

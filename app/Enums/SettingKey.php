@@ -8,6 +8,9 @@ enum SettingKey: string {
     case MULTI_PARTITION_DOWNLOAD_ENABLED = 'multi_partition_download_enabled';
     case HUMAN_READABLE_NAME_ENABLED = 'human_readable_name_enabled';
 
+    case DOWNLOAD_COMMENTS_ENABLED = 'download_comments_enabled';
+    case TRANSCODE_VIDEO_ENABLED = 'transcode_video_enabled';
+
     case USAGE_ANALYTICS_ENABLED = 'usage_analytics_enabled';
 
     case FAVORITE_EXCLUDE = 'fav_exclude';
@@ -15,6 +18,7 @@ enum SettingKey: string {
     case SIZE_EXCLUDE     = 'size_exclude';
     case DURATION_VIDEO_EXCLUDE = 'duration_video_exclude';
     case DURATION_VIDEO_PART_EXCLUDE = 'duration_video_part_exclude';
+    case FAV_TIME_EXCLUDE = 'fav_time_exclude';
 
 
     case INSTALLED_DATETIME = 'installed_datetime';
@@ -34,6 +38,8 @@ enum SettingKey: string {
             self::DANMAKU_DOWNLOAD_ENABLED => '弹幕下载',
             self::MULTI_PARTITION_DOWNLOAD_ENABLED => '多分P下载',
             self::HUMAN_READABLE_NAME_ENABLED => '可读文件名',
+            self::DOWNLOAD_COMMENTS_ENABLED => '评论下载',
+            self::TRANSCODE_VIDEO_ENABLED => '视频转码',
             self::USAGE_ANALYTICS_ENABLED => '使用情况统计',
 
             self::FAVORITE_EXCLUDE => '收藏夹排除',
@@ -41,6 +47,7 @@ enum SettingKey: string {
             self::SIZE_EXCLUDE => '大小排除',
             self::DURATION_VIDEO_EXCLUDE => '视频时长排除',
             self::DURATION_VIDEO_PART_EXCLUDE => '分P时长排除',
+            self::FAV_TIME_EXCLUDE => '收藏时间排除',
 
             self::INSTALLED_DATETIME => '安装日期时间',
             self::COOKIES_CONTENT => 'Cookies 内容',

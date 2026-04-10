@@ -2,6 +2,7 @@
 namespace App\Services;
 
 use App\Contracts\DownloadImageServiceInterface;
+use Illuminate\Support\Facades\Cache; // 【新增】
 
 class DownloadImageService implements DownloadImageServiceInterface
 {
@@ -28,6 +29,10 @@ class DownloadImageService implements DownloadImageServiceInterface
         
         file_put_contents($savePath, $content);
         file_put_contents($hashPath, hash_file('sha256', $savePath));
+
+        // === 【新增】累加图片文件大小到缓存 ===
+        Cache::increment('stat_images_size', filesize($savePath));
+        // ==========================
     }
 
     /**

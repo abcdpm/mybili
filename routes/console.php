@@ -1,10 +1,12 @@
 <?php
 
-use App\Services\VideoManager\Contracts\VideoServiceInterface;
 use App\Enums\SettingKey;
+use App\Jobs\SyncCoverThumbnailsJob;
 use App\Services\SettingsService;
+use App\Services\VideoManager\Contracts\VideoServiceInterface;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schedule;
+use Illuminate\Support\Facades\Log;
 
 // ==========================================================================
 // 1. 收藏夹元数据同步
@@ -13,13 +15,13 @@ use Illuminate\Support\Facades\Schedule;
 // 频率：每 10 分钟执行一次
 Schedule::call(function () {
     $updateFavEnable = app(SettingsService::class)->get(SettingKey::FAVORITE_SYNC_ENABLED);
-    if ($updateFavEnable == "on") {
+    if ($updateFavEnable == 'on') {
         Artisan::call('app:sync-media', ['--fav-list' => true]);
     }
 })
-->name('update-fav')
-->withoutOverlapping()
-->everyTenMinutes();
+    ->name('update-fav')
+    ->withoutOverlapping()
+    ->everyTenMinutes();
 
 // ==========================================================================
 // 2. 收藏夹视频增量更新 (快速扫描)
@@ -32,9 +34,10 @@ Schedule::call(function () {
 // 频率：每 10 分钟执行一次
 Schedule::call(function () {
     $updateFavEnable = app(SettingsService::class)->get(SettingKey::FAVORITE_SYNC_ENABLED);
-    if ($updateFavEnable == "on") {
+    if ($updateFavEnable == 'on') {
         if (app(VideoServiceInterface::class)->count() == 0) {
             Artisan::call('app:sync-media', ['--fav-videos' => true]);
+
             return;
         }
         if (now()->format('H') === '04') {
@@ -43,9 +46,9 @@ Schedule::call(function () {
         Artisan::call('app:sync-media', ['--fav-videos' => true, '--fav-page' => 1]);
     }
 })
-->name('update-fav-videos-page-1')
-->withoutOverlapping()
-->everyTenMinutes();
+    ->name('update-fav-videos-page-1')
+    ->withoutOverlapping()
+    ->everyTenMinutes();
 
 // ==========================================================================
 // 3. 收藏夹视频全量同步 (深度扫描)
@@ -55,13 +58,13 @@ Schedule::call(function () {
 // 频率：每天凌晨 04:00 执行一次
 Schedule::call(function () {
     $updateFavEnable = app(SettingsService::class)->get(SettingKey::FAVORITE_SYNC_ENABLED);
-    if ($updateFavEnable == "on") {
+    if ($updateFavEnable == 'on') {
         Artisan::call('app:sync-media', ['--fav-videos' => true]);
     }
 })
-->name('update-fav-videos-all')
-->withoutOverlapping()
-->dailyAt('04:00');
+    ->name('update-fav-videos-all')
+    ->withoutOverlapping()
+    ->dailyAt('04:00');
 
 // ==========================================================================
 // 4. 修复失效视频状态
@@ -96,7 +99,7 @@ Schedule::command('horizon:snapshot')->everyMinute();
 // 频率：每天早晨 06:00 执行一次
 Schedule::call(function () {
     $humanReadableNameEnable = app(SettingsService::class)->get(SettingKey::HUMAN_READABLE_NAME_ENABLED);
-    if ($humanReadableNameEnable == "on") {
+    if ($humanReadableNameEnable == 'on') {
         Artisan::call('app:make-human-readable-names');
     }
 })
@@ -134,9 +137,11 @@ Schedule::command('app:scan-cover-image', ['--target=favorite'])->hourly();
 // ==========================================================================
 // 11. 增量更新视频评论
 // ==========================================================================
-// 作用：启动轮询，对最久未更新评论的 3000 个视频，追加获取 20 条评论
+// 作用：启动轮询，每天动态抽取最久未更新评论的视频进行状态刷新。
+//      默认按照有效视频总数的 3% 抽取任务，自适应抓取热门/最新评论。
 // 频率：每天凌晨 3:00执行一次
-Schedule::command('app:download-all-comments --incremental=20 --sleep=5 --max-videos=3000')->dailyAt('3:00');
+// Schedule::command('app:download-all-comments --incremental=20 --sleep=5 --max-videos=3000')->dailyAt('3:00'); // 旧增量更新方案
+Schedule::command('app:download-all-comments --auto-update --percent=3 --incremental=20 --sleep=5')->dailyAt('3:00');
 
 // ==========================================================================
 // 12. 处理下载队列
@@ -144,4 +149,57 @@ Schedule::command('app:download-all-comments --incremental=20 --sleep=5 --max-vi
 // 每分钟从下载队列取出任务并派发 Job
 Schedule::command('app:process-download-queue')
     ->everyMinute()
+    ->withoutOverlapping();
+
+// ==========================================================================
+// 13. 系统空间与数据库使用情况全量统计
+// ==========================================================================
+// 作用：全量统计数据库各表行数及文件夹物理大小，解决实时获取极度缓慢的问题。
+// 频率：每天早晨 06:00 执行一次
+Schedule::command('app:calculate-system-stats')
+    ->name('calculate-system-stats')
+    ->withoutOverlapping()
+    ->dailyAt('06:00');
+
+// ==========================================================================
+// 14. 自动清理并限制系统日志大小
+// ==========================================================================
+// 作用：防止 laravel.log 文件无限增长撑爆磁盘。如果文件超过 50MB，则只保留最新的 5000 行。
+// 频率：每天凌晨 3:30 执行一次
+Schedule::call(function () {
+    $logPath = storage_path('logs/laravel.log');
+    
+    // 如果日志文件存在，且大小超过 50MB (50 * 1024 * 1024 bytes)
+    if (file_exists($logPath) && filesize($logPath) > 52428800) {
+        $tmpPath = $logPath . '.tmp';
+        // 利用 Linux 的 tail 命令极速提取最后 5000 行并覆盖原文件
+        $cmd = sprintf(
+            'tail -n 5000 %s > %s && mv %s %s', 
+            escapeshellarg($logPath), 
+            escapeshellarg($tmpPath), 
+            escapeshellarg($tmpPath), 
+            escapeshellarg($logPath)
+        );
+        exec($cmd);
+        
+        Log::info('系统日志文件已成功瘦身，保留最新的 5000 行。');
+    }
+})
+->name('rotate-system-logs')
+->dailyAt('3:30');
+
+// ==========================================================================
+// 15. 每日平滑更新视频播放量 (防风控)
+// ==========================================================================
+// 作用：每天抽取最久未更新的 3% 的视频放入队列，并且任务之间强制间隔 5 秒执行。
+// 优点：既能保持播放量数据鲜活，又能彻底避免 10 个队列进程瞬间并发打满被 B 站封禁。
+// 频率：每天凌晨 05:00 执行一次
+Schedule::command('app:update-video-stats --auto-update --percent=3 --sleep=5')
+    ->name('update-video-stats-daily')
+    ->withoutOverlapping()
+    ->dailyAt('05:00');
+
+// 每天凌晨修复视频冻结状态，只有冻结且无效的视频才修复
+Schedule::command('app:fix-freeze-status')
+    ->daily()
     ->withoutOverlapping();

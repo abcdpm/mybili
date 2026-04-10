@@ -10,7 +10,10 @@ use App\Services\BilibiliSuspendService;
 use App\Services\DownloadFilterService;
 use App\Services\DownloadVideoService;
 use App\Services\SettingsService;
-use App\Jobs\TranscodeVideoJob;// 引入 Job
+use App\Jobs\TranscodeVideoJob; // 引入移动端视频转码任务
+use App\Jobs\DownloadCommentsJob; // 引入评论下载任务
+use App\Jobs\DownloadVideoTagsJob; // 引入标签下载任务
+use Illuminate\Support\Facades\Cache; // 【新增】
 use Carbon\Carbon;
 use Log;
 
@@ -83,11 +86,26 @@ class DownloadVideoPartFileAction
             Log::info('download video success', ['video_id' => $video->id, 'part' => $videoPart->page, 'savePath' => $savePath]);
             $this->updateVideoPartDownloaded($videoPart, $savePath);
 
+            // === 【新增】累加视频文件大小到缓存 ===
+            if (is_file($savePath)) {
+                Cache::increment('stat_videos_size', filesize($savePath));
+            }
+            // ==========================
+
             // === 【新增】投递转码任务 ===
             // 放入队列执行，不卡住当前下载进程
             Log::info('Dispatching transcode job', ['video_id' => $video->id]);
-            //dispatch(new TranscodeVideoJob($videoPart)); 
-            dispatch(new TranscodeVideoJob($videoPart))->onQueue('slow');
+            dispatch(new TranscodeVideoJob($videoPart));
+            // ==========================
+
+            // === 【修复】投递评论下载任务 ===
+            Log::info('Dispatching comments download job', ['video_id' => $video->id]);
+            dispatch(new DownloadCommentsJob($video)); 
+            // ==========================
+
+            // === 【修复】投递标签下载任务 ===
+            Log::info('Dispatching tags download job', ['video_id' => $video->id]);
+            dispatch(new DownloadVideoTagsJob($video)); 
             // ==========================
 
             event(new VideoPartDownloaded($videoPart));

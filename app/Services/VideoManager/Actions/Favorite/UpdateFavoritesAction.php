@@ -19,16 +19,18 @@ class UpdateFavoritesAction
      */
     public function execute(): void
     {
-        Log::info('Update favorites start');
+        Log::info('更新收藏夹开始');
         $favorites = $this->bilibiliService->pullFav();
 
         array_map(function ($item) {
             $favorite = FavoriteList::query()->firstOrNew(['id' => $item['id']]);
+            $oldAttributes = $favorite->getAttributes();
+            
             $favorite->fill($item);
             $favorite->save();
-            event(new FavoriteUpdated($favorite->getAttributes(), $item));
+            event(new FavoriteUpdated($oldAttributes, $item));
         }, $favorites);
 
-        Log::info('Update favorites success');
+        Log::info('更新收藏夹完成');
     }
 }

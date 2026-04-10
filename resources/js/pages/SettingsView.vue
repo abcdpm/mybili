@@ -102,6 +102,40 @@
                         </div>
                     </div>
 
+                    <!-- Comments download -->
+                    <div class="bg-gray-50 rounded-lg p-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-3">{{ t('settings.features.downloadComments') }}</label>
+                        <div class="space-y-2">
+                            <label class="flex items-center space-x-3">
+                                <input v-model="downloadCommentsEnabled" type="radio" value="off"
+                                    class="form-radio h-5 w-5 text-purple-600 rounded-full border-2 border-gray-300 focus:ring-2 focus:ring-purple-500 transition duration-200" />
+                                <span class="text-gray-700">{{ t('common.off') }}</span>
+                            </label>
+                            <label class="flex items-center space-x-3">
+                                <input v-model="downloadCommentsEnabled" type="radio" value="on"
+                                    class="form-radio h-5 w-5 text-purple-600 rounded-full border-2 border-gray-300 focus:ring-2 focus:ring-purple-500 transition duration-200" />
+                                <span class="text-gray-700">{{ t('common.on') }}</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Transcode Video -->
+                    <div class="bg-gray-50 rounded-lg p-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-3">{{ t('settings.features.transcodeVideo') }}</label>
+                        <div class="space-y-2">
+                            <label class="flex items-center space-x-3">
+                                <input v-model="transcodeVideoEnabled" type="radio" value="off"
+                                    class="form-radio h-5 w-5 text-purple-600 rounded-full border-2 border-gray-300 focus:ring-2 focus:ring-purple-500 transition duration-200" />
+                                <span class="text-gray-700">{{ t('common.off') }}</span>
+                            </label>
+                            <label class="flex items-center space-x-3">
+                                <input v-model="transcodeVideoEnabled" type="radio" value="on"
+                                    class="form-radio h-5 w-5 text-purple-600 rounded-full border-2 border-gray-300 focus:ring-2 focus:ring-purple-500 transition duration-200" />
+                                <span class="text-gray-700">{{ t('common.on') }}</span>
+                            </label>
+                        </div>
+                    </div>
+
                     <!-- Usage Analytics -->
                     <div class="bg-gray-50 rounded-lg p-4">
                         <label class="block text-sm font-medium text-gray-700 mb-3">{{ t('settings.features.usageAnalytics') }}</label>
@@ -263,6 +297,46 @@
                             <input v-if="durationVideoPartExclude.type === 'custom'" v-model="durationVideoPartExclude.custom_duration" type="number"
                                 class="ml-8 w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition duration-200"
                                 :placeholder="t('settings.placeholders.enterDuration')" />
+                        </div>
+                    </div>
+
+                    <!-- Filter by Favorite Time -->
+                    <div class="bg-gray-50 rounded-lg p-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-3">{{ t('settings.filters.byFavoriteTime') }}</label>
+                        <div class="space-y-3">
+                            <label class="flex items-center space-x-3">
+                                <input v-model="favTimeExclude.type" type="radio" value="off"
+                                    class="form-radio h-5 w-5 text-purple-600 rounded-full border-2 border-gray-300 focus:ring-2 focus:ring-purple-500 transition duration-200" />
+                                <span class="text-gray-700">{{ t('settings.filters.noFilter') }}</span>
+                            </label>
+
+                            <label class="flex items-center space-x-3">
+                                <input v-model="favTimeExclude.type" type="radio" value="1m"
+                                    class="form-radio h-5 w-5 text-purple-600 rounded-full border-2 border-gray-300 focus:ring-2 focus:ring-purple-500 transition duration-200" />
+                                <span class="text-gray-700">{{ t('settings.filters.before1Month') }}</span>
+                            </label>
+
+                            <label class="flex items-center space-x-3">
+                                <input v-model="favTimeExclude.type" type="radio" value="3m"
+                                    class="form-radio h-5 w-5 text-purple-600 rounded-full border-2 border-gray-300 focus:ring-2 focus:ring-purple-500 transition duration-200" />
+                                <span class="text-gray-700">{{ t('settings.filters.before3Month') }}</span>
+                            </label>
+
+                            <label class="flex items-center space-x-3">
+                                <input v-model="favTimeExclude.type" type="radio" value="6m"
+                                    class="form-radio h-5 w-5 text-purple-600 rounded-full border-2 border-gray-300 focus:ring-2 focus:ring-purple-500 transition duration-200" />
+                                <span class="text-gray-700">{{ t('settings.filters.before6Month') }}</span>
+                            </label>
+
+                            <label class="flex items-center space-x-3">
+                                <input v-model="favTimeExclude.type" type="radio" value="custom"
+                                    class="form-radio h-5 w-5 text-purple-600 rounded-full border-2 border-gray-300 focus:ring-2 focus:ring-purple-500 transition duration-200" />
+                                <span class="text-gray-700">{{ t('settings.filters.customDate') }}</span>
+                            </label>
+
+                            <input v-if="favTimeExclude.type === 'custom'" v-model="favTimeExclude.custom_date" type="date"
+                                class="ml-8 w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition duration-200"
+                                :placeholder="t('settings.placeholders.enterDate')" />
                         </div>
                     </div>
 
@@ -436,16 +510,60 @@
                 </button>
             </div>
         </div>
+
+        <transition
+            enter-active-class="transition duration-300 ease-out transform"
+            enter-from-class="translate-y-[-1rem] opacity-0"
+            enter-to-class="translate-y-0 opacity-100"
+            leave-active-class="transition duration-200 ease-in transform"
+            leave-from-class="translate-y-0 opacity-100"
+            leave-to-class="translate-y-[-1rem] opacity-0"
+        >
+            <div v-if="showToast" :class="['fixed top-6 right-6 z-[60] bg-white border rounded-lg shadow-xl p-4 w-80 overflow-hidden', isError ? 'border-red-200' : 'border-green-200']">
+                <div class="flex items-start space-x-3 relative z-10">
+                    <div :class="['flex-shrink-0 mt-0.5', isError ? 'text-red-500' : 'text-green-500']">
+                        <svg v-if="!isError" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                        <svg v-else class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    </div>
+                    <div class="flex-1">
+                        <h4 class="text-sm font-bold text-gray-800">{{ isError ? '错误提示' : '操作成功' }}</h4>
+                        <p class="text-sm text-gray-600 mt-1">{{ toastMsg }}</p>
+                    </div>
+                </div>
+                <div :class="['absolute bottom-0 left-0 h-1 animate-shrink', isError ? 'bg-red-500' : 'bg-green-500']" style="width: 100%"></div>
+            </div>
+        </transition>
     </div>
 </template>
 
 <script lang="ts" setup>
 import { getFavList } from '@/api/fav';
 import { getSettings, saveSettings, testTelegramConnection as testTelegramAPI } from '@/api/settings';
-import { onMounted, ref } from 'vue';
+import { onMounted, ref, nextTick } from 'vue';
 import { useI18n } from 'vue-i18n';
 
 const { t } = useI18n();
+
+// --- 新增：通知状态管理 ---
+const toastMsg = ref('');
+const showToast = ref(false);
+const isError = ref(false);
+let toastTimer: ReturnType<typeof setTimeout> | null = null;
+
+const showNotification = (msg: string, error = false) => {
+    toastMsg.value = msg;
+    isError.value = error;
+    showToast.value = false; // 先重置状态，以重置进度条动画
+    
+    nextTick(() => {
+        showToast.value = true;
+        if (toastTimer) clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => {
+            showToast.value = false;
+        }, 5000); // 5秒后自动消失
+    });
+};
+// -----------------------
 
 interface Collection {
     id: number;
@@ -473,12 +591,19 @@ const durationVideoPartExclude = ref({
     custom_duration: 0
 });
 
+const favTimeExclude = ref({
+    type: 'off',
+    custom_date: ''
+});
+
 const multiPartitionDownloadEnabled = ref('on'); // off, on
-const danmakuDownloadEnabled = ref('off'); // off, on
-const videoDownloadEnabled = ref('off'); // off, on
-const favoriteSyncEnabled = ref('off'); // off, on
-const humanReadableNameEnabled = ref('off'); // off, on
-const usageAnalyticsEnabled = ref('on'); // on, off
+const danmakuDownloadEnabled = ref('on'); // off, on
+const videoDownloadEnabled = ref('on'); // off, on
+const favoriteSyncEnabled = ref('on'); // off, on
+const humanReadableNameEnabled = ref('on'); // off, on
+const downloadCommentsEnabled = ref('on'); // off, on
+const transcodeVideoEnabled = ref('off'); // off, on
+const usageAnalyticsEnabled = ref('off'); // on, off
 
 // Telegram Bot 设置相关的响应式数据
 const telegramBotEnabled = ref('off'); // off, on
@@ -500,12 +625,15 @@ const saveSettingHandler = () => {
         size_exclude: sizeExclude.value,
         duration_video_exclude: durationVideoExclude.value,
         duration_video_part_exclude: durationVideoPartExclude.value,
+        fav_time_exclude: favTimeExclude.value,
         fav_exclude: favExclude.value,
         multi_partition_download_enabled: multiPartitionDownloadEnabled.value,
         danmaku_download_enabled: danmakuDownloadEnabled.value,
         video_download_enabled: videoDownloadEnabled.value,
         favorite_sync_enabled: favoriteSyncEnabled.value,
         human_readable_name_enabled: humanReadableNameEnabled.value,
+        download_comments_enabled: downloadCommentsEnabled.value,
+        transcode_video_enabled: transcodeVideoEnabled.value,
         usage_analytics_enabled: usageAnalyticsEnabled.value,
         telegram_bot_enabled: telegramBotEnabled.value,
         telegram_bot_token: telegramBotToken.value,
@@ -518,27 +646,30 @@ const saveSettingHandler = () => {
         size_exclude: sizeExclude.value,
         duration_video_exclude: durationVideoExclude.value,
         duration_video_part_exclude: durationVideoPartExclude.value,
+        fav_time_exclude: favTimeExclude.value,
         fav_exclude: favExclude.value,
         multi_partition_download_enabled: multiPartitionDownloadEnabled.value,
         danmaku_download_enabled: danmakuDownloadEnabled.value,
         video_download_enabled: videoDownloadEnabled.value,
         favorite_sync_enabled: favoriteSyncEnabled.value,
         human_readable_name_enabled: humanReadableNameEnabled.value,
+        download_comments_enabled: downloadCommentsEnabled.value,
+        transcode_video_enabled: transcodeVideoEnabled.value,
         usage_analytics_enabled: usageAnalyticsEnabled.value,
         telegram_bot_enabled: telegramBotEnabled.value,
         telegram_bot_token: telegramBotToken.value,
         telegram_chat_id: telegramChatId.value,
         telegram_bot_api_url: telegramBotApiUrl.value,
     }).then(()=>{
-        alert(t('settings.settingsSaved'));
+        showNotification(t('settings.settingsSaved'));
     }).catch((err)=>{
-        alert(t('settings.settingsSaveFailed') + ' ' + err.message);
+        showNotification(t('settings.settingsSaveFailed') + ' ' + err.message, true);
     });
 };
 
 const testTelegramConnection = async () => {
     if (!telegramBotToken.value || !telegramChatId.value) {
-        alert(t('settings.notifications.fillRequiredFields'));
+        showNotification(t('settings.notifications.fillRequiredFields'), true);
         return;
     }
 
@@ -550,13 +681,13 @@ const testTelegramConnection = async () => {
         );
         
         if (response.result === true) {
-            alert(t('settings.notifications.connectionSuccess'));
+            showNotification(t('settings.notifications.connectionSuccess'));
         } else {
-            alert(t('settings.notifications.connectionFailed'));
+            showNotification(t('settings.notifications.connectionFailed'), true);
         }
     } catch (error) {
         console.error('Connect Telegram Bot failed:', error);
-        alert(t('settings.notifications.connectionError'));
+        showNotification(t('settings.notifications.connectionError'), true);
     }
 };
 
@@ -575,11 +706,14 @@ onMounted(()=>{
         favExclude.value = data.fav_exclude;
         durationVideoExclude.value = data.duration_video_exclude;
         durationVideoPartExclude.value = data.duration_video_part_exclude;
+        favTimeExclude.value = data.fav_time_exclude;
         multiPartitionDownloadEnabled.value = data.multi_partition_download_enabled;
         danmakuDownloadEnabled.value = data.danmaku_download_enabled;
         videoDownloadEnabled.value = data.video_download_enabled;
         favoriteSyncEnabled.value = data.favorite_sync_enabled;
         humanReadableNameEnabled.value = data.human_readable_name_enabled;
+        downloadCommentsEnabled.value = data.download_comments_enabled === 'off' ? 'off' : 'on';
+        transcodeVideoEnabled.value = data.transcode_video_enabled || 'off';
         usageAnalyticsEnabled.value = data.usage_analytics_enabled;
         
         // 加载 Telegram Bot 设置

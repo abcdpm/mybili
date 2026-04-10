@@ -54,7 +54,8 @@ return [
 
         'stack' => [
             'driver' => 'stack',
-            'channels' => explode(',', env('LOG_STACK', 'single')),
+            // 【关键修改】：同时启用 single(本地单文件) 和 stderr(控制台)
+            'channels' => ['single', 'stderr'],
             'ignore_exceptions' => false,
         ],
 

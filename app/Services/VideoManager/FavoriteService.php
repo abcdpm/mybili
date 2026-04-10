@@ -14,10 +14,17 @@ class FavoriteService implements FavoriteServiceInterface
      */
     public function getUnifiedContentList(): array
     {
-        $favList       = FavoriteList::query()->get()->toArray();
-        $subscriptions = Subscription::query()->get()->toArray();
+        $favList = FavoriteList::query()
+            ->orderBy('sort_order', 'asc') 
+            ->orderBy('id', 'desc')
+            ->get()
+            ->toArray();
+            
+        $subscriptions = Subscription::query()
+            ->orderBy('id', 'desc')
+            ->get()
+            ->toArray();
 
-        // 将订阅转换为负数ID，并统一格式
         $unifiedList = [];
 
         // 添加收藏夹（正数ID）
@@ -33,7 +40,8 @@ class FavoriteService implements FavoriteServiceInterface
                 'updated_at'      => $fav['updated_at'] ? strtotime($fav['updated_at']) : null,
                 'ctime'           => $fav['ctime'] ? $fav['ctime'] : null,
                 'mtime'           => $fav['mtime'] ? $fav['mtime'] : null,
-                'cover_info'      => $fav['cover_info'] ?? null,
+                'cover_info'      => null,
+                'sort_order'      => $fav['sort_order'] ?? 0, // 【新增】提取排序字段
             ];
         }
 
@@ -50,9 +58,20 @@ class FavoriteService implements FavoriteServiceInterface
                 'updated_at'      => $subscription['updated_at'] ? strtotime($subscription['updated_at']) : null,
                 'ctime'           => $subscription['created_at'] ? strtotime($subscription['created_at']) : null,
                 'mtime'           => $subscription['updated_at'] ? strtotime($subscription['updated_at']) : null,
-                'cover_info'      => $subscription['cover_info'] ?? null,
+                'cover_info'      => null,
+                'sort_order'      => $subscription['sort_order'] ?? 0, // 【新增】提取排序字段
             ];
         }
+
+        // 【核心新增】对合并后的混合数组进行全局排序
+        usort($unifiedList, function ($a, $b) {
+            // 优先按照 sort_order 升序排
+            if ($a['sort_order'] !== $b['sort_order']) {
+                return $a['sort_order'] <=> $b['sort_order'];
+            }
+            // 如果 sort_order 相同（比如都是新加的，默认为0），则按内部真实ID降序（新添加的在前）
+            return abs($b['id']) <=> abs($a['id']);
+        });
 
         return $unifiedList;
     }
@@ -90,7 +109,18 @@ class FavoriteService implements FavoriteServiceInterface
             ];
 
             // 加载关联的视频
-            $unifiedContent->videos = $subscription->videos()->orderBy('pubtime', 'desc')->orderBy('created_at', 'desc')->get();
+            // $unifiedContent->videos = $subscription->videos()->orderBy('pubtime', 'desc')->orderBy('created_at', 'desc')->get();
+            $unifiedContent->videos = $subscription->videos()
+                ->select([
+                    'videos.id', 'videos.title', 'videos.cover', 'videos.pubtime', 
+                    'videos.frozen', 'videos.page', 'videos.video_downloaded_num', 
+                    'videos.audio_downloaded_num',
+                    'videos.bvid', 'videos.duration', 'videos.invalid',
+                    'videos.view'
+                ])
+                ->orderBy('videos.pubtime', 'desc')
+                ->orderBy('videos.created_at', 'desc')
+                ->get();
 
             return $unifiedContent;
         } else {
@@ -116,7 +146,18 @@ class FavoriteService implements FavoriteServiceInterface
             ];
 
             // 加载关联的视频
-            $unifiedContent->videos = $fav->videos()->orderBy('fav_time', 'desc')->orderBy('created_at', 'desc')->get();
+            // $unifiedContent->videos = $fav->videos()->orderBy('fav_time', 'desc')->orderBy('created_at', 'desc')->get();
+            $unifiedContent->videos = $fav->videos()
+                ->select([
+                    'videos.id', 'videos.title', 'videos.cover', 'videos.pubtime', 
+                    'videos.fav_time', 'videos.frozen', 'videos.page', 
+                    'videos.video_downloaded_num', 'videos.audio_downloaded_num',
+                    'videos.bvid', 'videos.duration', 'videos.invalid',
+                    'videos.view'
+                ])
+                ->orderBy('videos.fav_time', 'desc')
+                ->orderBy('videos.created_at', 'desc')
+                ->get();
 
             return $unifiedContent;
         }
@@ -141,11 +182,13 @@ class FavoriteService implements FavoriteServiceInterface
     {
         return $id > 0;
     }
-    
-
 
     public function getFavorites(): Collection  
     {
-        return FavoriteList::query()->get();
+        // 【修改】：如果有其他地方调用这个方法，也加上同样的排序规则
+        return FavoriteList::query()
+            ->orderBy('sort_order', 'asc')
+            ->orderBy('id', 'desc')
+            ->get();
     }
 }

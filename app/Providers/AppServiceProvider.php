@@ -2,11 +2,17 @@
 
 namespace App\Providers;
 
+use App\Models\Video;
+use App\Models\VideoPart;
+use App\Models\Danmaku;
+use App\Models\Comment;
+use App\Models\Emote;
+use App\Models\FavoriteList;
 use App\Contracts\DownloadImageServiceInterface;
 use App\Contracts\TelegramBotServiceInterface;
+use App\Services\ColorExtractionService;
 use App\Services\DownloadImageService;
 use App\Services\TelegramBotService;
-use App\Services\ColorExtractionService;
 use App\Services\VideoManager\Contracts\DanmakuServiceInterface;
 use App\Services\VideoManager\Contracts\FavoriteServiceInterface;
 use App\Services\VideoManager\Contracts\VideoServiceInterface;
@@ -15,6 +21,8 @@ use App\Services\VideoManager\FavoriteService;
 use App\Services\VideoManager\VideoService;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Event;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -25,11 +33,11 @@ class AppServiceProvider extends ServiceProvider
     {
         $this->app->singleton(DownloadImageServiceInterface::class, DownloadImageService::class);
         $this->app->singleton(TelegramBotServiceInterface::class, TelegramBotService::class);
-        
+
         $this->app->singleton(DanmakuServiceInterface::class, DanmakuService::class);
         $this->app->singleton(FavoriteServiceInterface::class, FavoriteService::class);
         $this->app->singleton(VideoServiceInterface::class, VideoService::class);
-        
+
         // 颜色提取服务 - 使用配置文件中的参数
         $this->app->singleton(ColorExtractionService::class, function ($app) {
             return new ColorExtractionService(
@@ -54,33 +62,52 @@ class AppServiceProvider extends ServiceProvider
                     // WAL模式配置
                     DB::statement('PRAGMA journal_mode=WAL');
                     DB::statement('PRAGMA synchronous=NORMAL');
-                    
+
                     // 锁定和并发优化
                     DB::statement('PRAGMA busy_timeout=60000'); // 60秒超时
                     DB::statement('PRAGMA locking_mode=NORMAL'); // 允许多连接
-                    
+
                     // WAL checkpoint优化
                     DB::statement('PRAGMA wal_autocheckpoint=2000'); // 增加checkpoint阈值
                     DB::statement('PRAGMA journal_size_limit=67108864'); // 64MB WAL大小限制
-                    
+
                     // 内存和缓存优化
                     DB::statement('PRAGMA cache_size=-20000'); // 20MB缓存
                     DB::statement('PRAGMA temp_store=MEMORY'); // 临时表存内存
                     DB::statement('PRAGMA mmap_size=268435456'); // 256MB内存映射
-                    
+
                     // 性能优化
                     DB::statement('PRAGMA page_size=4096'); // 4KB页大小
                     DB::statement('PRAGMA auto_vacuum=INCREMENTAL'); // 增量清理
                     DB::statement('PRAGMA incremental_vacuum(100)'); // 清理100页
-                    
+
                     // 查询优化
                     DB::statement('PRAGMA optimize'); // 优化查询计划
                 }
             } catch (\Exception $e) {
                 // 在构建阶段或数据库不可用时静默处理
                 // 可以记录日志但不抛出异常
-                logger()->debug('SQLite optimization skipped: ' . $e->getMessage());
+                logger()->debug('SQLite optimization skipped: '.$e->getMessage());
             }
         }
+
+        // 自动监听数据的新增与删除，实现毫秒级数量增量更新
+        Video::created(fn() => Cache::increment('stat_videos'));
+        Video::deleted(fn() => Cache::decrement('stat_videos'));
+
+        VideoPart::created(fn() => Cache::increment('stat_video_parts'));
+        VideoPart::deleted(fn() => Cache::decrement('stat_video_parts'));
+
+        Danmaku::created(fn() => Cache::increment('stat_danmaku'));
+        Danmaku::deleted(fn() => Cache::decrement('stat_danmaku'));
+
+        Comment::created(fn() => Cache::increment('stat_comments'));
+        Comment::deleted(fn() => Cache::decrement('stat_comments'));
+
+        Emote::created(fn() => Cache::increment('stat_emotes'));
+        Emote::deleted(fn() => Cache::decrement('stat_emotes'));
+
+        FavoriteList::created(fn() => Cache::increment('stat_favorite_lists'));
+        FavoriteList::deleted(fn() => Cache::decrement('stat_favorite_lists'));
     }
 }

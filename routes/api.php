@@ -5,14 +5,17 @@ use App\Http\Controllers\DownloadQueueController;
 use App\Http\Controllers\FavController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\SubscriptionController;
+use App\Http\Controllers\SystemController;
 use App\Http\Controllers\VideoController;
 use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\SystemController;
 
 Route::apiResource('/fav', FavController::class)->only(['show', 'index']);
+Route::post('/fav/reorder', [FavController::class, 'reorder']);
+Route::get('/fav/{id}/videos', [FavController::class, 'videos']);
 Route::get('/videos/{id}', [VideoController::class, 'show']);
 Route::get('/videos', [VideoController::class, 'index']);
 Route::delete('/videos/{id}', [VideoController::class, 'destroy']);
+Route::post('/videos/{id}/danmaku/refresh', [VideoController::class, 'refreshDanmaku']);
 Route::get('/danmaku', [VideoController::class, 'danmaku']);
 Route::get('/progress', [VideoController::class, 'progress']);
 Route::get('/cookie/exist', [CookieController::class, 'checkFileExist']);
@@ -26,9 +29,25 @@ Route::apiResource('/subscription', SubscriptionController::class)->only(['index
 
 // 显示系统校准信息
 Route::get('/system/info', [SystemController::class, 'getSystemInfo']);
+// 系统日志接口
+Route::get('/system/logs', [SystemController::class, 'logs']);
+// 系统日志清空接口
+Route::post('/system/logs/clear', [SystemController::class, 'clearLogs']);
+// 系统运维：队列积压查询
+Route::get('/system/queue-stats', [SystemController::class, 'queueStats']);
 
 // 获取视频评论
-Route::get('/videos/{id}/comments', [App\Http\Controllers\VideoController::class, 'comments']);
+Route::get('/videos/{id}/comments', [VideoController::class, 'comments']);
+// 获取指定主评论下的追加子评论
+Route::get('/comments/{rootId}/replies', [VideoController::class, 'replies']);
+// 获取视频标签的路由
+Route::get('/videos/{id}/tags', [VideoController::class, 'tags']);
+
+// 手动更新路由
+Route::post('/videos/{id}/update-danmaku', [VideoController::class, 'updateDanmaku']);
+Route::post('/videos/{id}/update-comments', [VideoController::class, 'updateComments']);
+Route::post('/videos/{id}/update-stats', [VideoController::class, 'updateStats']);
+Route::get('/system/media-usage', [SystemController::class, 'getMediaUsage']);
 
 // 下载队列管理
 Route::get('/download-queue', [DownloadQueueController::class, 'index']);

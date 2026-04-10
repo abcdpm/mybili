@@ -86,12 +86,12 @@
 
       <!-- Drawer Overlay -->
       <transition name="fade">
-        <div v-if="isDrawerOpen" @click="isDrawerOpen = false" class="fixed inset-0 bg-black bg-opacity-50 z-40 md:hidden"></div>
+        <div v-if="isDrawerOpen" @click="isDrawerOpen = false" class="fixed inset-0 bg-black bg-opacity-50 z-50 md:hidden"></div>
       </transition>
 
       <!-- Drawer Menu -->
       <transition name="slide">
-        <div v-if="isDrawerOpen" class="fixed top-0 left-0 h-full w-64 bg-white z-50 shadow-lg p-6 md:hidden">
+        <div v-if="isDrawerOpen" class="fixed top-0 left-0 h-full w-64 bg-white z-[60] shadow-lg p-6 md:hidden">
           <h2 class="text-xl font-bold mb-6">{{ t('navigation.menu') }}</h2>
           <nav class="flex flex-col space-y-4">
             <router-link
@@ -106,6 +106,8 @@
           </nav>
         </div>
       </transition>
+
+      <ToastContainer />
 
       <main class="bg-white md:rounded-lg shadow-lg p-2 md:p-6">
         <router-view v-slot="{ Component }">
@@ -122,6 +124,7 @@
 <script lang="ts" setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useI18n } from 'vue-i18n';
+import ToastContainer from './components/ToastContainer.vue';
 
 const { t, locale } = useI18n();
 const isDrawerOpen = ref(false);
@@ -134,6 +137,7 @@ const navLinks = [
   { key: 'subscription', path: '/subscription' },
   { key: 'cookie', path: '/cookie' },
   { key: 'settings', path: '/settings' },
+  { key: 'logs', path: '/logs' },
   { key: 'about', path: '/about' }
 ];
 
@@ -156,6 +160,47 @@ const changeLanguage = (langCode: string) => {
   isMobileLanguageDropdownOpen.value = false;
 };
 
+// 移动端左->右滑动展开侧边菜单
+const SWIPE_MIN_DISTANCE = 70;
+const SWIPE_MAX_VERTICAL_OFFSET = 50;
+let touchStartX = 0;
+let touchStartY = 0;
+let touchActive = false;
+
+const isMobileViewport = () => window.innerWidth < 768;
+
+const handleTouchStart = (event: TouchEvent) => {
+  if (!isMobileViewport() || isDrawerOpen.value) return;
+  if (event.touches.length !== 1) return;
+
+  const touch = event.touches[0];
+  touchStartX = touch.clientX;
+  touchStartY = touch.clientY;
+  touchActive = true;
+};
+
+const handleTouchEnd = (event: TouchEvent) => {
+  if (!touchActive || !isMobileViewport() || isDrawerOpen.value) {
+    touchActive = false;
+    return;
+  }
+  if (event.changedTouches.length !== 1) {
+    touchActive = false;
+    return;
+  }
+
+  const touch = event.changedTouches[0];
+  const deltaX = touch.clientX - touchStartX;
+  const deltaY = Math.abs(touch.clientY - touchStartY);
+
+  // 仅识别明显的水平右滑，避免和页面垂直滚动冲突
+  if (deltaX > SWIPE_MIN_DISTANCE && deltaY < SWIPE_MAX_VERTICAL_OFFSET) {
+    isDrawerOpen.value = true;
+  }
+
+  touchActive = false;
+};
+
 // 点击外部关闭下拉菜单
 const handleClickOutside = (event: Event) => {
   const target = event.target as HTMLElement;
@@ -167,6 +212,8 @@ const handleClickOutside = (event: Event) => {
 
 onMounted(() => {
   document.addEventListener('click', handleClickOutside);
+  document.addEventListener('touchstart', handleTouchStart, { passive: true });
+  document.addEventListener('touchend', handleTouchEnd, { passive: true });
   // 从localStorage恢复语言设置
   const savedLocale = localStorage.getItem('locale');
   if (savedLocale && availableLanguages.some(lang => lang.code === savedLocale)) {
@@ -176,6 +223,8 @@ onMounted(() => {
 
 onUnmounted(() => {
   document.removeEventListener('click', handleClickOutside);
+  document.removeEventListener('touchstart', handleTouchStart);
+  document.removeEventListener('touchend', handleTouchEnd);
 });
 </script>
 

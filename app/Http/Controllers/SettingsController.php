@@ -17,16 +17,18 @@ class SettingsController extends Controller
     public function getSettings()
     {
         $presets = [
-            SettingKey::DANMAKU_DOWNLOAD_ENABLED->value         => 'off',
-            SettingKey::VIDEO_DOWNLOAD_ENABLED->value           => 'off',
-            SettingKey::FAVORITE_SYNC_ENABLED->value            => 'off',
-            SettingKey::HUMAN_READABLE_NAME_ENABLED->value      => 'off',
-            SettingKey::USAGE_ANALYTICS_ENABLED->value          => 'on',
+            SettingKey::DANMAKU_DOWNLOAD_ENABLED->value         => 'on',
+            SettingKey::VIDEO_DOWNLOAD_ENABLED->value           => 'on',
+            SettingKey::FAVORITE_SYNC_ENABLED->value            => 'on',
+            SettingKey::HUMAN_READABLE_NAME_ENABLED->value      => 'on',
+            SettingKey::USAGE_ANALYTICS_ENABLED->value          => 'off',
+            SettingKey::TRANSCODE_VIDEO_ENABLED->value          => 'off',
+            SettingKey::DOWNLOAD_COMMENTS_ENABLED->value        => 'on',
             SettingKey::FAVORITE_EXCLUDE->value                 => [
                 'enabled'  => false,
                 'selected' => [],
             ],
-            SettingKey::MULTI_PARTITION_DOWNLOAD_ENABLED->value => 'off',
+            SettingKey::MULTI_PARTITION_DOWNLOAD_ENABLED->value => 'on',
             SettingKey::NAME_EXCLUDE->value                     => [
                 'contains' => '',
                 'regex'    => '',
@@ -43,6 +45,10 @@ class SettingsController extends Controller
             SettingKey::DURATION_VIDEO_PART_EXCLUDE->value      => [
                 'custom_duration' => 0,
                 'type'            => 'off',
+            ],
+            SettingKey::FAV_TIME_EXCLUDE->value                 => [
+                'custom_date' => '',
+                'type'        => 'off',
             ],
             SettingKey::TELEGRAM_BOT_API_URL->value             => '',
             SettingKey::TELEGRAM_BOT_ENABLED->value             => 'off',
@@ -72,6 +78,8 @@ class SettingsController extends Controller
             SettingKey::FAVORITE_SYNC_ENABLED->value                            => 'required|string|in:on,off',
             SettingKey::HUMAN_READABLE_NAME_ENABLED->value                      => 'required|string|in:on,off',
             SettingKey::USAGE_ANALYTICS_ENABLED->value                          => 'required|string|in:on,off',
+            SettingKey::TRANSCODE_VIDEO_ENABLED->value                          => 'required|string|in:on,off',
+            SettingKey::DOWNLOAD_COMMENTS_ENABLED->value                        => 'required|string|in:on,off',
 
             SettingKey::NAME_EXCLUDE->value                                     => 'required|array',
             SettingKey::NAME_EXCLUDE->value . '.contains'                       => 'required_if:name_exclude.type,contains|string',
@@ -89,6 +97,10 @@ class SettingsController extends Controller
             SettingKey::DURATION_VIDEO_PART_EXCLUDE->value                      => 'required|array',
             SettingKey::DURATION_VIDEO_PART_EXCLUDE->value . '.custom_duration' => 'required_if:duration_video_part_exclude.type,custom|integer',
             SettingKey::DURATION_VIDEO_PART_EXCLUDE->value . '.type'            => 'required|string|in:off,30min,60min,120min,custom',
+
+            SettingKey::FAV_TIME_EXCLUDE->value                                 => 'required|array',
+            SettingKey::FAV_TIME_EXCLUDE->value . '.custom_date'                => 'required_if:fav_time_exclude.type,custom|date_format:Y-m-d',
+            SettingKey::FAV_TIME_EXCLUDE->value . '.type'                       => 'required|string|in:off,1m,3m,6m,custom',
 
             SettingKey::FAVORITE_EXCLUDE->value                                 => 'required|array',
             SettingKey::FAVORITE_EXCLUDE->value . '.enabled'                    => 'required|boolean',

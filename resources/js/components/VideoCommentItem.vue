@@ -20,14 +20,14 @@
                 <div class="flex gap-2 flex-wrap">
                     <a v-for="(pic, idx) in comment.pictures" 
                     :key="idx" 
-                    :href="pic" 
+                    :href="getRawUrl(pic)" 
                     :data-pswp-width="getImageWidth(idx)" 
                     :data-pswp-height="getImageHeight(idx)"
                     target="_blank"
                     class="relative group overflow-hidden rounded-lg cursor-zoom-in block bg-gray-100"
                     :style="getLongImageStyle(idx)" 
                     >
-                        <img :src="pic" 
+                        <img :src="getWebpUrl(pic)" 
                             class="h-full w-full object-cover object-top hover:brightness-95 transition-all" 
                             loading="lazy"
                             @load="onImageLoad($event, idx)"
@@ -64,14 +64,14 @@
                                 <div class="flex gap-2 flex-wrap">
                                     <a v-for="(pic, idx) in reply.pictures" 
                                        :key="idx" 
-                                       :href="pic"
+                                       :href="getRawUrl(pic)"
                                        target="_blank"
                                        class="relative group overflow-hidden rounded cursor-zoom-in block"
                                        :style="{ height: '80px', width: 'auto' }"
                                        :data-pswp-width="getReplyImageWidth(reply.rpid, idx)" 
                                        :data-pswp-height="getReplyImageHeight(reply.rpid, idx)"
                                     >
-                                        <img :src="pic" 
+                                        <img :src="getWebpUrl(pic)" 
                                              class="h-full w-auto object-cover border border-gray-200" 
                                              loading="lazy"
                                              @load="onReplyImageLoad($event, reply.rpid, idx)"
@@ -91,19 +91,25 @@
                     </div>
                 </div>
 
-                <div v-if="comment.replies.length > 3" class="mt-3 text-xs text-gray-500 select-none">
+                <div v-if="totalReplyCount > 3" class="mt-3 text-xs text-gray-500 select-none">
                     <div v-if="!isExpanded">
                         <span class="cursor-pointer hover:text-blue-500" @click="expandReplies">
-                            共{{ comment.replies.length }}条回复，点击查看
+                            共{{ totalReplyCount }}条回复，点击查看
                         </span>
                     </div>
                     <div v-else class="flex flex-wrap items-center gap-2">
                         <span>共{{ totalPages }}页</span>
                         <div class="flex gap-1">
-                            <span v-for="p in paginationDisplay" :key="p" 
-                                  class="px-2 py-0.5 rounded cursor-pointer transition-colors"
-                                  :class="p === currentPage ? 'bg-blue-500 text-white' : 'bg-gray-100 hover:bg-gray-200'"
-                                  @click="changePage(p)">
+                            <span v-for="(p, index) in paginationDisplay" :key="index" 
+                                  class="px-2 py-0.5 rounded transition-colors"
+                                  :class="
+                                      p === '...' 
+                                      ? 'cursor-default text-gray-400 bg-transparent' 
+                                      : (p === currentPage 
+                                          ? 'bg-blue-500 text-white' 
+                                          : 'bg-gray-100 hover:bg-gray-200 cursor-pointer text-gray-700')
+                                  "
+                                  @click="p !== '...' ? changePage(p) : null">
                                 {{ p }}
                             </span>
                         </div>
@@ -117,23 +123,28 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, onMounted, onUnmounted } from 'vue';
-// 引入 PhotoSwipe
+import { computed, ref, onMounted, onUnmounted, nextTick } from 'vue';
 import PhotoSwipeLightbox from 'photoswipe/lightbox';
 import 'photoswipe/style.css';
+import axios from 'axios';
 
-// 判断是否为长图 (高宽比 > 2.5)
+// ---------------- 新增：提取格式化图片的工具函数 ----------------
+// 兼容新结构 {webp: "...", raw: "..."} 与老结构 "..."
+const getWebpUrl = (pic: any) => {
+    return (typeof pic === 'object' && pic !== null && pic.webp) ? pic.webp : pic;
+};
+const getRawUrl = (pic: any) => {
+    return (typeof pic === 'object' && pic !== null && pic.raw) ? pic.raw : getWebpUrl(pic);
+};
+
+// 判断是否为长图
 const isLongImage = (index: number) => {
     const size = imageSizes.value[index];
     if (!size) return false;
     return size.h / size.w > 2.5;
 };
 
-// 动态样式：如果是长图，限制显示区域
-// 这里简化处理：我们已经统一设置了 height: 120px, object-fit: cover
-// 加上 object-position: top 就能自动展示顶部
 const getLongImageStyle = (index: number) => {
-    // 保持统一高度，让 object-cover 发挥作用
     return { height: '120px', width: '120px' }; 
 };
 
@@ -152,11 +163,9 @@ const isReplyUpper = (mid: number) => {
 }
 
 // ---------------- 图片处理逻辑 ----------------
-// 存储图片尺寸信息，以便 PhotoSwipe 打开时有平滑动画
 const imageSizes = ref<Record<number, { w: number, h: number }>>({});
 const replyImageSizes = ref<Record<string, { w: number, h: number }>>({});
 
-// 图片加载后获取真实尺寸
 const onImageLoad = (event: Event, index: number) => {
     const img = event.target as HTMLImageElement;
     imageSizes.value[index] = { w: img.naturalWidth, h: img.naturalHeight };
@@ -177,35 +186,41 @@ const getReplyImageHeight = (rpid: number, index: number) => replyImageSizes.val
 let lightbox: PhotoSwipeLightbox | null = null;
 let replyLightboxes: PhotoSwipeLightbox[] = [];
 
+const initReplyLightboxes = (replies: any[]) => {
+    replyLightboxes.forEach(lb => {
+        try { lb.destroy(); } catch (e) {}
+    });
+    replyLightboxes = [];
+
+    if (!replies) return;
+    replies.forEach((reply: any) => {
+        if (reply.pictures && reply.pictures.length > 0) {
+            const lb = new PhotoSwipeLightbox({
+                gallery: '#gallery-' + reply.rpid,
+                children: 'a',
+                pswpModule: () => import('photoswipe'),
+                bgOpacity: 0.8,
+                showHideOpacity: true,
+            });
+            lb.init();
+            replyLightboxes.push(lb);
+        }
+    });
+};
+
 onMounted(() => {
-    // 初始化主评论画廊
     if (props.comment.pictures && props.comment.pictures.length > 0) {
         lightbox = new PhotoSwipeLightbox({
             gallery: '#gallery-' + props.comment.rpid,
             children: 'a',
             pswpModule: () => import('photoswipe'),
-            bgOpacity: 0.8, // B站风格半透明背景
-            showHideOpacity: true, // 淡入淡出
+            bgOpacity: 0.8, 
+            showHideOpacity: true, 
         });
         lightbox.init();
     }
     
-    // 初始化子评论画廊 (如果有)
-    // 注意：如果是无感滚动加载的，这里只初始化当前已存在的。
-    // 如果展开更多子评论，可能需要重新初始化，但这里简化处理。
-    if (props.comment.replies) {
-         props.comment.replies.forEach((reply: any) => {
-             if (reply.pictures && reply.pictures.length > 0) {
-                 const lb = new PhotoSwipeLightbox({
-                    gallery: '#gallery-' + reply.rpid,
-                    children: 'a',
-                    pswpModule: () => import('photoswipe')
-                });
-                lb.init();
-                replyLightboxes.push(lb);
-             }
-         });
-    }
+    initReplyLightboxes(props.comment.replies);
 });
 
 onUnmounted(() => {
@@ -221,20 +236,18 @@ onUnmounted(() => {
 const parseContent = (content: string, emotes: any) => {
     if (!content) return '';
     let parsed = content;
-    // 1. 基础HTML转义
     parsed = parsed.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
-    // 超链接解析
-    // 匹配 http/https 开头的链接
     const urlRegex = /(https?:\/\/[^\s<]+)/g;
     parsed = parsed.replace(urlRegex, (url) => {
         return `<a href="${url}" target="_blank" class="text-blue-500 hover:underline" rel="noopener noreferrer">${url}</a>`;
     });
 
-    // 2. 表情包解析
+    // 提取表情包链接，兼容对象与字符串
     parsed = parsed.replace(/\[(.*?)\]/g, (match, name) => {
         if (emotes && emotes['['+name+']']) {
-            const url = emotes['['+name+']'];
+            const emoteData = emotes['['+name+']'];
+            const url = getWebpUrl(emoteData);
             return `<img src="${url}" alt="${name}" class="bili-emoji" loading="lazy">`;
         }
         return match;
@@ -266,16 +279,25 @@ const formatCustomTime = (timeStr: string) => {
     }
 };
 
-// ... 分页逻辑 ...
+// ---------------- 分页与加载逻辑 ----------------
 const isExpanded = ref(false);
 const currentPage = ref(1);
 const pageSize = 10;
-const totalPages = computed(() => Math.ceil(props.comment.replies.length / pageSize));
-const displayedReplies = computed(() => {
-    if (!isExpanded.value) return props.comment.replies.slice(0, 3);
-    const start = (currentPage.value - 1) * pageSize;
-    return props.comment.replies.slice(start, start + pageSize);
+const isLoadingReplies = ref(false);
+
+const backendTotal = ref<number | null>(null);
+
+const totalReplyCount = computed(() => {
+    if (backendTotal.value !== null) {
+        return backendTotal.value;
+    }
+    return props.comment.rcount || props.comment.replies_count || props.comment.replies?.length || 0;
 });
+
+const totalPages = computed(() => Math.ceil(totalReplyCount.value / pageSize));
+
+const displayedReplies = ref([...(props.comment.replies || [])]);
+
 const paginationDisplay = computed(() => {
     let pages = [];
     const total = totalPages.value;
@@ -291,15 +313,54 @@ const paginationDisplay = computed(() => {
             pages.push(1); pages.push('...'); pages.push(current-1); pages.push(current); pages.push(current+1); pages.push('...'); pages.push(total);
         }
     }
-    return pages.filter(p => typeof p === 'number');
+    return pages;
 });
-const expandReplies = () => { isExpanded.value = true; };
-const collapseReplies = () => { isExpanded.value = false; currentPage.value = 1; };
-const changePage = (p: any) => { if (typeof p === 'number') currentPage.value = p; };
+
+const fetchRepliesPage = async (page: number) => {
+    isLoadingReplies.value = true;
+    try {
+        const response = await axios.get(`/api/comments/${props.comment.rpid}/replies`, {
+            params: { page: page, per_page: pageSize }
+        });
+
+        if (response.data.total !== undefined) {
+            backendTotal.value = response.data.total;
+        }
+
+        displayedReplies.value = response.data.data;
+        currentPage.value = page;
+        
+        nextTick(() => {
+            initReplyLightboxes(displayedReplies.value);
+        });
+    } catch (e) {
+        console.error("加载子评论失败", e);
+    } finally {
+        isLoadingReplies.value = false;
+    }
+};
+
+const expandReplies = () => { 
+    fetchRepliesPage(1).then(() => {
+        isExpanded.value = true; 
+    });
+};
+
+const collapseReplies = () => { 
+    isExpanded.value = false; 
+    currentPage.value = 1; 
+    displayedReplies.value = [...(props.comment.replies || [])];
+};
+
+const changePage = (p: any) => { 
+    if (typeof p === 'number' && p !== currentPage.value) {
+        fetchRepliesPage(p);
+    } 
+};
+
 </script>
 
 <style scoped>
-/* 使用 :deep() 穿透 v-html */
 :deep(.video-comment-content .bili-emoji) {
     display: inline-block;
     height: 1.25em;       

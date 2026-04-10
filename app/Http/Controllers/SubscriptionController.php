@@ -83,9 +83,18 @@ class SubscriptionController extends Controller
         if (!$subscription) {
             return response()->json(['message' => 'Subscription not found'], 404);
         }
+        
+        // 【优化核心】：只 Select 前端列表真正需要的轻量级字段，极大减少内存和 JSON 序列化时间
         $subscription->load(['videos' => function($query) {
-            $query->orderBy('pubtime', 'desc');
+            $query->select([
+                'videos.id', 'videos.title', 'videos.cover', 'videos.pubtime', 
+                'videos.frozen', 'videos.page', 'videos.video_downloaded_num', 
+                'videos.audio_downloaded_num',
+                'videos.bvid', 'videos.duration', 'videos.invalid',
+                'videos.view'
+            ])->orderBy('videos.pubtime', 'desc');
         }]);
+        
         return response()->json($subscription);
     }
 }

@@ -6,71 +6,98 @@ use App\Models\Emote;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Cache;
+use App\Traits\ImageOptimizerTrait;
 
 class CommentImageService
 {
+    use ImageOptimizerTrait; 
+
     /**
-     * 处理评论内容中的表情包
+     * 处理评论内容中的表情包（返回双路径对象）
      */
     public function processEmotes(array $emotes): array
     {
         $localEmotes = [];
-        
         foreach ($emotes as $text => $url) {
             $hash = md5($url);
             
             // 1. 检查数据库是否已存在 (复用)
             $cached = Emote::where('url_hash', $hash)->first();
+            
             if ($cached) {
-                // 如果存在，直接使用，不管后缀是什么
-                $localEmotes[$text] = Storage::url('emotes/' . $cached->filename);
+                // 如果命中缓存，也构造成双路径格式
+                $base = pathinfo($cached->filename, PATHINFO_FILENAME);
+                $localEmotes[$text] = [
+                    'webp' => '/storage/emotes/' . $base . '.webp',
+                    'raw'  => '/storage/emotes/' . $cached->filename 
+                ];
                 continue;
             }
 
             // 2. 下载并处理
-            $filename = $this->downloadAndSave($url, 'emotes');
-            
-            if ($filename) {
+            $paths = $this->downloadAndSave($url, 'emotes');
+            if ($paths) {
                 try {
                      Emote::firstOrCreate(
                         ['url_hash' => $hash],
-                        [
-                            'filename' => $filename,
-                            'text' => $text,
-                        ]
+                        ['filename' => $paths['webp'], 'text' => $text]
                     );
-                    $localEmotes[$text] = Storage::url('emotes/' . $filename);
+                    // 存入相对路径的双对象
+                    $localEmotes[$text] = [
+                        'webp' => '/storage/emotes/' . $paths['webp'],
+                        'raw'  => '/storage/emotes/' . $paths['raw']
+                    ];
                 } catch (\Exception $e) {
-                     // 忽略并发冲突
                      $localEmotes[$text] = $url;
                 }
             } else {
                 $localEmotes[$text] = $url;
             }
         }
-        
         return $localEmotes;
     }
 
     /**
-     * 处理评论配图
+     * 处理评论配图（返回双路径对象）
      */
     public function processPictures(array $pictures): array
     {
         $localPictures = [];
         foreach ($pictures as $url) {
-            $filename = $this->downloadAndSave($url, 'comments');
-            if ($filename) {
-                $localPictures[] = Storage::url('comments/' . $filename);
+            $paths = $this->downloadAndSave($url, 'comments');
+            if ($paths) {
+                $localPictures[] = [
+                    'webp' => '/storage/comments/' . $paths['webp'],
+                    'raw'  => '/storage/comments/' . $paths['raw']
+                ];
             }
         }
         return $localPictures;
     }
 
     /**
-     * 下载图片并保存 (智能动图修复版)
+     * 处理评论区用户头像（仅返回 WebP 相对路径）
      */
-    private function downloadAndSave(string $url, string $folder): ?string
+    public function processAvatar(string $url): string
+    {
+        if (empty($url)) {
+            return $url;
+        }
+
+        $paths = $this->downloadAndSave($url, 'avatars');
+        if ($paths) {
+            // 头像是纯 varchar 字段，直接返回相对路径的 WebP
+            return '/storage/avatars/' . $paths['webp'];
+        }
+
+        return $url;
+    }
+
+    /**
+     * 下载图片并触发优化，返回双格式文件名
+     */
+    private function downloadAndSave(string $url, string $folder): ?array
     {
         try {
             $targetUrl = $url;            
@@ -86,14 +113,14 @@ class CommentImageService
             // 1. 发起请求
             $response = Http::withHeaders([
                 'Referer' => 'https://www.bilibili.com/',
-                'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
             ])->get($targetUrl);
 
             // 如果 WebP 下载失败（404），回退到原始 URL
             if ($response->failed() && $targetUrl !== $url) {
                 $response = Http::withHeaders([
                     'Referer' => 'https://www.bilibili.com/',
-                    'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                    'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
                 ])->get($url);
             }
 
@@ -110,15 +137,27 @@ class CommentImageService
             if (str_contains($contentType, 'image/webp')) $extension = 'webp';
             elseif (str_contains($contentType, 'image/gif')) $extension = 'gif';
             elseif (str_contains($contentType, 'image/png')) $extension = 'png';
-            elseif (str_contains($contentType, 'image/avif')) $extension = 'avif';            
+            // 【移除】移除了 avif 的探查
             
-            // 3. 保存 (使用原始 URL 的 hash 作为文件名，这样 logic 不需要改)
-            $filename = md5($url) . '.' . $extension;
-            $path = $folder . '/' . $filename;
+            // 3. 先保存原图
+            $rawFilename = md5($url) . '.' . $extension;
+            $path = $folder . '/' . $rawFilename;
+            Storage::disk('public')->put($path, $content);
 
-            Storage::disk('public')->put($path, $content);            
-            
-            return $filename;
+            // === 【新增】累加评论图片/表情包大小到缓存 ===
+            // 因为 $content 是字符串格式的二进制流，strlen 就是准确的字节大小
+            Cache::increment('stat_images_size', strlen($content));
+
+            // 4. 触发 WebP 转换
+            $fullPath = Storage::disk('public')->path($path);
+            $optimizedFullPath = $this->optimizeImage($fullPath);
+            $webpFilename = basename($optimizedFullPath);
+
+            // 【核心修改】向外抛出双文件名字典
+            return [
+                'webp' => $webpFilename,
+                'raw'  => $rawFilename
+            ];
 
         } catch (\Exception $e) {
             Log::error("图片处理异常: " . $e->getMessage());

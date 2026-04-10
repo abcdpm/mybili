@@ -9,6 +9,9 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\Log;
+use App\Enums\SettingKey;
+use App\Services\SettingsService;
 
 class DownloadCommentsJob implements ShouldQueue
 {
@@ -30,10 +33,21 @@ class DownloadCommentsJob implements ShouldQueue
         public Video $video,
         public ?int $limit = null,
         public int $sleep = 3
-    ) {}
+    )
+    {
+        // 指定 comments 队列
+        $this->onQueue('comments');
+    }
 
     public function handle(DownloadCommentsAction $action): void
     {
+        // [新增] 检查系统设置
+        $downloadCommentsEnabled = app(SettingsService::class)->get(SettingKey::DOWNLOAD_COMMENTS_ENABLED) ?? 'on';
+        if ($downloadCommentsEnabled !== 'on') {
+            Log::info("[评论下载] 系统设置已关闭评论下载功能，跳过任务", ['video_id' => $this->video->id]);
+            return;
+        }
+
         // [修改] 将 limit 传给 Action
         // [修改] 将 sleep 传给 Action
         $action->execute($this->video, $this->limit, $this->sleep);

@@ -24,12 +24,11 @@ abstract class BaseScheduledRateLimitedJob implements ShouldQueue
      */
     private const RATE_LIMIT_KEY_PREFIX = 'job:';
 
-    public $tries = 1;
-
-    // 重复检查 TTL, 不用考虑特大视频文件下载的情况，视频下载通过数据表进行去重，这里忽略
-    public const DUPLICATE_CHECK_TTL = 600;
+    // 重复检查 TTL, 设为较长时间（如2小时），配合任务执行完毕后清理，避免堆积任务时重复派发
+    public const DUPLICATE_CHECK_TTL = 7200;
 
     public string $duplicateCheckKey = '';
+    public string $recentSuccessKey = '';
 
     abstract protected function getRateLimitKey(): string;
 
@@ -67,6 +66,13 @@ abstract class BaseScheduledRateLimitedJob implements ShouldQueue
         return "job_duplicate_check:{$className}:{$argsHash}";
     }
 
+    private static function generateRecentSuccessKey(array $args): string
+    {
+        $className = static::class;
+        $argsHash  = md5(serialize($args));
+        return "job_recent_success:{$className}:{$argsHash}";
+    }
+
     private static function isDuplicateJob(array $args): bool
     {
         return Redis::exists(self::generateDuplicateCheckKey($args));
@@ -80,13 +86,14 @@ abstract class BaseScheduledRateLimitedJob implements ShouldQueue
     public function setJobArgs(array $args): void
     {
         $this->duplicateCheckKey = self::generateDuplicateCheckKey($args);
+        $this->recentSuccessKey  = self::generateRecentSuccessKey($args);
     }
 
     public function clearDuplicateCheck(): void
     {
         if ($this->duplicateCheckKey !== '') {
             Redis::del($this->duplicateCheckKey);
-            Log::info('Cleared duplicate check key', ['job' => static::class, 'key' => $this->duplicateCheckKey]);
+            Log::info('[限流] 已清除去重校验 Key', ['job' => static::class, 'key' => $this->duplicateCheckKey]);
         }
     }
 
@@ -98,7 +105,7 @@ abstract class BaseScheduledRateLimitedJob implements ShouldQueue
 
         if (RateLimiter::tooManyAttempts($limitKey, $maxAttempts)) {
             $availableIn = RateLimiter::availableIn($limitKey);
-            Log::info('Job rate limited', [
+            Log::info('[限流] 任务触发频率限制', [
                 'job'          => static::class,
                 'limit_key'    => $limitKey,
                 'available_in' => $availableIn,
@@ -111,9 +118,10 @@ abstract class BaseScheduledRateLimitedJob implements ShouldQueue
 
         try {
             $this->process();
+            $this->markRecentSuccessIfEnabled();
             $this->clearDuplicateCheck();
         } catch (\Throwable $e) {
-            Log::error('Job processing failed: ' . $e->getMessage(), [
+            Log::error('[限流] 任务处理失败' . $e->getMessage(), [
                 'job'       => static::class,
                 'exception' => $e,
             ]);
@@ -124,7 +132,7 @@ abstract class BaseScheduledRateLimitedJob implements ShouldQueue
     public function failed(\Throwable $exception): void
     {
         $this->clearDuplicateCheck();
-        Log::error('Job finally failed after all retries', [
+        Log::error('[限流] 任务失败, 任务达到最大重试次数', [
             'job'       => static::class,
             'exception' => $exception->getMessage(),
         ]);
@@ -143,12 +151,45 @@ abstract class BaseScheduledRateLimitedJob implements ShouldQueue
     abstract protected function process(): void;
 
     /**
-     * 创建并派发 Job（立即入队，限流在 handle 时通过 release 实现）
+     * 近 1 小时成功执行过则跳过派发（默认关闭，子类可开启）
+     */
+    protected static function enableSkipIfSucceededRecently(): bool
+    {
+        return false;
+    }
+
+    protected static function skipIfSucceededRecentlyTtlSeconds(): int
+    {
+        return 3600;
+    }
+
+    private function markRecentSuccessIfEnabled(): void
+    {
+        if (! static::enableSkipIfSucceededRecently()) {
+            return;
+        }
+        if ($this->recentSuccessKey === '') {
+            return;
+        }
+        $ttl = static::skipIfSucceededRecentlyTtlSeconds();
+        if ($ttl <= 0) {
+            return;
+        }
+        Redis::setex($this->recentSuccessKey, $ttl, (string) time());
+    }
+
+    /**
+     * 创建并派发 Job（立即入队，如果重复则跳过）
      */
     public static function dispatchWithRateLimit(...$args): void
     {
+        if (static::enableSkipIfSucceededRecently() && Redis::exists(self::generateRecentSuccessKey($args))) {
+            Log::info('Job succeeded recently, skipping dispatch', ['job' => static::class, 'args' => $args]);
+            return;
+        }
+
         if (self::isDuplicateJob($args)) {
-            Log::info('Duplicate job detected, skipping dispatch', ['job' => static::class, 'args' => $args]);
+            Log::info('[限流] 检测到重复任务，已跳过派发', ['job' => static::class, 'args' => $args]);
             return;
         }
 
@@ -159,6 +200,6 @@ abstract class BaseScheduledRateLimitedJob implements ShouldQueue
 
         $delay = rand(0, 20);
         dispatch($job)->onQueue('bilibili-rate-limit')->delay($delay);
-        Log::info('Job dispatched (rate limit applied in handle)', ['job' => static::class, 'delay' => $delay]);
+        Log::info('[限流] 任务已派发 (将在 handle 阶段执行限流检查)', ['job' => static::class, 'delay' => $delay]);
     }
 }

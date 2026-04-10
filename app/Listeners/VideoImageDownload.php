@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Listeners;
 
 use App\Events\VideoUpdated;
@@ -23,29 +24,33 @@ class VideoImageDownload
         $oldVideo = $event->oldVideo;
         $newVideo = $event->newVideo;
 
+        if (empty($newVideo)) {
+            return;
+        }
+
         $oldCover = $oldVideo['cover'] ?? '';
         $newCover = $newVideo['cover'] ?? '';
 
         if ($newVideo['invalid']) {
-            Log::info('Video is invalid, skip download video image', ['id' => $newVideo['id'], 'bvid' => $newVideo['bvid'], 'title' => $newVideo['title']]);
+            Log::info('[视频封面] 视频无效, 跳过封面下载', ['id' => $newVideo['id'], 'bvid' => $newVideo['bvid'], 'title' => $newVideo['title']]);
             return;
         }
 
         $resourceId = $newVideo['id'] ?? '';
         if (! $resourceId) {
-            Log::info('Video ID is empty, skip download', ['newVideo' => $newVideo]);
+            Log::info('[视频封面] 视频ID为空, 跳过封面下载', ['newVideo' => $newVideo]);
             return;
         }
         $resource = Video::find($resourceId);
         if ($oldCover != $newCover && $newCover != '' && $resource != null) {
-            Log::info('Download video image', ['cover' => $newCover, 'resourceId' => $resourceId]);
+            Log::info('[视频封面] 开始下载封面任务', ['cover' => $newCover, 'resourceId' => $resourceId]);
             if ($this->coverService->isCoverable($newCover, $resource)) {
-                Log::info('Cover is already coverable, skip download', ['cover' => $newCover, 'resourceId' => $resourceId]);
+                Log::info('[视频封面] 封面已存在, 跳过封面下载', ['cover' => $newCover, 'resourceId' => $resourceId]);
                 return;
             }
 
             $this->coverService->downloadCoverImageJob($newCover, 'video', $resource);
-            Log::info('Trigger video image download job success', ['cover' => $newCover, 'resourceId' => $resourceId]);
+            Log::info('[视频封面] 封面下载完成', ['cover' => $newCover, 'resourceId' => $resourceId]);
         }
     }
 }

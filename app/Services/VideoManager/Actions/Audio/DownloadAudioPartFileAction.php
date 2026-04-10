@@ -9,6 +9,7 @@ use App\Services\DownloadVideoService;
 use App\Services\SettingsService;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Cache; // 【新增】
 
 class DownloadAudioPartFileAction
 {
@@ -48,6 +49,12 @@ class DownloadAudioPartFileAction
 
         Log::info('Download audio success', ['sid' => $audioPart->sid, 'savePath' => $savePath]);
         $this->updateAudioPartDownloaded($audioPart, $savePath);
+
+        // === 【新增】累加音频文件大小到缓存 (统一归入 stat_videos_size) ===
+        if (is_file($savePath)) {
+            Cache::increment('stat_videos_size', filesize($savePath));
+        }
+        // ==========================
     }
 
     protected function execDownloadAudio(string $url, string $savePath): array

@@ -20,10 +20,10 @@ class UpdateFavListJob extends BaseScheduledRateLimitedJob
      */
     protected function process(): void
     {
-        Log::info('Update favorites job start');
+        Log::info('更新收藏夹列表开始');
 
         app(UpdateFavoritesAction::class)->execute();
 
-        Log::info('Update favorites job end');
+        Log::info('更新收藏夹列表完成');
     }
 }

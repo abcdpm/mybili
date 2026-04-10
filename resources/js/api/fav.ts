@@ -1,6 +1,7 @@
 import type { Subscription } from "./subscription";
 import type { Upper } from "./upper";
 import type { Cover } from "./cover";
+import axios from 'axios';
 
 export interface Favorite {
     id: number;
@@ -11,7 +12,7 @@ export interface Favorite {
     ctime: number;
     mtime: number;
     media_count: number;
-    videos: Video[]| null;
+    videos?: Video[]| null;
     cover_info: Cover|null;
 }
 
@@ -23,6 +24,13 @@ export interface VideoPartType {
     downloaded: boolean
     // 【新增】添加 mobile_url 字段定义
     mobile_url?: string
+}
+
+export interface VideoTag {
+    tag_id: number;
+    tag_name: string;
+    tag_type: string; // 新增
+    jump_url: string; // 新增
 }
 
 export interface Video {
@@ -50,6 +58,9 @@ export interface Video {
     subscriptions: Subscription[]|null;
     upper: Upper|null;
     cover_info: Cover|null;
+    tags: VideoTag[] | null; // 【新增】
+    duration?: number;
+    view?: number;
 }
 
 
@@ -60,5 +71,34 @@ export async function getFavList(): Promise<Favorite[]> {
 
 export async function getFavDetail(id: number): Promise<Favorite> {
     const response = await fetch(`/api/fav/${id}`);
+    return response.json();
+}
+
+// 导出保存排序的方法
+export function reorderFavs(ids: number[]) {
+    return axios.post('/api/fav/reorder', { ids })
+}
+
+export interface VideoLite {
+    id: number;
+    title: string;
+    bvid: string;
+    pubtime: number;
+    fav_time: number;
+    page: number;
+    video_downloaded_num: number;
+    audio_downloaded_num: number;
+    frozen: number;
+    invalid: number;
+    cover: string;
+    cover_image_url: string | null;
+    created_at: string;
+}
+
+export type FavVideo = VideoLite;
+export type ProgressVideo = VideoLite;
+
+export async function getFavVideos(id: number): Promise<FavVideo[]> {
+    const response = await fetch(`/api/fav/${id}/videos`);
     return response.json();
 }

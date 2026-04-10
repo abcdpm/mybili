@@ -4,6 +4,8 @@ namespace App\Console\Commands;
 use App\Jobs\TranscodeVideoJob;
 use App\Models\VideoPart;
 use Illuminate\Console\Command;
+use App\Enums\SettingKey;
+use App\Services\SettingsService;
 
 class TranscodeAllVideos extends Command
 {
@@ -19,6 +21,13 @@ class TranscodeAllVideos extends Command
 
     public function handle()
     {
+        // 检查系统设置：是否允许视频转码
+        $transcodeEnabled = app(SettingsService::class)->get(SettingKey::TRANSCODE_VIDEO_ENABLED) ?? 'off';
+        if ($transcodeEnabled !== 'on') {
+            $this->info("[视频转码] 系统设置已关闭视频转码功能，跳过执行");
+            return;
+        }
+
         // 状态查看模式
         if ($this->option('status')) {
             $this->showStatus();
@@ -83,7 +92,7 @@ class TranscodeAllVideos extends Command
         $query->chunk(100, function ($parts) use ($bar, $mode) {
             foreach ($parts as $part) {
                 // [修改] 将 mode 字符串传递给 Job
-                dispatch(new TranscodeVideoJob($part, $mode))->onQueue('slow');
+                dispatch(new TranscodeVideoJob($part, $mode));
                 $bar->advance();
             }
         });

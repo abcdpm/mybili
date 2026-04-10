@@ -1,25 +1,27 @@
 <?php
 namespace App\Models;
 
+use App\Models\AudioPart;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
-use App\Models\AudioPart;
+use App\Traits\LocalImagePrioritizerTrait;
 
 class Video extends Model
 {
-
-    use SoftDeletes;
+    use SoftDeletes, LocalImagePrioritizerTrait;
 
     protected $table      = 'videos';
     protected $fillable   = [
         'id', 'link', 'title', 'intro', 'cover', 'bvid', 'pubtime', 'duration',
         'attr', 'invalid', 'frozen', 'page', 'fav_time', 'danmaku_downloaded_at',
-        'video_downloaded_at', 'upper_id', 'comments_updated_at', 'type'
+        'video_downloaded_at', 'upper_id', 'comments_updated_at', 'type',
+        'tags', 'view'
     ];
     protected $primaryKey = 'id';
 
     protected $casts = [
         // 移除时间字段的 cast，使用访问器代替，不能使用cast，因为写入时格式无法匹配，错误写入
+        'tags' => 'array', // 【重要补漏】：必须加上，否则读取出来会是普通字符串
     ];
 
     protected $appends = [
@@ -35,6 +37,8 @@ class Video extends Model
         'fav_time'    => null,
         'upper_id'    => null,
         'type'        => 2,
+        'view'        => 0,
+        'intro'       => '',
     ];
 
     public function parts()
@@ -85,7 +89,7 @@ class Video extends Model
     public function coverImage()
     {
         return $this->morphToMany(Cover::class, 'coverable', 'coverables')
-                    ->withTimestamps();
+            ->withTimestamps();
     }
 
     /**
@@ -95,11 +99,33 @@ class Video extends Model
      */
     public function getCoverInfoAttribute()
     {
+        // 优先使用已预加载关系，避免大列表序列化时 N+1 查询
+        if ($this->relationLoaded('coverImage')) {
+            $coverImages = $this->getRelation('coverImage');
+            return $coverImages ? $coverImages->first() : null;
+        }
+
         return $this->coverImage()->first();
     }
 
     public function comments(): \Illuminate\Database\Eloquent\Relations\HasMany
     {
         return $this->hasMany(Comment::class)->where('root', 0)->orderBy('like', 'desc');
+    }
+        
+    // 是否还需触发新下载任务
+    public function needsMoreDownloadTask(): bool
+    {
+        if($this->trashed()){
+            return false;
+        }
+
+        $maxPage = intval($this->page);
+
+        if (intval($this->audio_downloaded_num + $this->video_downloaded_num) < $maxPage) {
+            return true;
+        }
+
+        return false;
     }
 }

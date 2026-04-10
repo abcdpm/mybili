@@ -20,6 +20,12 @@ export interface VideoListParams {
     fav_id?: string;
 }
 
+export interface DeleteVideoOptions {
+    extend_ids?: number[];
+    permanent?: boolean;
+    requeue?: boolean;
+}
+
 export async function getVideoList(data: VideoListParams): Promise<VideoListResponse> {
     // 过滤掉空值，然后转换为 URL 查询字符串
     const filteredData = Object.fromEntries(
@@ -37,15 +43,29 @@ export async function getVideoList(data: VideoListParams): Promise<VideoListResp
     return response.json();
 }
 
-export async function deleteVideo(id: number, extend_ids?: number[]): Promise<boolean> {
+export interface DeleteVideoResponse {
+    code: number;
+    message?: string;
+    deleted_ids?: number[];
+}
+
+export async function deleteVideo(
+    id: number,
+    extend_ids?: number[],
+    options?: Omit<DeleteVideoOptions, 'extend_ids'>,
+): Promise<DeleteVideoResponse> {
     const response = await fetch(`/api/videos/${id}`, {
         method: 'DELETE',
         headers: {
             'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ extend_ids: extend_ids }),
+        body: JSON.stringify({
+            extend_ids: extend_ids,
+            permanent: options?.permanent ?? true,
+            requeue: options?.requeue ?? false,
+        }),
     });
-    return response.json();
+    return response.json() as Promise<DeleteVideoResponse>;
 }
 
 export async function getVideoDanmaku(id: number): Promise<any[]> {
@@ -61,4 +81,58 @@ export async function getVideoInfo(id: number): Promise<Video> {
         method: 'GET',
     });
     return response.json();
+}
+
+// 请求视频标签的接口
+export async function getVideoTags(id: number): Promise<any[]> {
+    const response = await fetch(`/api/videos/${id}/tags`, {
+        method: 'GET',
+    });
+    const data = await response.json();
+    return data.data || [];
+}
+
+// 手动触发更新弹幕
+export async function triggerUpdateDanmaku(id: number): Promise<any> {
+    const response = await fetch(`/api/videos/${id}/update-danmaku`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+    });
+    return response.json();
+}
+
+// 手动触发更新评论
+export async function triggerUpdateComments(id: number): Promise<any> {
+    const response = await fetch(`/api/videos/${id}/update-comments`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+    });
+    return response.json();
+}
+
+// 手动触发更新播放量等数据
+export async function triggerUpdateStats(id: number): Promise<any> {
+    const response = await fetch(`/api/videos/${id}/update-stats`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+    });
+    return response.json();
+}
+
+export interface RefreshDanmakuResponse {
+    code: number;
+    /** 失败时由后端返回说明（如音频、无分 P） */
+    message?: string;
+    parts_queued: number;
+}
+
+export async function refreshVideoDanmaku(videoId: number): Promise<RefreshDanmakuResponse> {
+    const response = await fetch(`/api/videos/${videoId}/danmaku/refresh`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+        },
+    });
+    return response.json() as Promise<RefreshDanmakuResponse>;
 }

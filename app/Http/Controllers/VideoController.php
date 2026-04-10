@@ -7,18 +7,19 @@ use App\Services\VideoManager\Contracts\FavoriteServiceInterface;
 use App\Services\VideoManager\Contracts\VideoServiceInterface;
 use Illuminate\Http\Request;
 use App\Models\Comment;
+use App\Models\Video;
+use App\Jobs\DownloadDanmakuJob;
+use App\Jobs\DownloadCommentsJob;
+use App\Jobs\PullVideoInfoJob;
 
 class VideoController extends Controller
 {
-
     public function __construct(
         public VideoServiceInterface $videoService,
         public FavoriteServiceInterface $favoriteService,
         public DanmakuServiceInterface $danmakuService,
         public DanmakuConverterService $danmakuConverterService
-    ) {
-
-    }
+    ) {}
 
     public function index(Request $request)
     {
@@ -51,24 +52,33 @@ class VideoController extends Controller
         if (config('services.bilibili.setting_read_only')) {
             abort(403);
         }
+        $validated = $request->validate([
+            'extend_ids' => 'nullable|array',
+            'extend_ids.*' => 'integer',
+            'permanent' => 'nullable|boolean',
+            'requeue' => 'nullable|boolean',
+        ]);
         // 补充其他ID
-        $extend_ids = $request->input('extend_ids');
+        $extend_ids = $validated['extend_ids'] ?? null;
         if ($extend_ids && is_array($extend_ids)) {
             $ids = array_merge([$id], $extend_ids);
         } else {
             $ids = [$id];
         }
-        $ids        = array_map('intval', $ids);
-        $deletedIds = $this->videoService->deleteVideos($ids);
+        $ids = array_map('intval', $ids);
+        $deletedIds = $this->videoService->deleteVideos($ids, [
+            'permanent' => (bool) ($validated['permanent'] ?? true),
+            'requeue' => (bool) ($validated['requeue'] ?? false),
+        ]);
         if ($deletedIds) {
             return response()->json([
-                'code'        => 0,
-                'message'     => 'Video deleted successfully',
+                'code' => 0,
+                'message' => 'Video deleted successfully',
                 'deleted_ids' => $deletedIds,
             ]);
         } else {
             return response()->json([
-                'code'    => 1,
+                'code' => 1,
                 'message' => 'Video deletion failed',
             ]);
         }
@@ -79,7 +89,7 @@ class VideoController extends Controller
         $video = $this->videoService->getVideoInfo($id, true);
         if ($video) {
             $video->load(['favorite', 'subscriptions', 'upper', 'audioPart']);
-            $video->video_parts   = $this->videoService->getAllPartsVideoForUser($video);
+            $video->video_parts = $this->videoService->getAllPartsVideoForUser($video);
             $video->danmaku_count = $this->danmakuService->getVideoDanmakuCount($video);
 
             return response()->json($video);
@@ -94,33 +104,77 @@ class VideoController extends Controller
             'data' => $list,
             'stat' => $this->videoService->getVideosStat([]),
         ];
+
         return response()->json($data, 200, []);
     }
 
+
+    /**
+     * 按视频 ID 排队拉取最新弹幕：单 P 立即执行；多 P 每个分 P 递增延迟 1 分钟。
+     */
+    public function refreshDanmaku(Request $request, int $id)
+    {
+        if (config('services.bilibili.setting_read_only')) {
+            abort(403);
+        }
+
+        $video = Video::query()->with(['parts' => fn ($q) => $q->orderBy('page')])->find($id);
+        if (! $video) {
+            abort(404);
+        }
+
+        if ($video->isAudio()) {
+            return response()->json([
+                'code' => 1,
+                'message' => '音频稿件不支持分 P 弹幕同步',
+                'parts_queued' => 0,
+            ]);
+        }
+
+        $parts = $video->parts;
+        if ($parts->isEmpty()) {
+            return response()->json([
+                'code' => 1,
+                'message' => '暂无可更新的分 P',
+                'parts_queued' => 0,
+            ]);
+        }
+
+        foreach ($parts->values() as $index => $part) {
+            DownloadDanmakuJob::dispatch($part)->delay(now()->addMinutes($index));
+        }
+
+        return response()->json([
+            'code' => 0,
+            'message' => '弹幕更新任务已加入队列',
+            'parts_queued' => $parts->count(),
+        ]);
+    }
+
+
     /**
      * 获取指定 CID 的弹幕数据（新格式）
-     * 
-     * @param Request $request
+     *
      * @return \Illuminate\Http\JsonResponse
      */
     public function danmaku(Request $request)
     {
         $cid = $request->input('id');
-        
-        if (!$cid) {
+
+        if (! $cid) {
             return response()->json([
-                'code'    => 1,
+                'code' => 1,
                 'message' => 'CID 参数不能为空',
-                'data'    => [],
+                'data' => [],
             ]);
         }
 
         // 获取原始弹幕数据
         $danmakuList = $this->danmakuService->getDanmaku($cid);
-        
+
         // 转换为新格式
         $convertedData = $this->danmakuConverterService->convert($danmakuList);
-        
+
         return response()->json([
             'code' => 0,
             'data' => $convertedData,
@@ -128,19 +182,121 @@ class VideoController extends Controller
     }
 
     // 获取评论的接口
-    public function comments($id)
+    public function comments(Request $request, $id)
     {
-        $comments = \App\Models\Comment::where('video_id', $id)
+        // // 默认一次性最多加载 50 条主评论（足够满足首屏展示，又不会卡死）
+        // $limit = $request->input('limit', 50);
+
+        $perPage = $request->input('per_page', 20); // 每次真实请求 20 条
+
+        $comments = Comment::where('video_id', $id)
             ->where('root', 0) // 只查主评论
+            // 【关键修复】必须加上这一行！
+            // Laravel 会自动统计子评论数量，并生成一个 replies_count 字段传给前端
+            ->withCount('replies') // 利用 idx_root_like 索引，瞬间查出子评论数
             ->with(['replies' => function($query) {
-                $query->orderBy('like', 'desc'); 
+                // 【核心优化】限制每次附带的子评论数量，避免无限拉取。
+                // 剩余的子评论应由前端提供“展开更多回复”的按钮来异步请求
+                $query->orderBy('like', 'desc')->limit(5);
             }])
             // 【关键修改】优先按 is_top 倒序 (true=1 在前)，然后按点赞倒序
+            // 这里的排序会命中 idx_video_root_top_like 索引，不再走文件排序
             ->orderBy('is_top', 'desc')
             ->orderBy('like', 'desc')
-            // ->limit(50) // [修改] 去掉限制
-            ->get();
+            // paginate 会自动执行一个 count() 查询并返回 total 字段
+            ->paginate($perPage);
 
         return response()->json($comments);
+    }
+
+    // 获取指定主评论下的子评论
+    public function replies(Request $request, $rootId)
+    {
+        $perPage = $request->input('per_page', 10); 
+        
+        $replies = Comment::where('root', $rootId)
+            ->orderBy('like', 'desc')
+            ->paginate($perPage); // 直接使用 paginate 进行标准分页
+
+        return response()->json($replies);
+    }
+
+    // 获取视频标签的接口
+    public function tags($id)
+    {
+        // 只查询 id 和 tags 字段，极致轻量
+        $video = Video::select('id', 'tags')->find($id);
+        
+        if (!$video) {
+            return response()->json(['code' => 404, 'message' => 'Video not found']);
+        }
+
+        return response()->json([
+            'code' => 0,
+            'data' => $video->tags ?? []
+        ]);
+    }
+
+    /**
+     * 手动投递弹幕更新任务 (最高优先级：异步插队)
+     */
+    public function updateDanmaku($id)
+    {
+        $video = Video::with('parts')->find($id);
+        if (!$video) {
+            return response()->json(['code' => 404, 'message' => 'Video not found']);
+        }
+
+        try {
+            if ($video->parts) {
+                foreach ($video->parts as $part) {
+                    // 使用 ->onQueue('fast') 强行推入最高优先级队列插队
+                    DownloadDanmakuJob::dispatch($part)->onQueue('fast');
+                }
+            }
+            return response()->json(['code' => 0, 'message' => '弹幕更新任务已优先插队执行']);
+        } catch (\Exception $e) {
+            return response()->json(['code' => 500, 'message' => '任务投递失败: ' . $e->getMessage()]);
+        }
+    }
+
+    /**
+     * 手动投递评论更新任务 (最高优先级：异步插队)
+     */
+    public function updateComments($id)
+    {
+        $video = Video::find($id);
+        if (!$video) {
+            return response()->json(['code' => 404, 'message' => 'Video not found']);
+        }
+
+        try {
+            // 使用 ->onQueue('fast') 强行推入最高优先级队列插队
+            DownloadCommentsJob::dispatch($video)->onQueue('fast');
+            
+            return response()->json(['code' => 0, 'message' => '评论更新任务已优先插队执行']);
+        } catch (\Exception $e) {
+            return response()->json(['code' => 500, 'message' => '任务投递失败: ' . $e->getMessage()]);
+        }
+    }
+
+    /**
+     * 手动投递视频数据(播放量、基础信息等)更新任务 (最高优先级：异步插队)
+     */
+    public function updateStats($id)
+    {
+        $video = Video::find($id);
+        if (!$video) {
+            return response()->json(['code' => 404, 'message' => 'Video not found']);
+        }
+
+        try {
+            // 使用 ->onQueue('fast') 强行推入最高优先级队列插队
+            PullVideoInfoJob::dispatch($video->bvid)->onQueue('fast');
+            
+            return response()->json(['code' => 0, 'message' => '数据更新任务已优先插队执行']);
+        } catch (\Exception $e) {
+            return response()->json(['code' => 500, 'message' => '任务投递失败: ' . $e->getMessage()]);
+        }
     }
 }

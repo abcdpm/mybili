@@ -1,13 +1,13 @@
 <template>
-    <div class="virtual-row grid grid-cols-1 md:grid-cols-4 w-full gap-4 pb-4">
+    <div class="virtual-row grid grid-cols-1 md:grid-cols-5 w-full gap-4 pb-4">
         <div class="flex flex-col relative" v-for="video in source.videos" :key="video.id" :data-video-id="video.id">
             <RouterLink :to="{ name: 'video-id', params: { id: video.id } }">
                 <div class="image-container rounded-lg overflow-hidden" :style="{
                     aspectRatio: '4/3'
                 }">
-                    <Image class="w-full h-full object-cover hover:scale-105 transition-all duration-300"
-                        :src="video.cover_info?.image_url ?? '/assets/images/notfound.webp'"
-                        :class="{ 'grayscale-image': video.video_downloaded_num == 0 && video.audio_downloaded_num == 0 }" :title="video.title" />
+                    <ImagePreload  :class="[imageClass, { 'grayscale-image': video.video_downloaded_num == 0 && video.audio_downloaded_num == 0 }]"
+                        :src=" video.cover_image_url ?? video.cover ?? '/assets/images/notfound.webp'"
+                        :title="video.title" />
                 </div>
             </RouterLink>
             <span class="mt-4 text-center h-12 line-clamp-2" :title="video.title">{{ video.title
@@ -27,12 +27,23 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
 import { formatTimestamp } from "../lib/helper"
-import Image from './Image.vue';
+import ImagePreload from './ImagePreload.vue';
+import ImageDirect from './ImageDirect.vue';
+import { PROGRESS_IMAGE_CLASS } from '../constants/videoImageClasses';
+import type { ProgressVideo } from '../api/fav';
+
+interface ProgressVideoRowData {
+    id: string;
+    videos: ProgressVideo[];
+}
+
 const props = defineProps<{
-    source: any
+    source: ProgressVideoRowData
+    imageClass?: string
 }>()
 // console.log(props.source);
 const { t } = useI18n();
+const imageClass = props.imageClass ?? PROGRESS_IMAGE_CLASS;
 </script>
 <style scoped>
 

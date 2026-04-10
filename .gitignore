@@ -26,3 +26,5 @@ frankenphp
 frankenphp-worker.php
 
 app/Console/Commands/TestCommand.php
+
+README2.md

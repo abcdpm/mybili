@@ -18,11 +18,33 @@ export const formatTimestamp = (timestamp: number, format: string) => {
 }
 
 
-
 export const getLocale = () => {
     const locale = localStorage.getItem('locale');
     if (locale && ['zh-CN', 'en-US'].includes(locale)) {
         return locale;
     }
     return navigator.language;
+}
+
+
+export const formatViewCount = (count: number): string => {
+    if (!count) return '0';
+    if (count >= 10000) {
+        return (count / 10000).toFixed(1).replace(/\.0$/, '') + '万';
+    }
+    return count.toString();
+}
+
+export const formatDuration = (seconds: number): string => {
+    if (!seconds) return '00:00';
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = Math.floor(seconds % 60);
+
+    const pad = (num: number) => num.toString().padStart(2, '0');
+
+    if (h > 0) {
+        return `${h}:${pad(m)}:${pad(s)}`;
+    }
+    return `${pad(m)}:${pad(s)}`;
 }

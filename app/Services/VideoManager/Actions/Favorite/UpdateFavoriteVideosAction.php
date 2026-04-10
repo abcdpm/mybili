@@ -11,6 +11,8 @@ use App\Services\VideoManager\Traits\VideoDataTrait;
 use Arr;
 use DB;
 use Illuminate\Support\Facades\Log;
+use App\Jobs\DownloadCommentsJob; // 引入评论下载任务
+use App\Jobs\DownloadVideoTagsJob; // 引入标签下载任务
 
 class UpdateFavoriteVideosAction
 {
@@ -27,10 +29,27 @@ class UpdateFavoriteVideosAction
     public function execute(array $fav, ?int $page = null): void
     {
         $favId  = $fav['id'];
+        $currentPage = $page ?: 1; // 统一处理 null 为 1
+
+        // // 【安全修复1】：只有在开启新一轮同步（拉取第 1 页）时，才清空旧缓存。
+        // // 这样可以彻底斩断过去的幽灵数据，同时在多页拉取时能安全累加。
+        // if ($currentPage === 1) {
+        //     redis()->del(sprintf('favorite_video_saving:%s', $favId));
+        //     Log::info('[收藏夹管理] 开启新一轮同步，已清空旧的 Redis 暂存数据', ['favId' => $favId]);
+        // }
+
         $videos = $this->bilibiliService->pullFavVideoList($favId, $page);
 
         if (count($videos) === 0) {
-            Log::info('No videos found in fav', ['favId' => $favId]);
+            Log::info('[收藏夹管理] 未获取到视频数据', ['favId' => $favId]);
+            // 特殊情况：如果第一页就为空，且B站返回总数也是0，说明用户清空了整个收藏夹
+            if ($currentPage === 1 && intval($fav['media_count']) === 0) {
+                $localVideoIds = DB::table('favorite_list_videos')->where('favorite_list_id', $favId)->pluck('video_id')->toArray();
+                if (!empty($localVideoIds)) {
+                    FavoriteList::query()->where('id', $favId)->first()->videos()->detach($localVideoIds);
+                    Log::info('[收藏夹管理] 收藏夹已被完全清空，同步解绑所有视频', ['favId' => $favId]);
+                }
+            }
             return;
         }
 
@@ -44,14 +63,25 @@ class UpdateFavoriteVideosAction
                 return null;
             }
 
+            // 如果本地存在且已经无效，且远程无效，跳过更新
+            if($exist && $exist->invalid && $videoInvalid) {
+                return null;
+            }
+
+            // 如果本地已经冻结，且远程也无效， 则跳过
+            if($exist && ($exist->video_downloaded_num > 0 || $exist->audio_downloaded_num > 0) && $videoInvalid) {
+                return null;
+            }
+
             // 是否冻结该视频: 是否已经保护备份了该视频
             // 如果已经冻结了该视频, 就不更新该视频的主要信息
-            $frozen          = $exist && $exist['title'] !== '已失效视频' && $videoInvalid;
+            // 2026/03/29 变为：只有本地下载了才认为是冻结，封面标题可修复不算冻结
+            $frozen          = $exist && $videoInvalid && ($exist->video_downloaded_num > 0 || $exist->audio_downloaded_num > 0);
             $item['frozen']  = $frozen;
             $item['invalid'] = $videoInvalid;
 
             if ($frozen) {
-                Log::info('Frozen video', ['id' => $item['id'], 'title' => $exist['title']]);
+                Log::info('[收藏夹管理] 视频已冻结', ['id' => $item['id'], 'title' => $exist['title']]);
                 $item     = array_merge($exist->toArray(), Arr::except($item, ['attr', 'title', 'cover', 'intro']));
                 $newValue = $item;
             } else {
@@ -74,6 +104,7 @@ class UpdateFavoriteVideosAction
                 'bvid'     => $newValue['bvid'],
                 'pubtime'  => date('Y-m-d H:i:s', $newValue['pubtime']),
                 'duration' => $newValue['duration'],
+                'view'     => $newValue['cnt_info']['play'] ?? $newValue['stat']['view'] ?? 0, // 播放量数据
                 'attr'     => $newValue['attr'],
                 'invalid'  => $newValue['invalid'],
                 'frozen'   => $newValue['frozen'],
@@ -114,7 +145,7 @@ class UpdateFavoriteVideosAction
             if (! empty($attachData)) {
                 $favoriteList = FavoriteList::query()->where('id', $favId)->first();
                 $favoriteList->videos()->attach($attachData);
-                Log::info('Attached videos to favorite list', ['favId' => $favId, 'videoIds' => array_keys($attachData)]);
+                Log::info('[收藏夹管理] 关联新视频到收藏夹', ['favId' => $favId, 'videoIds' => array_keys($attachData)]);
             }
         }
 
@@ -141,14 +172,14 @@ class UpdateFavoriteVideosAction
 
             // 只有在数据真正发生变化时才触发事件
             if ($hasChanges) {
-                Log::info('Video data changed, triggering VideoUpdated event', [
+                Log::info('[收藏夹管理] 视频数据发生变化, 触发 VideoUpdated 事件', [
                     'id'             => $item['id'],
                     'title'          => $item['title'],
                     'changed_fields' => array_keys($changedFields),
                 ]);
                 event(new VideoUpdated($oldVideoData, $video->getAttributes()));
             } else {
-                Log::info('Video data unchanged, skipping VideoUpdated event', [
+                Log::info('[收藏夹管理] 视频数据未变化, 跳过 VideoUpdated 事件', [
                     'id'    => $item['id'],
                     'title' => $item['title'],
                 ]);
@@ -162,23 +193,74 @@ class UpdateFavoriteVideosAction
             // [修改] 仅当视频是“新创建”的时候，才自动下载一次评论
             // 存量视频的评论更新交由 app:download-all-comments 命令或专门的定时任务去处理
             if ($video->wasRecentlyCreated && $video->invalid == 0) {
-                 Log::info('New video detected, dispatching initial comment download', ['id' => $video->id]);
-                 dispatch(new \App\Jobs\DownloadCommentsJob($video));
+                 Log::info('[收藏夹管理] 检测到新视频, 正在派发初始评论下载任务', ['id' => $video->id]);
+                 dispatch(new DownloadCommentsJob($video));
             }
 
-            Log::info('Update video success', ['id' => $item['id'], 'title' => $item['title']]);
+            Log::info('[收藏夹管理] 视频信息更新成功', ['id' => $item['id'], 'title' => $item['title']]);
         }
 
-        $savedVideos = $this->getFavoriteVideo($favId);
-        // media_count 是不准确的，可能是用户手动取消收藏视频系统没更新、也可能是哔哩哔哩自己故意把用户视频搞丢失
-        // 经过测试，用户收藏夹的视频获取没有错误，但收藏夹的media_count 是错误的，目前没有合适的方法更新
-        if (intval($fav['media_count']) == count($savedVideos)) {
-            $remoteCacheVideoIds = array_column($savedVideos, 'id');
-            $deleteVideoIds      = array_diff($localVideoIds, $remoteCacheVideoIds);
-            if (! empty($deleteVideoIds)) {
-                FavoriteList::query()->where('id', $favId)->first()->videos()->detach($deleteVideoIds);
-                Log::info('Detached videos from favorite list', ['favId' => $favId, 'videoIds' => $deleteVideoIds]);
+        // =========================================================
+        // 【核心大扫除逻辑 - 完美异步并发安全版】
+        // =========================================================
+        $pageSize = 40; 
+        $expectedPages = (int) ceil(intval($fav['media_count']) / $pageSize);
+        
+        // 1. 使用 Redis 集合记录当前收藏夹已完成拉取的页码
+        $pageTrackKey = sprintf('fav_synced_pages:%s', $favId);
+        redis()->sadd($pageTrackKey, $currentPage);
+        redis()->expire($pageTrackKey, 86400); // 设置一天过期，防止遗留垃圾数据
+
+        // 2. 获取目前已成功暂存到 Redis 的页数
+        $syncedPagesCount = redis()->scard($pageTrackKey);
+
+        Log::info('[收藏夹管理] 页面同步进度', [
+            'favId'          => $favId,
+            'current_page'   => $currentPage,
+            'synced_pages'   => $syncedPagesCount,
+            'expected_pages' => $expectedPages
+        ]);
+
+        // 3. 只有当 所有分页 的任务全部执行完毕，才具备大扫除资格！
+        // 如果中间有任何一页因为网络失败报错，条件都不成立，直接中断保护数据。
+        if ($syncedPagesCount >= $expectedPages) {
+            $savedVideos = $this->getFavoriteVideo($favId);
+            
+            Log::info('[收藏夹管理] 所有分页已全部拉取完毕，开始执行全量视频大扫除校验', [
+                'favId'            => $favId, 
+                'favTitle'         => $fav['title'],
+                'media_count'      => intval($fav['media_count']), 
+                'savedVideosCount' => count($savedVideos)
+            ]);
+
+            if (count($savedVideos) > 0) {
+                $remoteCacheVideoIds = array_column($savedVideos, 'id');
+                // 此时 Redis 里的 savedVideos 是所有并发任务完美拼凑出的全量数据
+                $deleteVideoIds = array_diff($localVideoIds, $remoteCacheVideoIds);
+                
+                if (! empty($deleteVideoIds)) {
+                    Log::info('[收藏夹管理] 检测到视频已被移出或彻底取消收藏，准备同步解绑', [
+                        'favId'          => $favId, 
+                        '解绑的视频数量' => count($deleteVideoIds),
+                        '解绑列表IDs'    => array_values($deleteVideoIds)
+                    ]);
+
+                    \App\Models\FavoriteList::query()->where('id', $favId)->first()->videos()->detach($deleteVideoIds);
+                    Log::info('[收藏夹管理] ============ 解绑清理执行完毕 ============', ['favId' => $favId]);
+                } else {
+                    Log::info('[收藏夹管理] 远端列表与本地一致，无需解绑', ['favId' => $favId]);
+                }
             }
+
+            // 4. 大扫除完成后，彻底清理掉页码追踪和视频暂存缓存，为下一次完美同步铺路
+            redis()->del($pageTrackKey);
+            redis()->del(sprintf('favorite_video_saving:%s', $favId));
+            
+        } else {
+            // 保护机制：任何未凑齐所有页面的任务（包含日常的单页增量更新），绝不执行删除！
+            Log::info('[收藏夹管理] 并发任务未全部完成或为增量同步，跳过大扫除', [
+                'favId'          => $favId,
+            ]);
         }
     }
 

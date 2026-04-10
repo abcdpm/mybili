@@ -203,14 +203,13 @@ return [
             'timeout' => 1600,
             'nice' => 0,
         ],
-        // 专门处理转码任务 (slow 队列)
-        'supervisor-transcode' => [
+        'supervisor-slow' => [
             'connection' => 'redis',
             'queue' => ['slow'],
             'balance' => 'simple', 
-            'processes' => 2,       // 限制同时转码的数量，防止服务器 CPU 爆表
-            'tries' => 1,           // 转码失败通常不需要立即重试
-            'timeout' => 3600,      // 确保超时时间足够长
+            'processes' => 2,
+            'tries' => 2,
+            'timeout' => 1800,
         ],
         'supervisor-bilibili-rate-limit' => [
             'connection' => 'redis',
@@ -224,11 +223,32 @@ return [
             'timeout' => 1600,
             'nice' => 0,
         ],
+        // 专门处理转码任务
+        'supervisor-transcode' => [
+            'connection' => 'redis',
+            'queue' => ['transcode'],
+            'balance' => 'simple', 
+            'processes' => 2,       // 限制同时转码的数量，防止服务器 CPU 爆表
+            'tries' => 1,           // 转码失败通常不需要立即重试
+            'timeout' => 3600,      // 确保超时时间足够长
+        ],
+        // 专门处理评论下载的队列
+        'supervisor-comments' => [
+            'connection' => 'redis',
+            'queue' => ['comments'],
+            'balance' => 'simple',
+            'maxProcesses' => 2,
+            'maxTime' => 0,
+            'maxJobs' => 0,
+            'memory' => 128,
+            'tries' => 3,
+            'timeout' => 1800, // 与 Job 中的 $timeout = 1800 保持一致
+            'nice' => 0,
+        ],
     ],
 
     'environments' => [
         'production' => [
-            // 专门处理常规任务
             'supervisor-default' => [
                 'connection' => 'redis',
                 'queue' => ['fast', 'default'],
@@ -237,14 +257,13 @@ return [
                 'tries' => 3,
                 'timeout' => 1800,
             ],
-            // 专门处理转码任务 (slow 队列)
-            'supervisor-transcode' => [
+            'supervisor-slow' => [
                 'connection' => 'redis',
                 'queue' => ['slow'],
                 'balance' => 'simple', 
-                'processes' => 2,       // 限制同时转码的数量，防止服务器 CPU 爆表
-                'tries' => 1,           // 转码失败通常不需要立即重试
-                'timeout' => 3600,      // 确保超时时间足够长
+                'processes' => 2,
+                'tries' => 2,
+                'timeout' => 1800,
             ],
             'supervisor-bilibili-rate-limit' => [
                 'connection' => 'redis',
@@ -253,11 +272,28 @@ return [
                 'processes' => 2,
                 'tries' => 3,
                 'timeout' => 60,
+            ],
+            // 专门处理转码任务
+            'supervisor-transcode' => [
+                'connection' => 'redis',
+                'queue' => ['transcode'],
+                'balance' => 'simple', 
+                'processes' => 2,       
+                'tries' => 1,           
+                'timeout' => 3600,      
+            ],
+            // 专门处理评论下载任务
+            'supervisor-comments' => [
+                'connection' => 'redis',
+                'queue' => ['comments'],
+                'balance' => 'simple',
+                'processes' => 2,
+                'tries' => 3,
+                'timeout' => 1800,
             ],
         ],
 
         'local' => [
-            // 专门处理常规任务
             'supervisor-default' => [
                 'connection' => 'redis',
                 'queue' => ['fast', 'default'],
@@ -266,14 +302,13 @@ return [
                 'tries' => 3,
                 'timeout' => 1800,
             ],
-            // 专门处理转码任务 (slow 队列)
             'supervisor-transcode' => [
                 'connection' => 'redis',
                 'queue' => ['slow'],
                 'balance' => 'simple', 
-                'processes' => 2,       // 限制同时转码的数量，防止服务器 CPU 爆表
-                'tries' => 1,           // 转码失败通常不需要立即重试
-                'timeout' => 3600,      // 确保超时时间足够长
+                'processes' => 2,
+                'tries' => 2,
+                'timeout' => 1800,
             ],
             'supervisor-bilibili-rate-limit' => [
                 'connection' => 'redis',
@@ -282,6 +317,24 @@ return [
                 'processes' => 2,
                 'tries' => 3,
                 'timeout' => 60,
+            ],
+            // 专门处理转码任务
+            'supervisor-transcode' => [
+                'connection' => 'redis',
+                'queue' => ['transcode'],
+                'balance' => 'simple', 
+                'processes' => 2,       // 限制同时转码的数量，防止服务器 CPU 爆表
+                'tries' => 1,           // 转码失败通常不需要立即重试
+                'timeout' => 3600,      // 确保超时时间足够长
+            ],
+            // 专门处理评论下载任务
+            'supervisor-comments' => [
+                'connection' => 'redis',
+                'queue' => ['comments'],
+                'balance' => 'simple',
+                'processes' => 2,
+                'tries' => 3,
+                'timeout' => 1800,
             ],
         ],
     ],

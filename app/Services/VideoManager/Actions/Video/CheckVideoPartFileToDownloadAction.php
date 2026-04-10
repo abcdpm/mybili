@@ -28,16 +28,17 @@ class CheckVideoPartFileToDownloadAction
         $video = Video::where('id', $videoPart->video_id)->first();
 
         if (! $video) {
-            Log::info('Video not found or deleted', ['id' => $videoPart->video_id]);
+            Log::info('[视频下载] 视频未找到或已删除', ['id' => $videoPart->video_id]);
+            return;
+        }
+
+        if ($this->downloadFilterService->shouldExcludeByFavTime($video)) {
+            Log::info('Download excluded by favorite time', ['id' => $videoPart->cid, 'title' => $videoPart->part]);
             return;
         }
 
         // 检查是否能下载该收藏夹或订阅的视频：只要有一个收藏夹或订阅未被过滤就继续下载
-        $video->load('favorite', 'subscriptions');
-        $hasFavNotExcluded = $video->favorite->contains(fn ($fav) => ! $this->downloadFilterService->shouldExcludeByFav($fav->id));
-        $hasSubNotExcluded = $video->subscriptions->contains(fn ($sub) => ! $this->downloadFilterService->shouldExcludeByFav(-$sub->id));
-        $hasAnyRelation = $video->favorite->isNotEmpty() || $video->subscriptions->isNotEmpty();
-        if ($hasAnyRelation && ! $hasFavNotExcluded && ! $hasSubNotExcluded) {
+        if ($this->downloadFilterService->shouldExcludeByVideo($video)) {
             Log::info('Download excluded by favorite and subscription', ['id' => $videoPart->cid, 'title' => $videoPart->part]);
             return;
         }
@@ -86,21 +87,21 @@ class CheckVideoPartFileToDownloadAction
             if ($this->settingsService->get(SettingKey::VIDEO_DOWNLOAD_ENABLED) == 'on') {
 
                 if ($this->downloadFilterService->shouldExcludeByDuration(intval($video->duration))) {
-                    Log::info('Video file not exists, download excluded by duration', ['id' => $video->id, 'title' => $video->title]);
+                    Log::info('[视频下载] 视频文件不存在, 因总时长触发排除规则', ['id' => $video->id, 'title' => $video->title]);
                     return;
                 }
 
                 if ($this->downloadFilterService->shouldExcludeByDurationPart($videoPart->duration)) {
-                    Log::info('Video part file not exists, download excluded by part duration', ['id' => $videoPart->cid, 'title' => $videoPart->part]);
+                    Log::info('[视频下载] 视频分片文件不存在, 因分片时长触发排除规则', ['id' => $videoPart->cid, 'title' => $videoPart->part]);
                     return;
                 }
 
                 $this->downloadQueueService->enqueueVideo($videoPart);
             } else {
-                Log::info('Video part file not exists, download disabled', ['id' => $videoPart->cid, 'title' => $videoPart->part]);
+                Log::info('[视频下载] 视频分片文件不存在, 设置-视频下载功能未开启', ['id' => $videoPart->cid, 'title' => $videoPart->part]);
             }
         } else {
-            Log::info('Video part file already exists', ['id' => $videoPart->cid, 'title' => $videoPart->part]);
+            Log::info('[视频下载] 视频分片文件已存在, 更新数据库记录', ['id' => $videoPart->cid, 'title' => $videoPart->part]);
 
             $videoPart->video_downloaded_at = Carbon::createFromTimestamp(filectime($savePath));
             $videoPart->video_download_path = get_relative_path($savePath);

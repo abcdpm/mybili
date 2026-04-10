@@ -8,6 +8,7 @@ use App\Services\BilibiliService;
 use App\Services\VideoManager\Traits\VideoDataTrait;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
+use App\Jobs\DownloadVideoTagsJob;
 
 class PullVideoInfoAction
 {
@@ -83,6 +84,8 @@ class PullVideoInfoAction
             'frozen'   => false,
             'page'     => count($videoInfo['pages']),
             'upper_id' => $upperId,
+            'duration' => $videoInfo['duration'] ?? 0,
+            'view'     => $videoInfo['stat']['view'] ?? 0, // 视频播放量
         ];
     }
 
@@ -99,7 +102,7 @@ class PullVideoInfoAction
 
         $oldVideo       = $video->getAttributes();
         $video->invalid = true;
-        $video->frozen  = $video->video_downloaded_num == 0 ? false : true;
+        $video->frozen  = ($video->video_downloaded_num == 0 && $video->audio_downloaded_num == 0) ? false : true;
         $video->save();
 
         event(new VideoUpdated($oldVideo, $video->getAttributes()));

@@ -55,7 +55,7 @@ class BilibiliService
 
                 // 检查是否为 Cookie 过期错误码
                 if (isset($data['code']) && intval($data['code']) === -101) {
-                    Log::error("Cookie expired: " . ($data['message'] ?? ''));
+                    Log::error("[Cookie] Cookie 已过期" . ($data['message'] ?? ''));
                     // 通过 CookieControlService 检查并发送通知（内部会检查 Redis 避免重复）
                     $cookieControlService->checkAndNotifyCookieExpired();
                 }
@@ -63,7 +63,7 @@ class BilibiliService
                 // 重新创建响应对象，因为响应体已被读取
                 return $response->withBody(Utils::streamFor($bodyContent));
             } catch (\Exception $e) {
-                Log::error("Error checking cookie expired: " . $e->getMessage());
+                Log::error("[Cookie] 检查 Cookie 过期时出错:" . $e->getMessage());
                 // 如果出错，尝试恢复响应体（如果可能的话）
                 try {
                     $response->getBody()->rewind();
@@ -78,6 +78,8 @@ class BilibiliService
         return new Client([
             'handler' => $stack,
             'cookies' => $cookies,
+            'timeout'         => 30.0,  // 整个请求生命周期的最大超时时间（秒）
+            'connect_timeout' => 10.0,  // 连接阶段（含 DNS 解析）的超时时间（秒）
             'headers' => [
                 'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3',
                 'Referer'    => 'https://www.bilibili.com/',
@@ -88,6 +90,8 @@ class BilibiliService
     private function getAppClient()
     {
         return new Client([
+            'timeout'         => 30.0,  // 整个请求生命周期的最大超时时间（秒）
+            'connect_timeout' => 10.0,  // 连接阶段（含 DNS 解析）的超时时间（秒）
             'headers' => [
                 'User-Agent' => 'bili-universal/77100100 CFNetwork/1404.0.5 Darwin/22.3.0',
                 'Buvid'      => 'XY' . bin2hex(random_bytes(16)),
@@ -435,7 +439,8 @@ class BilibiliService
 
         return $result;
     }
-
+    
+    // 已弃用该方法，使用getVideoPartFromWbiApi替代，因为直接爬取网页的方式太过于脆弱，而通过WBI接口获取更稳定可靠
     private function getVideoPartFromWebpage(string $bvid)
     {
         $cookies  = parse_netscape_cookie_content($this->settingsService->get(SettingKey::COOKIES_CONTENT));
@@ -453,6 +458,53 @@ class BilibiliService
             }
             return $pages;
         }
+        throw new \Exception("未找到视频分P信息");
+    }
+
+    private function getVideoPartFromWbiApi(string $bvid)
+    {
+        $cookies = parse_netscape_cookie_content($this->settingsService->get(SettingKey::COOKIES_CONTENT));
+        $client  = $this->getClient();
+
+        // 1. 获取 WBI Keys (复用现有的方法)
+        $keys = $this->getWbiKeys($client, $cookies);
+        if (!$keys) {
+            throw new \Exception("获取 WBI keys 失败，无法请求分P数据");
+        }
+        list($imgKey, $subKey) = $keys;
+
+        // 2. 构造参数
+        $params = [
+            'wts' => time()
+        ];
+        
+        // 兼容传入的是 BV 还是 AV 格式
+        if (str_starts_with(strtolower($bvid), 'bv')) {
+            $params['bvid'] = $bvid;
+        } else {
+            $params['aid'] = str_ireplace('av', '', strtolower($bvid));
+        }
+
+        // 3. 生成 WBI 签名
+        $query = $this->encWbi($params, $imgKey, $subKey);
+
+        // 4. 请求带有 WBI 签名的接口 (替代直接爬取网页HTML)
+        $url = self::API_HOST . "/x/web-interface/wbi/view?" . $query;
+        
+        $response = $client->request('GET', $url, [
+            'cookies' => $cookies,
+        ]);
+        
+        $result = json_decode($response->getBody()->getContents(), true);
+
+        if (($result['code'] ?? -1) !== 0) {
+            throw new \Exception("WBI 接口请求失败：" . ($result['message'] ?? '未知错误') . " (Code: " . ($result['code'] ?? 'null') . ")");
+        }
+
+        if (isset($result['data']['pages']) && is_array($result['data']['pages'])) {
+            return $result['data']['pages'];
+        }
+        
         throw new \Exception("未找到视频分P信息");
     }
 
@@ -476,21 +528,24 @@ class BilibiliService
             // api 接口太敏感，优先从网页获取
             if (str_starts_with(strtolower($strId), 'bv')) {
                 $bvid        = $strId;
-                $parsedParts = $this->getVideoPartFromWebpage($bvid);
+                // $parsedParts = $this->getVideoPartFromWebpage($bvid);
+                $parsedParts = $this->getVideoPartFromWbiApi($bvid);
             } else {
-                $parsedParts = $this->getVideoPartFromWebpage('av' . $strId);
+                // $parsedParts = $this->getVideoPartFromWebpage('av' . $strId);
+                $parsedParts = $this->getVideoPartFromWbiApi('av' . $strId);
             }
         } catch (\Exception $e) {
-            Log::error("通过网页获取视频分P信息失败: " . $e->getMessage());
+            // Log::error("[视频分片] 通过网页获取视频分片信息失败" . $e->getMessage());
+            Log::error("[视频分片] 通过 WBI API 获取视频分片信息失败: " . $e->getMessage());
             try {
                 $parsedParts = $this->getVideoPartFromApi($strId);
-                Log::info("Successfully fetched video parts via API", [
+                Log::info("[视频分片] 通过 API 获取视频分片信息成功", [
                     'str_id' => $strId, 
                     'parts_count' => count($parsedParts ?? [])
                 ]);
             } catch (\Exception $e) {
-                Log::error("通过API获取视频分P信息失败: " . $e->getMessage());
-                throw new \Exception("获取视频分P信息失败: " . $e->getMessage());
+                Log::error("[视频分片] 通过 API 获取视频分片信息失败" . $e->getMessage());
+                throw new \Exception("[视频分片] 获取视频分片信息失败" . $e->getMessage());
             }
         }
 
@@ -530,7 +585,7 @@ class BilibiliService
             if ($result && $result['code'] == 0) {
 
                 if ($result['data'] == null) {
-                    Log::error(sprintf("Account cookie is invalid when accessing the get fav folder api."));
+                    Log::error(sprintf("[Cookie] 访问收藏夹列表 API 时 Cookie 无效"));
                     return [];
                 }
                 foreach ($result['data']['list'] as $value) {
@@ -562,7 +617,7 @@ class BilibiliService
 
         while (true) {
             $url = self::API_HOST . "/x/v3/fav/resource/list?media_id=$favId&pn=$pn&ps={$this->favVideosPageSize}&keyword=&order=mtime&type=0&tid=0&platform=web";
-            Log::info("Fetch fav video list", ['url' => $url, 'fav_id' => $favId, 'page' => $pn]);
+            Log::info("[收藏夹管理] 获取收藏夹视频列表", ['url' => $url, 'fav_id' => $favId, 'page' => $pn]);
 
             try {
                 $response = $client->request('GET', $url);
@@ -585,11 +640,11 @@ class BilibiliService
                     break;
                 }
             } catch (\Exception $e) {
-                Log::error("API request failed: " . $e->getMessage());
+                Log::error("[收藏夹管理] API 请求失败" . $e->getMessage());
                 // 如果是频率限制错误，等待更长时间
                 // 检查接口响应是否包含429 或者412，如果包含则通过redis记录2个小时。
                 if (strpos($e->getMessage(), '429') !== false || strpos($e->getMessage(), '412') !== false) {
-                    Log::warning("Rate limit detected, waiting 60 seconds before retry");
+                    Log::warning("[收藏夹管理] 检测到频率限制, 等待60秒后重试");
                     $this->bilibiliSuspendService->setSuspend();
                     continue;
                 }
@@ -610,12 +665,12 @@ class BilibiliService
             if (is_array($result) && isset($result['data']) && is_array($result['data'])) {
                 return $result['data'];
             }
-            Log::error("get seasons list failed", ['mid' => $mid, 'season_id' => $seasonId, 'page' => $page, 'result' => $result]);
+            Log::error("[合集管理] 获取合集列表失败", ['mid' => $mid, 'season_id' => $seasonId, 'page' => $page, 'result' => $result]);
             throw new \Exception("get seasons list failed");
         } catch (\Exception $e) {
-            Log::error("API request failed: " . $e->getMessage());
+            Log::error("[合集管理] API 请求失败" . $e->getMessage());
             if (strpos($e->getMessage(), '429') !== false || strpos($e->getMessage(), '412') !== false) {
-                Log::warning("Rate limit detected, waiting 60 seconds before retry");
+                Log::warning("[合集管理] 检测到频率限制, 等待60秒后重试");
                 $this->bilibiliSuspendService->setSuspend();
             }
             throw $e;
@@ -632,12 +687,12 @@ class BilibiliService
             if (is_array($result) && isset($result['data']) && is_array($result['data'])) {
                 return $result['data'];
             }
-            Log::error("get series meta failed", ['series_id' => $seriesId, 'result' => $result]);
+            Log::error("[系列管理] 获取系列元数据失败", ['series_id' => $seriesId, 'result' => $result]);
             throw new \Exception("get series meta failed");
         } catch (\Exception $e) {
-            Log::error("API request failed: " . $e->getMessage());
+            Log::error("[系列管理] API 请求失败" . $e->getMessage());
             if (strpos($e->getMessage(), '429') !== false || strpos($e->getMessage(), '412') !== false) {
-                Log::warning("Rate limit detected, waiting 60 seconds before retry");
+                Log::warning("[系列管理] 检测到频率限制, 等待60秒后重试");
                 $this->bilibiliSuspendService->setSuspend();
             }
             throw $e;
@@ -655,12 +710,12 @@ class BilibiliService
             if (is_array($result) && isset($result['data']) && is_array($result['data'])) {
                 return $result['data'];
             }
-            Log::error("get series list failed", ['mid' => $mid, 'series_id' => $seriesId, 'page' => $page, 'result' => $result]);
+            Log::error("[系列管理] 获取系列列表失败", ['mid' => $mid, 'series_id' => $seriesId, 'page' => $page, 'result' => $result]);
             throw new \Exception("get series list failed");
         } catch (\Exception $e) {
-            Log::error("API request failed: " . $e->getMessage());
+            Log::error("[系列管理] API 请求失败" . $e->getMessage());
             if (strpos($e->getMessage(), '429') !== false || strpos($e->getMessage(), '412') !== false) {
-                Log::warning("Rate limit detected, waiting 60 seconds before retry");
+                Log::warning("[系列管理] 检测到频率限制, 等待60秒后重试");
                 $this->bilibiliSuspendService->setSuspend();
             }
             throw $e;
@@ -695,7 +750,7 @@ class BilibiliService
             $response = $client->request('GET', $url);
             $result   = json_decode($response->getBody()->getContents(), true);
             if ($result['code'] !== 0) {
-                throw new \Exception("get up videos failed: " . $result['message']);
+                throw new \Exception("[UP主管理] 获取UP主视频失败: " . $result['message']);
             }
             if (is_array($result['data']['item']) && count($result['data']['item']) > 0) {
                 $lastAid = intval(end($result['data']['item'])['param']);
@@ -709,9 +764,9 @@ class BilibiliService
                 'last_aid' => $lastAid,
             ];
         } catch (\Exception $e) {
-            Log::error("API request failed: " . $e->getMessage());
+            Log::error("[UP主管理] API 请求失败" . $e->getMessage());
             if (strpos($e->getMessage(), '429') !== false || strpos($e->getMessage(), '412') !== false) {
-                Log::warning("Rate limit detected, waiting 60 seconds before retry");
+                Log::warning("[UP主管理] 检测到频率限制, 等待60秒后重试");
                 $this->bilibiliSuspendService->setSuspend();
             }
             throw $e;
@@ -734,13 +789,13 @@ class BilibiliService
                 if (in_array($result['code'], [self::ERROR_CODE_NOT_VISIBLE, self::ERROR_CODE_REVIEWING, self::ERROR_CODE_ONLY_UP_OWNER])) {
                     throw new ApiGetVideoStatusException($result['message'], $result['code']);
                 }
-                throw new \Exception("get video info failed: " . $result['message'], $result['code']);
+                throw new \Exception("[视频管理] 获取视频信息失败" . $result['message'], $result['code']);
             }
             return $result['data'];
         } catch (\Exception $e) {
-            Log::error("API request failed: " . $e->getMessage());
+            Log::error("[视频管理] API 请求失败" . $e->getMessage());
             if (strpos($e->getMessage(), '429') !== false || strpos($e->getMessage(), '412') !== false) {
-                Log::warning("Rate limit detected, waiting 60 seconds before retry");
+                Log::warning("[视频管理] 检测到频率限制, 等待60秒后重试");
                 $this->bilibiliSuspendService->setSuspend();
             }
             throw $e;
@@ -754,7 +809,7 @@ class BilibiliService
         $response = $client->request('GET', $url);
         $result   = json_decode($response->getBody()->getContents(), true);
         if ($result['code'] !== 0) {
-            throw new \Exception("get uper card failed: " . $result['message'], $result['code']);
+            throw new \Exception("[UP主管理] 获取UP主卡片失败" . $result['message'], $result['code']);
         }
         if (isset($result['data']) && isset($result['data']['card'])) {
             return $result['data']['card'];
@@ -793,13 +848,13 @@ class BilibiliService
             $response = $client->request('GET', $url);
             $result   = json_decode($response->getBody()->getContents(), true);
             if ($result['code'] !== 0) {
-                throw new \Exception("get audio info failed: " . $result['message'], $result['code']);
+                throw new \Exception("[音频管理] 获取音频信息失败" . $result['message'], $result['code']);
             }
             return $result['data'];
         } catch (\Exception $e) {
-            Log::error("API request failed (audio): " . $e->getMessage());
+            Log::error("[音频管理] API 请求失败" . $e->getMessage());
             if (strpos($e->getMessage(), '429') !== false || strpos($e->getMessage(), '412') !== false) {
-                Log::warning("Rate limit detected, waiting before retry");
+                Log::warning("[音频管理] 检测到频率限制, 等待60秒后重试");
                 $this->bilibiliSuspendService->setSuspend();
             }
             throw $e;
@@ -824,9 +879,9 @@ class BilibiliService
             if ($data['data']['isLogin'] === true) {
                 return true;
             }
-            Log::error("Cookie expired: " . $data['message'] ?? '', ['response' => $response]);
+            Log::error("[Cookie] Cookie 过期" . $data['message'] ?? '', ['response' => $response]);
         } catch (\Exception $e) {
-            Log::error("Error checking cookie expired: " . $e->getMessage());
+            Log::error("[Cookie] 检查 Cookie 过期失败" . $e->getMessage());
             throw $e;
         }
         return false;
@@ -851,7 +906,7 @@ class BilibiliService
         // 1. 获取 WBI Keys
         $keys = $this->getWbiKeys($client, $cookies);
         if (!$keys) {
-            Log::error("Skipping comments download due to missing WBI keys");
+            Log::error("[视频管理] 缺少 WBI keys, 跳过评论下载");
             return [];
         }
         list($imgKey, $subKey) = $keys;
@@ -886,11 +941,11 @@ class BilibiliService
                 
                 // 检查 API 错误
                 if (($data['code'] ?? 0) !== 0) {
-                    Log::warning("Comment API Error: " . ($data['message'] ?? 'Unknown'), ['code' => $data['code']]);
+                    Log::warning("[视频评论] 评论 API 错误: " . ($data['message'] ?? 'Unknown'), ['code' => $data['code']]);
                     // 如果遇到 412 或特定风控 code，直接终止本视频下载
                     if (in_array($data['code'], [-412, 412])) {
                         $this->bilibiliSuspendService->setSuspend(); // 触发全局熔断
-                        throw new \Exception("Triggered Risk Control (412)");
+                        throw new \Exception("[视频评论] 触发风险控制 (412)");
                     }
                     break;
                 }
@@ -956,17 +1011,13 @@ class BilibiliService
                 }
 
             } catch (\Exception $e) {
-                Log::error("Failed to fetch comments", ['oid' => $oid, 'error' => $e->getMessage()]);
+                Log::error("[视频评论] 获取评论失败", ['oid' => $oid, 'error' => $e->getMessage()]);
                 break; 
             }
 
         } while ($pageCount < $maxPages);
 
         return array_values($allComments);
-    }
-
-    private function processReply($reply, $oid, $rootId = 0) {
-        return $this->formatCommentData($reply, $oid, $rootId);
     }
 
     // [修改] 增加 Client 参数复用连接
@@ -1069,13 +1120,13 @@ class BilibiliService
             $data = json_decode($response->getBody()->getContents(), true);
 
             if (($data['code'] ?? -1) !== 0) {
-                Log::error("获取收藏夹信息失败: " . ($data['message'] ?? 'Unknown error'));
+                Log::error("[收藏夹管理] 获取收藏夹信息失败" . ($data['message'] ?? 'Unknown error'));
                 return null;
             }
 
             return $data['data']; // 包含 title, cover, upper 等信息
         } catch (\Exception $e) {
-            Log::error("Bilibili API Error: " . $e->getMessage());
+            Log::error("[收藏夹管理] Bilibili API 错误" . $e->getMessage());
             return null;
         }
     }
@@ -1105,8 +1156,50 @@ class BilibiliService
             
             return [$imgKey, $subKey];
         } catch (\Exception $e) {
-            Log::error("Get WBI Keys failed: " . $e->getMessage());
+            Log::error("获取 WBI keys 失败: " . $e->getMessage());
             return null;
         }
+    }
+
+    /**
+     * 获取视频TAG信息（新接口）
+     *
+     * @param string $bvid
+     * @return array
+     */
+    public function getVideoTags(string $bvid): array
+    {
+        try {
+            // 1. 获取带有认证信息（SESSDATA）的 Cookie
+            $cookies = parse_netscape_cookie_content($this->settingsService->get(SettingKey::COOKIES_CONTENT));
+            
+            // 2. 获取内置的 Guzzle Client
+            $client = $this->getClient();
+
+            // 3. 请求官方 TAG 接口
+            $response = $client->get(self::API_HOST . '/x/web-interface/view/detail/tag', [
+                'query' => [
+                    'bvid' => $bvid
+                ],
+                'cookies' => $cookies,
+                'headers' => [
+                    'Referer' => self::WEB_HOST . '/video/' . $bvid
+                ]
+            ]);
+
+            $data = json_decode($response->getBody()->getContents(), true);
+
+            // 4. 判断返回结果
+            if (isset($data['code']) && $data['code'] === 0) {
+                // 如果没有标签，接口可能会返回 null 或空数组，做一下默认值处理
+                return is_array($data['data']) ? $data['data'] : [];
+            }
+
+            Log::warning('[视频标签] 获取视频标签失败', ['bvid' => $bvid, 'response' => $data]);
+        } catch (\Exception $e) {
+            Log::error('[视频标签] 请求视频标签异常', ['bvid' => $bvid, 'error' => $e->getMessage()]);
+        }
+
+        return [];
     }
 }

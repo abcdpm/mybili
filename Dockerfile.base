@@ -72,14 +72,15 @@ RUN apk add --no-cache \
     libpng libpng-dev \
     libjpeg-turbo libjpeg-turbo-dev \
     libwebp libwebp-dev \
-    freetype freetype-dev
+    freetype freetype-dev \
+    libavif libavif-dev
 
 # 安装 Composer
 COPY --from=composer/composer:2-bin /composer /usr/bin/composer
 
 # 2. 配置并安装 PHP 扩展
 # 增加 gd 扩展的安装，并开启 jpg/webp/freetype 支持
-RUN docker-php-ext-configure gd --with-freetype --with-jpeg --with-webp \
+RUN docker-php-ext-configure gd --with-freetype --with-jpeg --with-webp --with-avif \
     && docker-php-ext-install -j$(nproc) gd pcntl
 
 # 从下载阶段复制二进制文件到系统路径

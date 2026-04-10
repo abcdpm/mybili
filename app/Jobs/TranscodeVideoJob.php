@@ -9,6 +9,8 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use App\Enums\SettingKey;
+use App\Services\SettingsService;
 
 class TranscodeVideoJob implements ShouldQueue
 {
@@ -20,10 +22,20 @@ class TranscodeVideoJob implements ShouldQueue
     public function __construct(
         public VideoPart $videoPart,
         public string $mode = 'cpu' // cpu, qsv, nvenc
-    ) {}
+    ) {
+        // 指定专属的转码队列，不再占用公共的 slow 队列
+        $this->onQueue('transcode');
+    }
 
     public function handle(): void
     {
+        // 检查系统设置
+        $transcodeEnabled = app(SettingsService::class)->get(SettingKey::TRANSCODE_VIDEO_ENABLED) ?? 'off';
+        if ($transcodeEnabled !== 'on') {
+            Log::info("[视频转码] 系统设置已关闭视频转码功能，跳过任务", ['cid' => $this->videoPart->cid]);
+            return;
+        }
+
         $part = $this->videoPart;
 
         // 定义一个基于视频分P CID 的唯一锁
@@ -31,14 +43,14 @@ class TranscodeVideoJob implements ShouldQueue
         // 尝试加锁，有效期 1 小时
         $lock = redis()->set($lockKey, 1, ['NX', 'EX' => 3600]);
         if (!$lock) {
-        Log::info("该视频正在被另一个进程转码，跳过本次任务", ['cid' => $part->cid]);
+        Log::info("[视频转码] 该视频正在被另一个进程转码，跳过本次任务", ['cid' => $part->cid]);
             return;
         }
 
         try {
             // 1. 检查源文件是否存在
             if (empty($part->video_download_path) || !Storage::disk('public')->exists($part->video_download_path)) {
-                Log::warning("转码失败：源文件不存在", ['id' => $part->id]);
+                Log::warning("[视频转码] 源文件不存在, 转码失败", ['id' => $part->id]);
                 return;
             }
 
@@ -55,12 +67,12 @@ class TranscodeVideoJob implements ShouldQueue
             // 构建命令
             $command = $this->buildCommand($sourcePath, $targetPath);
 
-            Log::info("开始转码任务", ['id' => $part->id, 'mode' => $this->mode, 'cmd' => $command]);
+            Log::info("[视频转码] 开始视频转码任务", ['id' => $part->id, 'mode' => $this->mode, 'cmd' => $command]);
             
             exec($command . ' 2>&1', $output, $resultCode);
 
             if ($resultCode !== 0) {
-                Log::error("转码失败", ['output' => $output]);
+                Log::error("[视频转码] 视频转码失败", ['output' => $output]);
                 return;
             }
 
@@ -68,7 +80,7 @@ class TranscodeVideoJob implements ShouldQueue
             $part->mobile_download_path = get_relative_path($targetPath); // 确保存入相对路径
             $part->save();
 
-            Log::info("转码成功", ['id' => $part->id, 'path' => $part->mobile_download_path]);
+            Log::info("[视频转码] 视频转码成功", ['id' => $part->id, 'path' => $part->mobile_download_path]);
         } finally {
             // 任务结束（无论成功失败）务必释放锁
             redis()->del($lockKey);
