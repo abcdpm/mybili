@@ -51,7 +51,7 @@
     
     <div 
       ref="logContainer" 
-      class="flex-1 min-h-[600px] max-h-[800px] bg-[#1e1e1e] text-green-400 font-mono p-4 rounded-xl overflow-y-auto whitespace-pre-wrap text-sm shadow-inner leading-relaxed"
+      class="flex-1 min-h-[400px] max-h-[500px] bg-[#1e1e1e] text-green-400 font-mono p-4 rounded-xl overflow-y-auto whitespace-pre-wrap text-sm shadow-inner leading-relaxed"
     >
       {{ logs || 'Loading logs...' }}
     </div>
