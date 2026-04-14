@@ -183,12 +183,32 @@
                 </form>
             </div>
         </div>
+        <div class="m-4 relative">
+            <transition 
+                enter-active-class="transition duration-300 ease-out"
+                enter-from-class="translate-y-10 opacity-0"
+                enter-to-class="translate-y-0 opacity-100"
+                leave-active-class="transition duration-200 ease-in"
+                leave-from-class="translate-y-0 opacity-100"
+                leave-to-class="translate-y-10 opacity-0"
+            >
+                <button 
+                    v-if="showBackToTop" 
+                    @click="scrollToTop"
+                    class="fixed bottom-20 right-6 z-50 p-3 bg-white border border-gray-200 rounded-full shadow-lg hover:shadow-xl hover:bg-gray-50 transition-all group"
+                    aria-label="Back to Top"
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-gray-500 group-hover:text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 10l7-7m0 0l7 7m-7-7v18" />
+                    </svg>
+                </button>
+            </transition>
+        </div>
     </div>
-
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import Breadcrumbs from '@/components/Breadcrumbs.vue';
 import Image from '@/components/Image.vue';
@@ -309,11 +329,33 @@ const refreshSubscriptionList = async () => {
     }
 }
 
+// --- 新增：返回顶部功能状态与方法 ---
+const showBackToTop = ref(false);
+
+const handleScroll = () => {
+    const scrollTop = window.scrollY || document.documentElement.scrollTop;
+    showBackToTop.value = scrollTop > 600; 
+};
+
+const scrollToTop = () => {
+    window.scrollTo({
+        top: 0,
+        behavior: 'smooth'
+    });
+};
+
 // 组件挂载时加载数据
 onMounted(() => {
     refreshSubscriptionList();
+    // 新增：监听滚动事件
+    window.addEventListener('scroll', handleScroll);
 });
 </script>
+
+onUnmounted(() => {
+    // 新增：组件卸载时移除监听
+    window.removeEventListener('scroll', handleScroll);
+});
 
 <style scoped>
 .line-clamp-1 {
