@@ -26,8 +26,13 @@
         <svg class="w-5 h-5 mr-2 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 002-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
         <h3 class="text-base font-bold text-gray-800">Horizon 队列积压探针 <span class="text-xs font-normal text-gray-400 ml-2">(抽样前 100000 条)</span></h3>
       </div>
-      <div class="flex flex-wrap gap-2 mb-3">
-        <button v-for="q in ['default', 'fast', 'slow', 'comments', 'transcode', 'bilibili-rate-limit']" :key="q" @click="checkQueue(q)" :class="['px-3 py-1 text-sm font-medium rounded-lg transition-colors border', activeQueue === q ? 'bg-blue-100 border-blue-400 text-blue-800' : 'bg-gray-100 border-transparent text-gray-700 hover:bg-gray-200']">
+      <div class="inline-flex flex-wrap gap-1 bg-gray-200/70 p-1 rounded-lg shadow-inner mb-3">
+        <button 
+          v-for="q in ['default', 'fast', 'slow', 'comments', 'transcode', 'bilibili-rate-limit']" 
+          :key="q" 
+          @click="checkQueue(q)" 
+          :class="['px-4 py-1.5 text-sm font-medium rounded-md transition-all duration-200', activeQueue === q ? 'bg-white text-gray-900 shadow' : 'text-gray-500 hover:text-gray-800']"
+        >
           {{ q }}
         </button>
       </div>
@@ -222,7 +227,7 @@ let isUserScrolling = false
 // 【新增】队列统计的响应式状态
 const queueStats = ref<any[] | null>(null)
 const isQueryingQueue = ref(false)
-const activeQueue = ref('')
+const activeQueue = ref('default') // 将初始值设为 'default'
 
 const handleScroll = () => {
   if (!logContainer.value) return
@@ -404,6 +409,10 @@ const execClearQueue = () => {
 onMounted(() => {
   fetchLogs()
   fetchMetadata()
+  
+  // 【新增】进入页面时自动执行一次 default 队列的扫描
+  checkQueue('default')
+
   logContainer.value?.addEventListener('scroll', handleScroll)
   pollInterval = setInterval(fetchLogs, 5000)
 })
