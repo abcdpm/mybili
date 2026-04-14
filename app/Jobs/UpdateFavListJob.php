@@ -3,22 +3,28 @@ namespace App\Jobs;
 
 use App\Services\VideoManager\Actions\Favorite\UpdateFavoritesAction;
 use Log;
+use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Foundation\Bus\Dispatchable;
+use Illuminate\Queue\InteractsWithQueue;
+use Illuminate\Queue\SerializesModels;
 
-class UpdateFavListJob extends BaseScheduledRateLimitedJob
+class UpdateFavListJob implements ShouldQueue
 {
+    use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
+    
+    public $tries = 3;
+    public $timeout = 600;
+
     public function __construct()
     {
-    }
-
-    protected function getRateLimitKey(): string
-    {
-        return 'update_job';
+        $this->onQueue('default');
     }
 
     /**
      * 具体的处理逻辑
      */
-    protected function process(): void
+    public function handle(): void
     {
         Log::info('更新收藏夹列表开始');
 

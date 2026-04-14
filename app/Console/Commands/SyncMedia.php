@@ -86,7 +86,7 @@ class SyncMedia extends Command
     protected function runFavList(): void
     {
         $this->info('派发: 更新收藏夹列表');
-        UpdateFavListJob::dispatchWithRateLimit();
+        UpdateFavListJob::dispatch();
     }
 
     protected function runFavVideos(FavoriteServiceInterface $favoriteService): void
@@ -122,7 +122,7 @@ class SyncMedia extends Command
                 return;
             }
             $this->info('派发更新订阅: ' . $sub->name . ' id: ' . $sub->id);
-            \App\Jobs\UpdateSubscriptionJob::dispatchWithRateLimit($sub, $pullAll);
+            \App\Jobs\UpdateSubscriptionJob::dispatch($sub, $pullAll);
         } else {
             $this->info('派发更新全部订阅（按策略）');
             $svc->updateSubscriptions($pullAll);
@@ -193,11 +193,11 @@ class SyncMedia extends Command
         $pageSize  = (int) config('services.bilibili.fav_videos_page_size');
         $maxPage   = (int) ceil($fav['media_count'] / $pageSize);
         if ($page !== null) {
-            UpdateFavVideosJob::dispatchWithRateLimit($fav, $page);
+            UpdateFavVideosJob::dispatch($fav, $page);
             return;
         }
         for ($p = 1; $p <= $maxPage; $p++) {
-            UpdateFavVideosJob::dispatchWithRateLimit($fav, $p);
+            UpdateFavVideosJob::dispatch($fav, $p);
         }
     }
 
@@ -206,11 +206,11 @@ class SyncMedia extends Command
         $pageSize = (int) config('services.bilibili.fav_videos_page_size');
         $maxPage  = (int) ceil($fav['media_count'] / $pageSize);
         if ($page !== null) {
-            FixInvalidFavVideosJob::dispatchWithRateLimit($fav, $page);
+            FixInvalidFavVideosJob::dispatch($fav, $page);
             return;
         }
         for ($p = 1; $p <= $maxPage; $p++) {
-            FixInvalidFavVideosJob::dispatchWithRateLimit($fav, $p);
+            FixInvalidFavVideosJob::dispatch($fav, $p);
         }
     }
 }

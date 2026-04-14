@@ -2,32 +2,27 @@
 namespace App\Jobs;
 
 use App\Services\VideoManager\Actions\Favorite\UpdateFavoriteVideosAction;
-use Log;
+use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Foundation\Bus\Dispatchable;
+use Illuminate\Queue\InteractsWithQueue;
+use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\Log;
 
-class UpdateFavVideosJob extends BaseScheduledRateLimitedJob
+class UpdateFavVideosJob implements ShouldQueue
 {
+    use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
+
+    public $tries = 3;
+    public $timeout = 600;
+    public $backoff = [60, 120]; // 失败重试的延迟阶梯
+
     public function __construct(public array $fav, public ?int $page = null)
     {
+        $this->onQueue('default');
     }
 
-    /**
-     * 限流 release() 和异常重试都会消耗 attempts，用时间窗口代替固定次数上限，
-     * 避免频繁限流时 attempts 耗尽导致 MaxAttemptsExceededException。
-     */
-    public function retryUntil(): \DateTimeInterface
-    {
-        return now()->addHour();
-    }
-
-    protected function getRateLimitKey(): string
-    {
-        return 'update_job';
-    }
-
-    /**
-     * 具体的处理逻辑
-     */
-    protected function process(): void
+    public function handle(): void
     {
         Log::info('[收藏夹管理] 收藏夹视频更新任务开始');
         app(UpdateFavoriteVideosAction::class)->execute($this->fav, $this->page);

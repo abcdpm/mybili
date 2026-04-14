@@ -4,28 +4,27 @@ namespace App\Jobs;
 use App\Models\VideoPart;
 use App\Services\DownloadQueueService;
 use App\Services\VideoManager\Actions\Video\DownloadVideoPartFileAction;
+use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Foundation\Bus\Dispatchable;
+use Illuminate\Queue\InteractsWithQueue;
+use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
 
-class DownloadVideoJob extends BaseScheduledRateLimitedJob
+class DownloadVideoJob implements ShouldQueue
 {
+    use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
+    // 视频下载耗时可能较长，可以适当增加超时时间（单位：秒）
+    public $timeout = 3600;
     public $tries = 1;
 
     public function __construct(public VideoPart $videoPart)
     {
+        $this->onQueue('default');
     }
 
-    protected function getRateLimitKey(): string
-    {
-        return 'download_job';
-    }
-
-    protected function onRateLimited(int $availableIn): void
-    {
-        app(DownloadQueueService::class)->markPendingByVideoPart($this->videoPart->id);
-    }
-
-    public function process(): void
+    public function handle(): void
     {
         try{
             // 如果视频被删除，则不下载
@@ -53,7 +52,6 @@ class DownloadVideoJob extends BaseScheduledRateLimitedJob
 
     public function failed(\Throwable $exception): void
     {
-        parent::failed($exception);
         app(DownloadQueueService::class)->markRetryOrFailedByVideoPart(
             $this->videoPart->id,
             $exception->getMessage()
