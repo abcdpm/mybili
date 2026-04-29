@@ -32,11 +32,11 @@ class DownloadCommentsJob implements ShouldQueue
     public function __construct(
         public Video $video,
         public ?int $limit = null,
-        public int $sleep = 3
+        public int $sleep = 3,
+        string $queueName = 'comments' // 【新增】默认为批处理高优先级
     )
     {
-        // 指定 comments 队列
-        $this->onQueue('comments');
+        $this->onQueue($queueName);
     }
 
     public function handle(DownloadCommentsAction $action): void

@@ -133,7 +133,7 @@ class DownloadAllComments extends Command
                     $jobLimit = $localCount + (int)$incremental;
                 }
                 
-                dispatch(new DownloadCommentsJob($video, $jobLimit, $sleep));
+                dispatch(new DownloadCommentsJob($video, $jobLimit, $sleep, 'comments-batch'));
                 $bar->advance();
             }
             // 刷新更新时间，防止重复捞取
@@ -148,7 +148,7 @@ class DownloadAllComments extends Command
                     if ($incremental !== null) {
                         $jobLimit = $video->comments()->count() + (int)$incremental;
                     }
-                    dispatch(new DownloadCommentsJob($video, $jobLimit, $sleep));
+                    dispatch(new DownloadCommentsJob($video, $jobLimit, $sleep, 'comments-batch'));
                     $bar->advance();
                 }
             });

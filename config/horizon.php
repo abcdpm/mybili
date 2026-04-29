@@ -235,7 +235,7 @@ return [
         // 专门处理评论下载的队列
         'supervisor-comments' => [
             'connection' => 'redis',
-            'queue' => ['comments'],
+            'queue' => ['comments', 'comments-batch'],
             'balance' => 'simple',
             'maxProcesses' => 2,
             'maxTime' => 0,
@@ -285,7 +285,7 @@ return [
             // 专门处理评论下载任务
             'supervisor-comments' => [
                 'connection' => 'redis',
-                'queue' => ['comments'],
+                'queue' => ['comments', 'comments-batch'],
                 'balance' => 'simple',
                 'processes' => 2,
                 'tries' => 3,
@@ -302,7 +302,7 @@ return [
                 'tries' => 3,
                 'timeout' => 1800,
             ],
-            'supervisor-transcode' => [
+            'supervisor-slow' => [
                 'connection' => 'redis',
                 'queue' => ['slow'],
                 'balance' => 'simple', 
@@ -330,7 +330,7 @@ return [
             // 专门处理评论下载任务
             'supervisor-comments' => [
                 'connection' => 'redis',
-                'queue' => ['comments'],
+                'queue' => ['comments', 'comments-batch'],
                 'balance' => 'simple',
                 'processes' => 2,
                 'tries' => 3,

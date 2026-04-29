@@ -28,7 +28,7 @@
       </div>
       <div class="inline-flex flex-wrap gap-1 bg-gray-200/70 p-1 rounded-lg shadow-inner mb-3">
         <button 
-          v-for="q in ['default', 'fast', 'slow', 'comments', 'transcode', 'bilibili-rate-limit']" 
+          v-for="q in ['default', 'fast', 'slow', 'comments', 'comments-batch', 'transcode']" 
           :key="q" 
           @click="checkQueue(q)" 
           :class="['px-4 py-1.5 text-sm font-medium rounded-md transition-all duration-200', activeQueue === q ? 'bg-white text-gray-900 shadow' : 'text-gray-500 hover:text-gray-800']"

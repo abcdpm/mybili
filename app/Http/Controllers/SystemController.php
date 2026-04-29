@@ -158,7 +158,7 @@ class SystemController extends Controller
                 }
             }
             
-            $baseQueues = ['default', 'fast', 'slow', 'comments', 'transcode', 'bilibili-rate-limit'];
+            $baseQueues = ['default', 'fast', 'slow', 'comments', 'comments-batch', 'transcode'];
             $allQueues = array_values(array_unique(array_merge($baseQueues, $queues)));
 
             return response()->json([
