@@ -1,6 +1,6 @@
 ARG NODE_VERSION=22
 
-FROM node:${NODE_VERSION}-bullseye-slim AS build
+FROM node:${NODE_VERSION}-bookworm-slim AS build
 
 WORKDIR /app
 
@@ -90,7 +90,7 @@ RUN PLATFORM="${TARGETPLATFORM:-linux/$(uname -m)}" && \
 
 COPY . .
 
-RUN npm install -g pnpm
+RUN npm install -g pnpm@latest-11
 RUN pnpm install
 RUN pnpm build
 
