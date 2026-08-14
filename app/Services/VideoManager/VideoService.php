@@ -372,7 +372,7 @@ class VideoService implements VideoServiceInterface
                 'audio_downloaded_num'  => $item['audio_downloaded_num'],
                 'frozen'                => $item['frozen'],
                 'invalid'               => $item['invalid'],
-                'cover_image_url'       => $item['cover_info']['image_url'] ?? null,
+                'cover_image_url'       => data_get($item, 'cover_info.image_url') ?: null,
                 'created_at'            => $item['created_at'],
                 'duration'              => $item['duration'] ?? 0, // 【修复】：进度页时长
                 'view'                  => $item['view'] ?? 0,     // 【修复】：进度页播放量

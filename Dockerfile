@@ -3,12 +3,12 @@
 
 # === 阶段 1: 前端构建 ===
 ARG NODE_VERSION=22
-FROM node:${NODE_VERSION}-bullseye-slim AS build
+FROM node:${NODE_VERSION}-bookworm-slim AS build
 
 WORKDIR /app
 
 # 安装 pnpm
-RUN npm install -g pnpm
+RUN npm install -g pnpm@latest-11
 
 # [优化核心] 先只复制依赖描述文件，利用缓存
 COPY package.json pnpm-lock.yaml ./

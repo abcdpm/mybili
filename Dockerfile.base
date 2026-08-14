@@ -3,7 +3,7 @@
 
 # === 阶段 1: 下载工具链 (使用 Debian 环境以便复用原有脚本) ===
 ARG NODE_VERSION=22
-FROM node:${NODE_VERSION}-bullseye-slim AS downloader
+FROM node:${NODE_VERSION}-bookworm-slim AS downloader
 
 WORKDIR /downloads
 
