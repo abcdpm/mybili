@@ -1,5 +1,6 @@
 # 构建基础镜像命令:
 # docker build -f Dockerfile.base -t mybili-base:1 .
+# docker build -f Dockerfile.base -t mybili-base:1 --build-arg HTTP_PROXY=http://192.168.0.2:1082 .
 
 # === 阶段 1: 下载工具链 (使用 Debian 环境以便复用原有脚本) ===
 ARG NODE_VERSION=22
@@ -12,6 +13,9 @@ ARG TARGETPLATFORM
 
 # 安装下载工具
 RUN apt update && apt install -y xz-utils curl wget tar
+# 国内源
+# RUN sed -i 's/deb.debian.org/mirrors.tuna.tsinghua.edu.cn/g' /etc/apt/sources.list.d/debian.sources \
+#     && apt-get update && apt-get install -y xz-utils curl wget tar
 
 # 1. 下载 FFMPEG
 # [复用源代码中的逻辑]
@@ -74,6 +78,9 @@ RUN apk add --no-cache \
     libwebp libwebp-dev \
     freetype freetype-dev \
     libavif libavif-dev
+# 国内源
+# RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.tuna.tsinghua.edu.cn/g' /etc/apk/repositories \
+#     && apk add --no-cache libpng libpng-dev libjpeg-turbo libjpeg-turbo-dev libwebp libwebp-dev freetype freetype-dev libavif libavif-dev
 
 # 安装 Composer
 COPY --from=composer/composer:2-bin /composer /usr/bin/composer
