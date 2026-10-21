@@ -1,5 +1,5 @@
 <?php
-namespace App\Console\Commands;
+namespace App\Console\Commands\Legacy;
 
 use App\Enums\SettingKey;
 use App\Models\Danmaku;
@@ -14,6 +14,11 @@ use App\Services\DownloadVideoService;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
 
+/**
+ * @deprecated 历史遗留命令：用于从「Redis 持久化时代」的旧版本升级迁移数据。
+ * 当前版本已全面采用 SQLite 存储，本命令仅为极老版本用户保留兼容通道，
+ * 新用户请勿使用。后续大版本可能移除。
+ */
 class UpgradeRedisToSqlite extends Command
 {
 

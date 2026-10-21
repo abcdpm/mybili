@@ -1,6 +1,7 @@
 <?php
 namespace App\Models;
 
+use App\Casts\UnixTimestamp;
 use App\Models\AudioPart;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -20,8 +21,12 @@ class Video extends Model
     protected $primaryKey = 'id';
 
     protected $casts = [
-        // 移除时间字段的 cast，使用访问器代替，不能使用cast，因为写入时格式无法匹配，错误写入
         'tags' => 'array', // 【重要补漏】：必须加上，否则读取出来会是普通字符串
+        // 时间字段统一约定：DB 存 'Y-m-d H:i:s'，对外读写为 Unix 秒级时间戳。
+        // 取代旧版「strtotime 访问器」实现，读出值与旧版完全一致（前端无感），
+        // 写入兼容时间戳整数 / 日期字符串 / Carbon。
+        'pubtime'  => UnixTimestamp::class,
+        'fav_time' => UnixTimestamp::class,
     ];
 
     protected $appends = [
@@ -56,16 +61,8 @@ class Video extends Model
         return (int) $this->type === 12;
     }
 
-    // 访问器：读取时将时间戳转换为 Carbon 对象
-    public function getPubtimeAttribute($value)
-    {
-        return $value ? strtotime($value) : null;
-    }
-
-    public function getFavTimeAttribute($value)
-    {
-        return $value ? strtotime($value) : null;
-    }
+    // 时间字段（pubtime/fav_time）已统一交由 App\Casts\UnixTimestamp 处理：
+    // 读取返回 Unix 时间戳（与旧版访问器一致），写入兼容时间戳/字符串/Carbon。
 
     public function favorite()
     {
