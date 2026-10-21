@@ -38,7 +38,7 @@ import VideoCommentItem from './VideoCommentItem.vue';
 
 const props = defineProps<{
     videoId: number;
-    upperId?: number;
+    upperId?: number | null;
 }>();
 
 const comments = ref<any[]>([]);
@@ -64,7 +64,7 @@ const fetchComments = async (isLoadMore = false) => {
     
     try {
         // 判断是请求第一页，还是请求下一页的完整 URL
-        const url = isLoadMore ? nextPageUrl.value : `/api/videos/${props.videoId}/comments`;
+        const url = isLoadMore ? nextPageUrl.value! : `/api/videos/${props.videoId}/comments`;
         const response = await axios.get(url);
         
         // simplePaginate 返回的数据结构是 { data: [...], next_page_url: "..." }

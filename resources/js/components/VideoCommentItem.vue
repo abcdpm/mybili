@@ -150,7 +150,7 @@ const getLongImageStyle = (index: number) => {
 
 const props = defineProps<{
     comment: any;
-    upperId?: number;
+    upperId?: number | null;
     isReply?: boolean;
 }>();
 

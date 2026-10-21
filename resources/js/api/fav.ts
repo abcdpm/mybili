@@ -12,6 +12,7 @@ export interface Favorite {
     ctime: number;
     mtime: number;
     media_count: number;
+    cover?: string;
     videos?: Video[]| null;
     cover_info: Cover|null;
 }
@@ -57,6 +58,8 @@ export interface Video {
     danmaku_count: number
     subscriptions: Subscription[]|null;
     upper: Upper|null;
+    upper_id?: number | null;
+    stat?: { view?: number };
     cover_info: Cover|null;
     tags: VideoTag[] | null; // 【新增】
     duration?: number;
@@ -92,7 +95,11 @@ export interface VideoLite {
     invalid: number;
     cover: string;
     cover_image_url: string | null;
+    cover_info?: Cover | null;
     created_at: string;
+    duration?: number;
+    view?: number;
+    stat?: { view?: number };
 }
 
 export type FavVideo = VideoLite;

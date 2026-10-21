@@ -5,7 +5,7 @@ export const image = (path: string) => {
 export const formatTimestamp = (timestamp: number, format: string) => {
     const date = new Date(timestamp * 1000);
 
-    const map = {
+    const map: Record<string, string | number> = {
         'yyyy': date.getFullYear(),
         'mm': String(date.getMonth() + 1).padStart(2, '0'),
         'dd': String(date.getDate()).padStart(2, '0'),
@@ -14,7 +14,7 @@ export const formatTimestamp = (timestamp: number, format: string) => {
         'ss': String(date.getSeconds()).padStart(2, '0'),
     };
 
-    return format.replace(/yyyy|mm|dd|hh|ii|ss/g, matched => map[matched]);
+    return format.replace(/yyyy|mm|dd|hh|ii|ss/g, matched => String(map[matched]));
 }
 
 

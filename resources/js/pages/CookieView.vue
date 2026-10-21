@@ -50,11 +50,12 @@ const uploadFile = () => {
     const input: HTMLInputElement = document.createElement('input')
     input.type = "file"
     input.onchange = (res) => {
-        if (input.files?.length <= 0) {
+        const files = input.files
+        if (!files || files.length <= 0) {
             return
         }
         var data = new FormData()
-        data.append('file', input.files[0])
+        data.append('file', files[0])
         fetch(`/api/cookie/upload`, {
             method: 'POST',
             body: data
