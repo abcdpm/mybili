@@ -2,9 +2,14 @@
 namespace App\Services\VideoManager;
 
 use App\Events\VideoUpdated;
+use App\Models\AudioPart;
+use App\Models\Comment;
+use App\Models\Coverables;
 use App\Models\Danmaku;
+use App\Models\DanmakuFile;
 use App\Models\Video;
 use App\Models\VideoPart;
+use App\Services\Danmaku\DanmakuFileStore;
 use App\Services\DownloadQueueService;
 use App\Services\DownloadVideoService;
 use App\Services\VideoManager\Contracts\VideoServiceInterface;
@@ -36,7 +41,8 @@ class VideoService implements VideoServiceInterface
 
     public function getVideos(array $conditions = []): Collection
     {
-        $query = Video::query();
+        // 显式预加载封面关系，防止在 CLI/队列上下文（无全局预加载）出现 N+1
+        $query = Video::query()->with('coverImage');
         if (isset($conditions['invalid'])) {
             $query->where('invalid', $conditions['invalid']);
         }
@@ -190,9 +196,12 @@ class VideoService implements VideoServiceInterface
             $this->removeVideoFilesAndResetState($video);
 
             if ($permanentDelete) {
-                if ($video->delete()) {
+                // 彻底删除：清理全部关联数据（弹幕/评论/分P/关联表/封面关系）后强制删除视频记录。
+                // 注意：旧版本此处实为软删除且不清理评论，会产生孤儿数据；
+                // 历史遗留的软删除视频请使用 php artisan app:cleanup-orphan-data 清理（默认仅报告）。
+                $this->purgeVideoData($video);
+                if ($video->forceDelete()) {
                     $deletedIds[] = $video->id;
-                    Danmaku::query()->where('video_id', $video->id)->delete();
                     event(new VideoUpdated($video->getAttributes(), []));
                 }
                 continue;
@@ -243,6 +252,48 @@ class VideoService implements VideoServiceInterface
             $audioPart->audio_downloaded_at = null;
             $audioPart->save();
         }
+    }
+
+    /**
+     * 彻底清理视频的全部关联数据（供永久删除 / 孤儿清理使用）。
+     *
+     * 兼容性说明：danmaku / video_parts / 两个 pivot 表均无外键约束，
+     * 旧版本删除视频后会残留孤儿数据；这里按 video_id（含新索引）与 cid
+     * 逐一清理，不会波及其他视频的数据。
+     */
+    public function purgeVideoData(Video $video): void
+    {
+        // 1. 分 P 的 cid（弹幕文件以 cid 为键）
+        $cids = VideoPart::query()
+            ->where('video_id', $video->id)
+            ->pluck('cid')
+            ->map(fn ($cid) => (int) $cid)
+            ->all();
+
+        // 2. 弹幕：文件 + 索引 + 数据库行（历史行按 video_id / cid 双路清理）
+        app(DanmakuFileStore::class)->deleteMany($cids);
+        Danmaku::query()->where('video_id', $video->id)->delete();
+        if (! empty($cids)) {
+            Danmaku::query()->whereIn('cid', $cids)->delete();
+        }
+        DanmakuFile::query()->where('video_id', $video->id)->delete();
+
+        // 3. 评论（大表按 video_id 索引删除，避免孤儿评论堆积）
+        Comment::query()->where('video_id', $video->id)->delete();
+
+        // 4. 分 P / 音频记录
+        VideoPart::query()->where('video_id', $video->id)->delete();
+        AudioPart::query()->where('video_id', $video->id)->delete();
+
+        // 5. 收藏夹 / 订阅关联（pivot 表无外键，必须手动清理）
+        DB::table('favorite_list_videos')->where('video_id', $video->id)->delete();
+        DB::table('subscription_videos')->where('video_id', $video->id)->delete();
+
+        // 6. 封面多态关联（covers 本体可能被多处共享，不做删除）
+        Coverables::query()
+            ->where('coverable_id', $video->id)
+            ->where('coverable_type', Video::class)
+            ->delete();
     }
 
     private function enqueueVideoDownloadTasks(Video $video): void
@@ -359,29 +410,29 @@ class VideoService implements VideoServiceInterface
 
     private function getAllVideosLightweight(): array
     {
-        $videos = $this->getVideos()->values()->toArray();
-        $list   = array_map(function ($item) {
-            $newItem      = [
-                'id'                    => $item['id'],
-                'title'                 => $item['title'],
-                'bvid'                  => $item['bvid'],
-                'pubtime'               => $item['pubtime'],
-                'fav_time'              => $item['fav_time'],
-                'page'                  => $item['page'],
-                'video_downloaded_num'  => $item['video_downloaded_num'],
-                'audio_downloaded_num'  => $item['audio_downloaded_num'],
-                'frozen'                => $item['frozen'],
-                'invalid'               => $item['invalid'],
-                'cover_image_url'       => data_get($item, 'cover_info.image_url') ?: null,
-                'created_at'            => $item['created_at'],
-                'duration'              => $item['duration'] ?? 0, // 【修复】：进度页时长
-                'view'                  => $item['view'] ?? 0,     // 【修复】：进度页播放量
-            ];
+        // 【核心优化】单条 JOIN 查询替代逐行取 cover_info 的 N+1 实现：
+        // 旧实现对 2.4 万个视频会触发约 4.8 万次 SQL（每视频 2 次封面查询），
+        // 每次缓存全量重建（视频更新后 20 秒防抖）都重复付出该代价。
+        // 输出结构与旧实现完全一致，前端无需任何改动。
+        $rows = DB::table('videos')
+            ->leftJoin('coverables', function ($join) {
+                $join->on('coverables.coverable_id', '=', 'videos.id')
+                    ->where('coverables.coverable_type', '=', Video::class);
+            })
+            ->leftJoin('covers', 'covers.id', '=', 'coverables.cover_id')
+            ->whereNull('videos.deleted_at')
+            ->select([
+                'videos.id', 'videos.title', 'videos.bvid',
+                'videos.pubtime', 'videos.fav_time', 'videos.page',
+                'videos.video_downloaded_num', 'videos.audio_downloaded_num',
+                'videos.frozen', 'videos.invalid', 'videos.cover',
+                'videos.created_at', 'videos.duration', 'videos.view',
+                'covers.path as cover_path',
+            ])
+            ->orderByRaw('COALESCE(videos.fav_time, videos.created_at) DESC')
+            ->get();
 
-            return $newItem;
-        }, $videos);
-
-        return $list;
+        return $rows->map(fn ($row) => $this->transformLightweightVideo($row))->toArray();
     }
 
     public function updateVideosCache(?array $videos = null): void
