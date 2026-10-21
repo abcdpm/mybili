@@ -7,8 +7,14 @@ FROM node:${NODE_VERSION}-bookworm-slim AS build
 
 WORKDIR /app
 
+# 可选 --build-arg NPM_REGISTRY=https://registry.npmmirror.com 切换国内 npm 源
+ARG NPM_REGISTRY=
+
 # 安装 pnpm
-RUN npm install -g pnpm@latest-11
+RUN if [ -n "$NPM_REGISTRY" ]; then \
+        npm config set registry "$NPM_REGISTRY"; \
+    fi \
+    && npm install -g pnpm@latest-11
 
 # [优化核心] 先只复制依赖描述文件，利用缓存
 COPY package.json pnpm-lock.yaml ./
@@ -31,9 +37,16 @@ WORKDIR /app
 # 重新声明 ARG
 ARG APP_VERSION=1.0.0
 ARG WEBSITE_ID
+# 可选 --build-arg COMPOSER_MIRROR=https://mirrors.aliyun.com/composer/ 切换国内 Composer 源
+ARG COMPOSER_MIRROR=
 
 # [优化核心] 后端依赖缓存优化
 COPY composer.json composer.lock ./
+
+# 可选切换 Composer 源（国内网络环境使用）
+RUN if [ -n "$COMPOSER_MIRROR" ]; then \
+        composer config -g repos.packagist composer "$COMPOSER_MIRROR"; \
+    fi
 
 # [修改点 1] 安装依赖，但跳过自动加载器生成 (--no-autoloader) 和 脚本运行 (--no-scripts)
 RUN composer install \

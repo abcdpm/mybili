@@ -233,7 +233,7 @@ docker login
 
 1. 作为 `--build-arg APP_VERSION` 传入镜像（决定系统信息页显示的版本号）；
 2. 作为镜像标签与 `latest` **一并推送**，例如：
-   `abcdpm/mybili:1.4.0` 与 `abcdpm/mybili:latest`。
+   `llllalex/mybili:1.4.0` 与 `llllalex/mybili:latest`。
 
 发布新版本时只需修改 `.env` 中的 `APP_VERSION` 后重新执行脚本。
 
@@ -241,9 +241,10 @@ docker login
 
 | 选项 | 说明 |
 |---|---|
+| `--mirror cn` | **国内网络一键加速**：切换 apt/apk/npm/Composer 为国内镜像源 |
 | `--no-push` | 仅本地构建不推送（多平台自动降级为当前平台） |
 | `--platforms STR` | 目标平台，默认 `linux/amd64,linux/arm64`（与 CI 一致） |
-| `--image NAME` | 镜像名，默认 `abcdpm/mybili` |
+| `--image NAME` | 镜像名，默认 `llllalex/mybili` |
 | `--rebuild-base` | 强制重建基础镜像 `mybili-base:1`（默认缺失时才自动构建） |
 | `--cache` | 启用 Docker Hub registry 构建缓存（`:buildcache`） |
 | `--dry-run` | 只打印将执行的命令，不实际执行 |
@@ -254,6 +255,33 @@ docker login
 - `.env` 中配置 `WEBSITE_ID`（或以环境变量传入）会作为构建参数注入镜像，用于匿名使用统计（默认不开启，详见隐私声明）；
 - 构建期如需代理，可设置 `HTTP_PROXY` / `HTTPS_PROXY` 环境变量，脚本会自动透传；
 - CI（GitHub Actions）在推送 main / tag 时也会自动构建多架构镜像，本地脚本与其构建参数保持一致。
+
+### 🌏 国内网络环境构建
+
+构建时需访问 Debian/npm/Composer/GitHub 等境外源，国内网络直连容易超时
+（典型报错：`Could not connect to deb.debian.org:80, connection timed out`）。
+推荐以下任一方式：
+
+```bash
+# 方式一（推荐）：一键切换国内镜像源（TUNA apt/apk + npmmirror + 阿里云 Composer）
+./build-and-push.sh --mirror cn
+
+# 方式二：逐项自定义（优先级高于 --mirror 预设）
+APT_MIRROR=mirrors.aliyun.com \
+NPM_REGISTRY=https://registry.npmmirror.com \
+./build-and-push.sh --mirror cn
+
+# 方式三：构建全程走代理（可覆盖 GitHub 等下载）
+HTTP_PROXY=http://192.168.0.2:1082 ./build-and-push.sh
+```
+
+说明：
+
+- `--mirror` 可选 `cn/tuna`（清华）、`aliyun`（阿里云）、`ustc`（中科大）；
+- 基础镜像 `Dockerfile.base` 中的 GitHub 资源下载（yt-dlp/frankenphp/supervisord/ffmpeg）
+  无稳定国内镜像，如仍失败请使用代理方式（方式三）；
+- 如拉取 `node:22-bookworm-slim`、`phpswoole/swoole` 等基础镜像失败，
+  属于 Docker Hub 拉取问题，请为 Docker daemon 配置 `registry-mirrors` 或代理。
 
 ## 🧰 数据库性能优化（本版本新增）
 

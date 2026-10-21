@@ -10,6 +10,8 @@
 # 选项:
 #   --image NAME        镜像名（默认 abcdpm/mybili）
 #   --platforms STR     目标平台，逗号分隔（默认 linux/amd64,linux/arm64）
+#   --mirror NAME       国内镜像源预设: cn/tuna/aliyun/ustc（国内网络环境建议开启，
+#                       等价于设置 APT_MIRROR/APK_MIRROR/NPM_REGISTRY/COMPOSER_MIRROR）
 #   --rebuild-base      强制重建本地基础镜像 mybili-base:1
 #   --cache             启用 Docker Hub registry 构建缓存 (:buildcache)
 #   --no-push           只构建不推送（多平台自动降级为当前平台 --load）
@@ -20,8 +22,16 @@
 #   - 作为 Dockerfile 的 --build-arg APP_VERSION（决定容器内 config('app.version')）
 #   - 作为镜像标签 {image}:1.4.0，同时推送 {image}:latest
 #
-# 环境变量（可选）:
+# 环境变量（可选，优先级高于 --mirror 预设）:
+#   APT_MIRROR          Debian apt 源（如 mirrors.tuna.tsinghua.edu.cn）
+#   APK_MIRROR          Alpine apk 源（如 mirrors.tuna.tsinghua.edu.cn）
+#   NPM_REGISTRY        npm 源（如 https://registry.npmmirror.com）
+#   COMPOSER_MIRROR     Composer 源（如 https://mirrors.aliyun.com/composer/）
 #   HTTP_PROXY / HTTPS_PROXY / NO_PROXY   构建期代理，自动透传给 docker build
+#
+# 国内网络环境推荐:
+#   ./build-and-push.sh --mirror cn
+#   或者全程代理: HTTP_PROXY=http://192.168.0.2:1082 ./build-and-push.sh
 #
 # 前置条件:
 #   1. 已安装 docker（含 buildx 插件）并 docker login 到 Docker Hub
@@ -33,6 +43,7 @@ set -eu
 # ---------- 默认值 ----------
 IMAGE_NAME="llllalex/mybili"
 PLATFORMS="linux/amd64,linux/arm64"
+MIRROR=""
 PUSH=1
 DRY_RUN=0
 REBUILD_BASE=0
@@ -59,6 +70,7 @@ while [ $# -gt 0 ]; do
     case "$1" in
         --image)       IMAGE_NAME="$2"; shift 2 ;;
         --platforms)   PLATFORMS="$2"; shift 2 ;;
+        --mirror)      MIRROR="$2"; shift 2 ;;
         --no-push)     PUSH=0; shift ;;
         --dry-run)     DRY_RUN=1; shift ;;
         --rebuild-base) REBUILD_BASE=1; shift ;;
@@ -83,6 +95,41 @@ echo "$APP_VERSION" | grep -Eq '^[A-Za-z0-9_.-]+$' || die "APP_VERSION 含非法
 # 可选构建参数（优先取进程环境变量，其次 .env；未配置则不传）
 WEBSITE_ID=${WEBSITE_ID:-$(grep -E '^WEBSITE_ID=' "$ENV_FILE" | tail -n 1 | cut -d= -f2- | tr -d '"' | tr -d "'")}
 
+# ---------- 国内镜像源预设（显式环境变量优先于预设） ----------
+if [ -n "$MIRROR" ]; then
+    case "$MIRROR" in
+        cn|tuna)  PRESET_APT="mirrors.tuna.tsinghua.edu.cn";  PRESET_APK="mirrors.tuna.tsinghua.edu.cn" ;;
+        aliyun)   PRESET_APT="mirrors.aliyun.com";            PRESET_APK="mirrors.aliyun.com" ;;
+        ustc)     PRESET_APT="mirrors.ustc.edu.cn";           PRESET_APK="mirrors.ustc.edu.cn" ;;
+        *)        die "未知镜像源预设: $MIRROR（可选 cn/tuna/aliyun/ustc）" ;;
+    esac
+    APT_MIRROR=${APT_MIRROR:-$PRESET_APT}
+    APK_MIRROR=${APK_MIRROR:-$PRESET_APK}
+    NPM_REGISTRY=${NPM_REGISTRY:-https://registry.npmmirror.com}
+    COMPOSER_MIRROR=${COMPOSER_MIRROR:-https://mirrors.aliyun.com/composer/}
+fi
+
+# ---------- 组装公共构建参数（代理 + 镜像源，业务镜像与基础镜像共用） ----------
+PROXY_ARGS=""
+for proxy_var in HTTP_PROXY HTTPS_PROXY NO_PROXY; do
+    eval proxy_val=\${$proxy_var:-}
+    if [ -n "$proxy_val" ]; then
+        PROXY_ARGS="$PROXY_ARGS --build-arg $proxy_var=$proxy_val"
+    fi
+done
+
+MIRROR_ARGS=""
+for mirror_var in APT_MIRROR APK_MIRROR; do
+    eval mirror_val=\${$mirror_var:-}
+    if [ -n "$mirror_val" ]; then
+        MIRROR_ARGS="$MIRROR_ARGS --build-arg $mirror_var=$mirror_val"
+    fi
+done
+
+if [ -n "$MIRROR_ARGS" ] || [ -n "$PROXY_ARGS" ]; then
+    log "国内源/代理参数将同时作用于基础镜像与业务镜像构建"
+fi
+
 log "镜像:      $IMAGE_NAME"
 log "版本:      $APP_VERSION（来源 .env APP_VERSION）"
 log "目标平台:  $PLATFORMS"
@@ -103,7 +150,7 @@ if [ "$REBUILD_BASE" -eq 1 ] || [ -z "$BASE_EXISTS" ]; then
     else
         warn "本地不存在基础镜像 mybili-base:1，自动构建中（首次构建耗时较长）..."
     fi
-    run docker build -f "$ROOT_DIR/Dockerfile.base" -t mybili-base:1 "$ROOT_DIR"
+    run docker build -f "$ROOT_DIR/Dockerfile.base" $MIRROR_ARGS $PROXY_ARGS -t mybili-base:1 "$ROOT_DIR"
 fi
 
 # ---------- 组装 docker buildx build 命令 ----------
@@ -112,13 +159,16 @@ if [ -n "${WEBSITE_ID:-}" ]; then
     BUILD_ARGS="$BUILD_ARGS --build-arg WEBSITE_ID=$WEBSITE_ID"
 fi
 
-# 代理透传（Docker 构建原生支持 *_PROXY 预定义参数）
-for proxy_var in HTTP_PROXY HTTPS_PROXY NO_PROXY; do
-    eval proxy_val=\${$proxy_var:-}
-    if [ -n "$proxy_val" ]; then
-        BUILD_ARGS="$BUILD_ARGS --build-arg $proxy_var=$proxy_val"
+# npm / Composer 源（国内镜像）
+for mirror_var in NPM_REGISTRY COMPOSER_MIRROR; do
+    eval mirror_val=\${$mirror_var:-}
+    if [ -n "$mirror_val" ]; then
+        BUILD_ARGS="$BUILD_ARGS --build-arg $mirror_var=$mirror_val"
     fi
 done
+
+# 代理透传（Docker 构建原生支持 *_PROXY 预定义参数）
+BUILD_ARGS="$BUILD_ARGS $PROXY_ARGS"
 
 TAGS="-t $IMAGE_NAME:latest -t $IMAGE_NAME:$APP_VERSION"
 

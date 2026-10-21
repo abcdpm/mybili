@@ -12,10 +12,12 @@ WORKDIR /downloads
 ARG TARGETPLATFORM
 
 # 安装下载工具
-RUN apt update && apt install -y xz-utils curl wget tar
-# 国内源
-# RUN sed -i 's/deb.debian.org/mirrors.tuna.tsinghua.edu.cn/g' /etc/apt/sources.list.d/debian.sources \
-#     && apt-get update && apt-get install -y xz-utils curl wget tar
+# 可选 --build-arg APT_MIRROR=mirrors.tuna.tsinghua.edu.cn 切换国内 apt 源（国内网络必开）
+ARG APT_MIRROR=
+RUN if [ -n "$APT_MIRROR" ]; then \
+        sed -i "s|deb.debian.org|${APT_MIRROR}|g" /etc/apt/sources.list.d/debian.sources; \
+    fi \
+    && apt-get update && apt-get install -y xz-utils curl wget tar
 
 # 1. 下载 FFMPEG
 # [复用源代码中的逻辑]
@@ -72,15 +74,17 @@ ENV COMPOSER_ALLOW_SUPERUSER=1
 
 # 1. 安装系统依赖库 (Alpine)
 # libpng, libjpeg-turbo, libwebp, freetype 是 GD 库的底层依赖
-RUN apk add --no-cache \
+# 可选 --build-arg APK_MIRROR=mirrors.tuna.tsinghua.edu.cn 切换国内 apk 源
+ARG APK_MIRROR=
+RUN if [ -n "$APK_MIRROR" ]; then \
+        sed -i "s|dl-cdn.alpinelinux.org|${APK_MIRROR}|g" /etc/apk/repositories; \
+    fi \
+    && apk add --no-cache \
     libpng libpng-dev \
     libjpeg-turbo libjpeg-turbo-dev \
     libwebp libwebp-dev \
     freetype freetype-dev \
     libavif libavif-dev
-# 国内源
-# RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.tuna.tsinghua.edu.cn/g' /etc/apk/repositories \
-#     && apk add --no-cache libpng libpng-dev libjpeg-turbo libjpeg-turbo-dev libwebp libwebp-dev freetype freetype-dev libavif libavif-dev
 
 # 安装 Composer
 COPY --from=composer/composer:2-bin /composer /usr/bin/composer
