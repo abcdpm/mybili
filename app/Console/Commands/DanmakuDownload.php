@@ -85,7 +85,7 @@ class DanmakuDownload extends Command
         $totalParts = VideoPart::count();
         $downloadedParts = VideoPart::whereNotNull('danmaku_downloaded_at')->count();
         $pendingParts = $totalParts - $downloadedParts;
-        $totalDanmaku = Danmaku::count();
+        $totalDanmaku = Danmaku::count() + app(\App\Services\Danmaku\DanmakuFileStore::class)->totalFileCount();
 
         // 计算覆盖率百分比
         $percent = $totalParts > 0 ? round(($downloadedParts / $totalParts) * 100, 2) : 0;

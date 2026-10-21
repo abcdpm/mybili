@@ -23,10 +23,11 @@ class CalculateSystemStats extends Command
         $this->info('开始全量统计系统数据...');
 
         // 1. 统计并持久化数量 (包含新增的评论和表情包)
+        // 弹幕数量 = 数据库遗留行（老数据）+ 文件化弹幕（danmaku_files 索引）
         Cache::forever('stat_favorite_lists', FavoriteList::count());
         Cache::forever('stat_videos', Video::count());
         Cache::forever('stat_video_parts', VideoPart::count());
-        Cache::forever('stat_danmaku', Danmaku::count());
+        Cache::forever('stat_danmaku', Danmaku::count() + app(\App\Services\Danmaku\DanmakuFileStore::class)->totalFileCount());
         Cache::forever('stat_comments', Comment::count());
         Cache::forever('stat_emotes', Emote::count());
 

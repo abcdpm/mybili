@@ -1,10 +1,10 @@
 <?php
 namespace App\Services\VideoManager\Actions\Danmaku;
 
-use App\Models\Danmaku;
 use App\Models\Video;
 use App\Models\VideoPart;
 use App\Services\BilibiliService;
+use App\Services\Danmaku\DanmakuFileStore;
 use App\Services\DownloadFilterService;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
@@ -18,49 +18,26 @@ class DownloadDanmakuAction
     ) {
     }
 
+    /**
+     * 保存弹幕：写入 JSON.gz 文件（按 cid），并自动清理该 cid 的数据库遗留行。
+     *
+     * 性能说明：去重在内存中 O(1) 完成（哈希索引），替代了旧版
+     * 全量加载 id + in_array 的 O(n²) 实现；不再逐条写数据库。
+     */
     protected function saveDanmaku(string $cid, array $danmaku): void
     {
-        $danmakuIds = Danmaku::where('cid', $cid)->select([
-            'id',
-        ])->get();
-        $danmakuIds = $danmakuIds->pluck('id')->toArray();
-
-        // 过滤出新增的数据
-        $insertData = array_filter($danmaku, function ($item) use ($danmakuIds) {
-            // 内容为空的也不要
-            if (empty($item['content'])) {
-                return false;
-            }
-            return ! in_array($item['id'], $danmakuIds);
-        });
-
-        // 释放内存
-        unset($danmakuIds);
-
         $start_time = microtime(true);
-        $videoPart  = VideoPart::where('cid', $cid)->first();
-        $insertData = array_map(function ($item) use ($videoPart) {
-            $item['video_id'] = $videoPart->video_id;
-            return $item;
-        }, $insertData);
-        Log::info('Save danmaku count, array_map time', ['time' => microtime(true) - $start_time]);
 
-        $start_time = microtime(true);
-        // 分批插入数据，每批1000条
-        foreach (array_chunk($insertData, 1000) as $chunk) {
-            $videoPart->danmakus()->createMany($chunk);
-            unset($chunk);
-        }
+        $videoPart = VideoPart::where('cid', $cid)->first();
+        $videoId   = $videoPart ? (int) $videoPart->video_id : null;
 
-        // 释放原始数据
-        unset($insertData);
+        $count = app(DanmakuFileStore::class)->save($cid, $danmaku, $videoId);
 
-        $videoPart->danmakus()->update([
-            'video_id' => $videoPart->video_id,
+        Log::info('Save danmaku count, time', [
+            'time'  => microtime(true) - $start_time,
+            'count' => $count,
+            'cid'   => $cid,
         ]);
-
-        unset($videoPart);
-        Log::info('Save danmaku count, time', ['time' => microtime(true) - $start_time]);
     }
 
     public function execute(VideoPart $videoPart): void
