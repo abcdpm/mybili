@@ -50,6 +50,9 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(FavoriteServiceInterface::class, FavoriteService::class);
         $this->app->singleton(VideoServiceInterface::class, VideoService::class);
 
+        // 表情包解析器：单例缓存解析结果，避免序列化评论列表时重复查询
+        $this->app->singleton(\App\Services\Comment\EmoteResolver::class);
+
         // 颜色提取服务 - 使用配置文件中的参数
         $this->app->singleton(ColorExtractionService::class, function ($app) {
             return new ColorExtractionService(

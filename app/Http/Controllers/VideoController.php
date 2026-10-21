@@ -194,17 +194,32 @@ class VideoController extends Controller
             // 【关键修复】必须加上这一行！
             // Laravel 会自动统计子评论数量，并生成一个 replies_count 字段传给前端
             ->withCount('replies') // 利用 idx_root_like 索引，瞬间查出子评论数
-            ->with(['replies' => function($query) {
-                // 【核心优化】限制每次附带的子评论数量，避免无限拉取。
-                // 剩余的子评论应由前端提供“展开更多回复”的按钮来异步请求
-                $query->orderBy('like', 'desc')->limit(5);
-            }])
+            // 用户信息归一化表预加载，序列化时零额外查询
+            ->with('commentUser')
+            // 【核心修复】旧写法 with(['replies' => fn($q) => $q->limit(5)]) 的 limit
+            // 作用于整批预加载查询，整页 20 条主评论总共只会带出 5 条回复；
+            // 现改为每条主评论独立装载「点赞前 5 条」，行为符合预期且响应结构不变。
+            // 剩余的子评论由前端“展开更多回复”按钮异步请求 /comments/{rootId}/replies
             // 【关键修改】优先按 is_top 倒序 (true=1 在前)，然后按点赞倒序
             // 这里的排序会命中 idx_video_root_top_like 索引，不再走文件排序
             ->orderBy('is_top', 'desc')
             ->orderBy('like', 'desc')
             // paginate 会自动执行一个 count() 查询并返回 total 字段
             ->paginate($perPage);
+
+        // 每条主评论装载前 5 条高赞回复（idx_root_like 索引点查，成本极低）
+        foreach ($comments as $comment) {
+            $comment->setRelation('replies', Comment::where('root', $comment->rpid)
+                ->with('commentUser') // 回复同样预加载用户信息，序列化零额外查询
+                ->orderBy('like', 'desc')
+                ->limit(5)
+                ->get());
+        }
+
+        // 批量预热表情包解析缓存（主评论 + 回复，每页一次查询）
+        $this->primeEmoteResolver(
+            $comments->getCollection()->merge($comments->getCollection()->pluck('replies')->flatten())
+        );
 
         return response()->json($comments);
     }
@@ -215,10 +230,37 @@ class VideoController extends Controller
         $perPage = $request->input('per_page', 10); 
         
         $replies = Comment::where('root', $rootId)
+            ->with('commentUser')
             ->orderBy('like', 'desc')
             ->paginate($perPage); // 直接使用 paginate 进行标准分页
 
+        // 批量预热表情包解析缓存
+        $this->primeEmoteResolver($replies->getCollection());
+
         return response()->json($replies);
+    }
+
+    /**
+     * 批量预热表情包解析缓存：新版评论的表情包以 key 列表存储，
+     * 序列化时需要按 text 反查 emotes 表，预热后整页仅一次查询。
+     */
+    private function primeEmoteResolver($comments): void
+    {
+        $texts = [];
+        foreach ($comments as $comment) {
+            $emotes = $comment->emotes;
+            if (is_array($emotes) && array_is_list($emotes)) {
+                foreach ($emotes as $key) {
+                    if (is_string($key) && $key !== '') {
+                        $texts[] = $key;
+                    }
+                }
+            }
+        }
+
+        if (! empty($texts)) {
+            app(\App\Services\Comment\EmoteResolver::class)->prime($texts);
+        }
     }
 
     // 获取视频标签的接口

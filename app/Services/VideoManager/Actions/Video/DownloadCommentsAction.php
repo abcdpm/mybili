@@ -3,6 +3,7 @@
 namespace App\Services\VideoManager\Actions\Video;
 
 use App\Models\Comment;
+use App\Models\CommentUser;
 use App\Models\Video;
 use App\Services\BilibiliService;
 use App\Services\CommentImageService; // [新增]
@@ -129,6 +130,40 @@ class DownloadCommentsAction
             if (isset($data['avatar']) && !empty($data['avatar'])) {
                 $data['avatar'] = $this->imageService->processAvatar($data['avatar']);
             }
+
+            // 4. 【瘦身】用户信息归一化：写入 comment_users（按 mid 一行），
+            //    评论行不再冗余存储 uname/avatar，从根本上消除千万级重复数据
+            $userId = (int) ($data['mid'] ?? 0);
+            if ($userId > 0) {
+                CommentUser::query()->upsert(
+                    [[
+                        'mid'        => $userId,
+                        'uname'      => (string) ($data['uname'] ?? ''),
+                        'avatar'     => (string) ($data['avatar'] ?? ''),
+                        'updated_at' => now(),
+                    ]],
+                    ['mid'],
+                    ['uname', 'avatar', 'updated_at']
+                );
+            }
+
+            // 5. 【瘦身】表情包映射压缩为 key 列表（展示时经 EmoteResolver 还原为完整映射）。
+            //    仅当全部表情都已本地化（值为双路径数组）时才压缩；
+            //    存在远程 URL 兜底值时保留完整映射，避免展示丢失。
+            if (! empty($data['emotes']) && is_array($data['emotes'])) {
+                $allLocalized = ! in_array(false, array_map(
+                    fn ($v) => is_array($v) && isset($v['webp']),
+                    $data['emotes']
+                ), true);
+                if ($allLocalized) {
+                    $data['emotes'] = array_values(array_keys($data['emotes']));
+                }
+            }
+
+            // 6. 评论行内的 uname/avatar 置空（真实数据已归一化到 comment_users；
+            //    历史评论行的旧值在回填完成前仍可兜底展示）
+            $data['uname']  = '';
+            $data['avatar'] = '';
 
             // 写入主评论
             Comment::updateOrCreate(
