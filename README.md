@@ -176,3 +176,89 @@ https://github.com/ellermister/mybili-cookie
 - 全量频播放量和播放时长信息缓存 状态查询: `php artisan app:update-video-stats --status`
 - 扫描磁盘上已存在的手机版视频并同步到数据库（本地转码后同步到数据库）: `php artisan app:sync-mobile-videos`
 - 重算系统信息页 - 全量计算系统数据库与媒体文件使用情况并存入缓存: `php artisan app:calculate-system-stats`
+
+## 🚀 版本升级指南（老用户必读）
+
+从旧版本升级到本版本**无需任何手动数据操作**，直接拉取新镜像重启即可平滑过渡：
+所有数据库变更均为「加法」（新增索引/新表），读写路径对新旧数据双格式兼容，
+**不会删除或改写你已有的视频、弹幕、评论数据**。
+
+升级后建议按需执行以下可选优化（均为独立命令，可随时中断、反复执行）：
+
+| 命令 | 作用 | 是否改动数据 |
+|---|---|---|
+| `php artisan app:danmaku-migrate-to-files` | 将数据库历史弹幕迁移到 JSON.gz 文件（DB 预计瘦身约 40-50%） | 迁移（先写文件校验后才清行，不丢数据） |
+| `php artisan app:comments-backfill-users` | 把评论中的用户名/头像回填到 `comment_users` 归一化表 | 只加不删 |
+| `php artisan app:comments-reclaim-space [--vacuum]` | 清空评论行内冗余 uname/avatar、压缩表情映射（canonical 数据已保留） | 单向瘦身（数据不丢失） |
+| `php artisan app:cleanup-orphan-data` | 报告历史遗留的软删除视频与孤儿关联数据；加 `--force` 才清理 | 默认只报告 |
+| `php artisan app:database-maintenance --init\|--analyze\|--vacuum` | SQLite WAL 初始化 / 统计信息 / 空间回收（已纳入定时任务） | 无 |
+
+> 💡 弹幕文件默认存放于 `storage/app/public/danmaku`（官方 docker-compose 已映射
+> `./data:/app/storage/app/public`，容器升级不丢数据）。如需自定义位置，
+> 请设置环境变量 `DANMAKU_PATH` 并自行映射持久化目录。
+
+### 📦 备份建议
+
+收藏的视频属于不可再生资源（B 站稿件随时可能失效/被删），请务必定期备份：
+
+1. **数据库**（含评论/收藏元数据）：停机复制 `database.sqlite`，或在线执行
+   `sqlite3 /data/database.sqlite ".backup /backup/database-$(date +%F).sqlite"`
+2. **弹幕文件**：备份 `storage/app/public/danmaku` 目录
+3. **媒体文件**：视频/图片目录（`storage/app/public/videos|images|medias` 等）按容量规划备份
+
+### 🔒 隐私声明
+
+- **使用情况统计（默认关闭，严格 opt-in）**：仅当你在「设置 → 使用情况统计」显式开启后，
+  程序才会每日上报一条匿名事件（随机匿名 ID、程序版本、运行环境、PHP 版本）到 umami
+  统计服务，用于改进项目。**不包含** B 站账号、Cookie、视频、评论等任何业务数据。
+  随时可在设置页关闭，或移除 `WEBSITE_ID` 环境变量彻底禁用。
+- **Cookie 存储**：你的 B 站 Cookie 仅保存在本地数据库 `settings` 表中，
+  用于访问 B 站 API，不会上传到任何第三方服务。
+- **日志**：`storage/logs` 中的本地日志可能包含视频标题等调试信息，仅供排障使用，
+  可在「日志页面」随时清空。
+
+## 🏗️ 构建与发布镜像（维护者）
+
+项目根目录提供 `build-and-push.sh` 一键构建并发布 Docker 镜像：
+
+```bash
+# 1. 先登录 Docker Hub
+docker login
+
+# 2. 构建并推送（自动打 :latest 与 :版本号 两个标签）
+./build-and-push.sh
+```
+
+**版本号来源**：`.env` 中的 `APP_VERSION`（如 `APP_VERSION=1.4.0`），脚本会将其：
+
+1. 作为 `--build-arg APP_VERSION` 传入镜像（决定系统信息页显示的版本号）；
+2. 作为镜像标签与 `latest` **一并推送**，例如：
+   `abcdpm/mybili:1.4.0` 与 `abcdpm/mybili:latest`。
+
+发布新版本时只需修改 `.env` 中的 `APP_VERSION` 后重新执行脚本。
+
+**常用选项：**
+
+| 选项 | 说明 |
+|---|---|
+| `--no-push` | 仅本地构建不推送（多平台自动降级为当前平台） |
+| `--platforms STR` | 目标平台，默认 `linux/amd64,linux/arm64`（与 CI 一致） |
+| `--image NAME` | 镜像名，默认 `abcdpm/mybili` |
+| `--rebuild-base` | 强制重建基础镜像 `mybili-base:1`（默认缺失时才自动构建） |
+| `--cache` | 启用 Docker Hub registry 构建缓存（`:buildcache`） |
+| `--dry-run` | 只打印将执行的命令，不实际执行 |
+
+**其他说明：**
+
+- 前置依赖：Docker（含 buildx 插件）；首次构建会自动构建基础镜像 `mybili-base:1`（耗时较长，之后有缓存）；
+- `.env` 中配置 `WEBSITE_ID`（或以环境变量传入）会作为构建参数注入镜像，用于匿名使用统计（默认不开启，详见隐私声明）；
+- 构建期如需代理，可设置 `HTTP_PROXY` / `HTTPS_PROXY` 环境变量，脚本会自动透传；
+- CI（GitHub Actions）在推送 main / tag 时也会自动构建多架构镜像，本地脚本与其构建参数保持一致。
+
+## 🧰 数据库性能优化（本版本新增）
+
+- SQLite 自动启用 **WAL 模式 + busy_timeout(5s)**：多进程并发读写不再频繁
+  `database is locked`（覆盖 Web / 队列 / 命令的每一条连接）。
+- **每日 03:40** 自动 `PRAGMA optimize` 更新查询统计信息；
+  **每周日 05:45** 自动 `VACUUM + ANALYZE` 回收数据库空间。
+- 弹幕按 cid 存储为 `JSON.gz` 单文件后，播放弹幕无需再从数据库反序列化大结果集。

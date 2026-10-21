@@ -272,8 +272,36 @@ class SystemController extends Controller
                     }
                     break;
 
-                case 'calc-stats': 
+                case 'calc-stats':
                     Artisan::call('app:calculate-system-stats');
+                    break;
+
+                case 'danmaku-migrate':
+                    // 弹幕迁移出数据库（文件化），可分批反复执行
+                    Artisan::call('app:danmaku-migrate-to-files', [
+                        '--limit' => (int) $request->input('limit', 200),
+                    ]);
+                    break;
+
+                case 'comments-backfill':
+                    Artisan::call('app:comments-backfill-users');
+                    break;
+
+                case 'comments-reclaim':
+                    Artisan::call('app:comments-reclaim-space', [
+                        '--vacuum' => $request->boolean('vacuum'),
+                    ]);
+                    break;
+
+                case 'db-vacuum':
+                    Artisan::call('app:database-maintenance', ['--vacuum' => true]);
+                    break;
+
+                case 'cleanup-orphans':
+                    // 默认仅报告；需显式传 force=1 才真正清理
+                    Artisan::call('app:cleanup-orphan-data', [
+                        '--force' => $request->boolean('force'),
+                    ]);
                     break;
 
                 default:

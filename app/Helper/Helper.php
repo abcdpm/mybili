@@ -125,7 +125,9 @@ function get_relative_path(string $absolutePath): string
 
 function usage_analytics_enabled(): bool
 {
-    return app(SettingsService::class)->get(SettingKey::USAGE_ANALYTICS_ENABLED->value) != 'off';
+    // 严格 opt-in：仅当用户在设置中显式开启时才启用使用情况统计；
+    // 未设置 / 关闭 / 配置缺失均视为关闭（保护隐私，见 README「隐私声明」）
+    return app(SettingsService::class)->get(SettingKey::USAGE_ANALYTICS_ENABLED->value) === 'on';
 }
 
 
