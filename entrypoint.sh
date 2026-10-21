@@ -31,6 +31,12 @@ if [ ! -d "/app/storage/app/public/comments" ]; then
     mkdir -p /app/storage/app/public/comments
 fi
 
+# 确保弹幕文件目录存在（弹幕按 cid 存储为 JSON.gz 单文件）
+if [ ! -d "/app/storage/app/public/danmaku" ]; then
+    echo "📁 Creating danmaku storage directory..."
+    mkdir -p /app/storage/app/public/danmaku
+fi
+
 # ⚠️ 权限修正：确保所有 storage 目录不仅存在，而且可写
 # 如果容器以 root 运行，这步可能不是强制的，但为了健壮性建议加上
 # chmod -R 777 /app/storage/app/public
@@ -55,7 +61,12 @@ fi
 # === 2. 自动执行数据库迁移 ===
 # --force 参数用于在生产模式下强制执行，不弹出确认提示
 echo "Running database migrations..."
+# 迁移前先初始化 WAL，保证大表索引构建（如 danmaku.video_id）期间的并发与稳定性
+php artisan app:database-maintenance --init
 php artisan migrate --force
+
+# === 【新增】SQLite 并发优化初始化（WAL / busy_timeout 等）===
+php artisan app:database-maintenance --init
 
 # === 【新增】执行数据填充 (应用默认设置) ===
 # --force 标志用于在生产环境强制运行

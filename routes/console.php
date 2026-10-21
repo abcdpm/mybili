@@ -1,7 +1,6 @@
 <?php
 
 use App\Enums\SettingKey;
-use App\Jobs\SyncCoverThumbnailsJob;
 use App\Services\SettingsService;
 use App\Services\VideoManager\Contracts\VideoServiceInterface;
 use Illuminate\Support\Facades\Artisan;
@@ -203,3 +202,28 @@ Schedule::command('app:update-video-stats --auto-update --percent=3 --sleep=5')
 Schedule::command('app:fix-freeze-status')
     ->daily()
     ->withoutOverlapping();
+
+// ==========================================================================
+// 16. SQLite 数据库轻量维护（统计信息更新）
+// ==========================================================================
+// 作用：执行 PRAGMA optimize，让 SQLite 查询优化器获得最新的表统计信息，
+//      避免千万级数据（评论/弹幕）下查询计划劣化。
+//      该操作轻量且自动跳过不需要 ANALYZE 的表。
+// 频率：每天凌晨 03:40 执行一次
+Schedule::command('app:database-maintenance --analyze')
+    ->name('database-analyze')
+    ->withoutOverlapping()
+    ->dailyAt('03:40');
+
+// ==========================================================================
+// 17. SQLite 数据库深度维护（VACUUM 空间回收）
+// ==========================================================================
+// 作用：WAL checkpoint + VACUUM 回收数据库空闲页 + ANALYZE。
+//      大库（数 GB 级）执行需要几分钟，期间写入会被短暂阻塞，
+//      队列任务具备重试能力，因此安排在每周日凌晨低峰期。
+// 频率：每周日凌晨 05:45 执行一次
+// 如需关闭：可删除本条目或调整执行频率
+Schedule::command('app:database-maintenance --vacuum')
+    ->name('database-vacuum')
+    ->withoutOverlapping()
+    ->weeklyOn(0, '05:45');

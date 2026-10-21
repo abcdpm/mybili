@@ -37,6 +37,13 @@ return [
             'database' => env('DB_DATABASE', database_path('database.sqlite')),
             'prefix' => '',
             'foreign_key_constraints' => env('DB_FOREIGN_KEYS', true),
+            // ==== 并发与性能优化（由 App\Database\PragmaConnector 在每个连接上自动执行）====
+            // WAL 模式：多进程（Web + 队列 Worker）并发读写不再互相阻塞（journal_mode 持久化在库文件中）
+            'journal_mode' => env('DB_JOURNAL_MODE', 'wal'),
+            // 写锁竞争时等待 5 秒再报 database is locked，大幅降低队列并发写入失败率
+            'busy_timeout' => env('DB_BUSY_TIMEOUT', 5000),
+            // WAL 模式下的推荐级别，兼顾安全与写入性能
+            'synchronous' => env('DB_SYNCHRONOUS', 'normal'),
         ],
 
         'mysql' => [
