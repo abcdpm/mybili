@@ -48,7 +48,7 @@ class CommentsReclaimSpace extends Command
                     "UPDATE comments SET uname = '', avatar = ''
                      WHERE id BETWEEN ? AND ?
                        AND (uname != '' OR avatar != '')
-                       AND mid IN (SELECT mid FROM comment_users)",
+                       AND EXISTS (SELECT 1 FROM comment_users cu WHERE cu.mid = comments.mid)",
                     [$lo, $hi]
                 );
                 $this->line(sprintf('  进度 id <= %d，已清理 %d 行', $hi, $cleared));
