@@ -261,6 +261,48 @@ docker login
 - 构建期如需代理，可设置 `HTTP_PROXY` / `HTTPS_PROXY` 环境变量，脚本会自动透传；
 - CI（GitHub Actions）在推送 main / tag 时也会自动构建多架构镜像，本地脚本与其构建参数保持一致。
 
+### ⚡ 离线包加速构建（强烈推荐国内网络使用）
+
+构建所需的 **Debian 包 / Alpine 包 / 工具二进制（ffmpeg、yt-dlp、frankenphp、supervisord）/
+npm / Composer 依赖** 可预先下载并持久化到本地 `docker-packages/` 目录（自动 gitignore），
+之后构建时直接从本地复制安装，**不再受境外网络与 GitHub 抽风影响**：
+
+```bash
+# 1. 预取离线包（默认 amd64；约 2-3GB，增量刷新只下载变化部分）
+./fetch-packages.sh --mirror cn
+
+# 2. 正常构建（自动探测到本地包 → 走离线安装；目录为空 → 自动回退在线，原方案不变）
+./build-and-push.sh --mirror cn
+
+# 或一步到位：构建前自动预取
+./build-and-push.sh --mirror cn --prefetch
+```
+
+**工作原理与新鲜度判断（MD5/ETag）：**
+
+| 包类型 | 新鲜度判断 | 说明 |
+|---|---|---|
+| apt .deb | apt 官方索引 **MD5/SHA256** | 上游安全更新自动表现为哈希变化，仅重下变化的包 |
+| apk .apk | 包版本 + manifest 记录 | 在 `phpswoole` 运行时镜像内拉取，alpine 版本严格一致 |
+| 工具二进制 | 固定版本 MD5 防损坏；yt-dlp(latest) 用 **ETag/Last-Modified** | 变化才重下 |
+| npm / Composer | lockfile 完整性哈希（sha512/sha1） | lock 变化自动增量补全 |
+
+**常用命令：**
+
+```bash
+./fetch-packages.sh --check        # 只校验新鲜度并输出报告（不下载）
+./fetch-packages.sh --force        # 强制全量刷新
+./fetch-packages.sh --target tools # 只处理工具二进制
+./build-and-push.sh --offline      # 严格离线：包不全直接报错（防止误回退在线）
+```
+
+**兼容性保证：**
+
+- `docker-packages/` 为空（如全新 clone）时，Dockerfile 自动回退在线安装，**行为与旧版完全一致**；
+- 目录骨架由 `.gitkeep` 保证永远存在，构建 `COPY` 永不失败；包内容全部 gitignore 不入库；
+- 任何单个包缺失/损坏/安装失败，该步骤自动回退在线，**不会导致构建失败**；
+- 预取失败同样不阻塞（提示后继续，构建走在线）。
+
 ### 🌏 国内网络环境构建
 
 构建时需访问 Debian/npm/Composer/GitHub 等境外源，国内网络直连容易超时

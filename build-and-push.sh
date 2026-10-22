@@ -12,6 +12,8 @@
 #   --platforms STR     目标平台，逗号分隔（默认 linux/amd64,linux/arm64）
 #   --mirror NAME       国内镜像源预设: cn/tuna/aliyun/ustc（国内网络环境建议开启，
 #                       等价于设置 APT_MIRROR/APK_MIRROR/NPM_REGISTRY/COMPOSER_MIRROR）
+#   --prefetch          构建前自动运行 fetch-packages.sh 预取离线包（首次建议）
+#   --offline           严格离线模式：要求本地离线包齐全，否则报错退出
 #   --cache             启用 Docker Hub registry 构建缓存 (:buildcache)
 #   --no-push           只构建不推送（多平台自动降级为当前平台 --load）
 #   --dry-run           打印命令后退出
@@ -51,6 +53,8 @@ MIRROR=""
 PUSH=1
 DRY_RUN=0
 USE_CACHE=0
+PREFETCH=0
+OFFLINE=0
 
 # ---------- 工具函数 ----------
 log()  { printf '\033[1;36m[mybili-build]\033[0m %s\n' "$*"; }
@@ -76,6 +80,8 @@ while [ $# -gt 0 ]; do
         --mirror)      MIRROR="$2"; shift 2 ;;
         --no-push)     PUSH=0; shift ;;
         --dry-run)     DRY_RUN=1; shift ;;
+        --prefetch)    PREFETCH=1; shift ;;
+        --offline)     OFFLINE=1; shift ;;
         --cache)       USE_CACHE=1; shift ;;
         -h|--help)     usage ;;
         *)             die "未知参数: $1（用 --help 查看用法）" ;;
@@ -172,6 +178,29 @@ if [ "$DRY_RUN" -eq 0 ]; then
     docker run --privileged --rm tonistiigi/binfmt --install" ;;
             esac ;;
     esac
+fi
+
+# ---------- 离线包预取 / 严格离线校验 ----------
+if [ "$PREFETCH" -eq 1 ]; then
+    log "预取构建离线包（fetch-packages.sh）..."
+    for _p in $(printf '%s' "$PLATFORMS" | tr ',' ' '); do
+        _a="${_p#linux/}"
+        _mirror_arg=""
+        [ -n "$MIRROR" ] && _mirror_arg="--mirror $MIRROR"
+        run "$ROOT_DIR/fetch-packages.sh" --arch "$_a" $_mirror_arg || warn "预取 $_a 失败（构建将回退在线）"
+    done
+fi
+
+if [ "$OFFLINE" -eq 1 ]; then
+    for _p in $(printf '%s' "$PLATFORMS" | tr ',' ' '); do
+        _a="${_p#linux/}"
+        ls "$ROOT_DIR/docker-packages/debian/$_a"/*.deb >/dev/null 2>&1 \
+            || die "严格离线模式：缺少 docker-packages/debian/$_a/ 离线包，请先运行 ./fetch-packages.sh --arch $_a"
+        _tool_count=$(find "$ROOT_DIR/docker-packages/tools" -type f ! -name '.gitkeep' 2>/dev/null | wc -l | tr -d ' ')
+        [ "$_tool_count" -ge 4 ] \
+            || die "严格离线模式：docker-packages/tools/ 工具不全（需要 ffmpeg/yt-dlp/frankenphp/supervisord），请先运行 ./fetch-packages.sh"
+    done
+    log "严格离线模式：本地离线包校验通过 ✅"
 fi
 
 # ---------- 组装 docker buildx build 命令 ----------

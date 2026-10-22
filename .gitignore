@@ -28,3 +28,8 @@ frankenphp-worker.php
 app/Console/Commands/TestCommand.php
 
 README2.md
+
+# Docker 构建离线包缓存（内容不入库；目录骨架由 .gitkeep 保留，保证构建 COPY 不失败）
+docker-packages/**
+!docker-packages/**/
+!docker-packages/**/.gitkeep
