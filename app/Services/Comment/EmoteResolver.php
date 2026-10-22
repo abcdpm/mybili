@@ -83,13 +83,29 @@ class EmoteResolver
      *
      * @return array{webp: string, raw: string}
      */
+    /**
+     * 由 emotes.filename 派生 webp/raw 双路径（与 CommentImageService::downloadAndSave 的返回结构保持一致）。
+     *
+     * 真实存储分两类：
+     *  1) 普通图：原图 md5.png 与压缩图 md5.webp 双文件并存，filename 存 md5.webp；
+     *  2) 动图（gif/apng 等）：优化器跳过转换、单文件保存（如 md5.gif），无 .webp 侧车文件。
+     * 旧实现一律派生 base.webp —— 对动图会指向不存在的文件导致裂图；
+     * 现按扩展名区分：非 .webp 文件名则 webp/raw 都指向真实文件（gif 动图正常播放）。
+     */
     private function toDualPaths(string $filename): array
     {
+        if (! str_ends_with($filename, '.webp')) {
+            return [
+                'webp' => '/storage/emotes/'.$filename,
+                'raw' => '/storage/emotes/'.$filename,
+            ];
+        }
+
         $base = pathinfo($filename, PATHINFO_FILENAME);
 
         return [
-            'webp' => '/storage/emotes/' . $base . '.webp',
-            'raw'  => '/storage/emotes/' . $filename,
+            'webp' => '/storage/emotes/'.$base.'.webp',
+            'raw' => '/storage/emotes/'.$filename,
         ];
     }
 }
