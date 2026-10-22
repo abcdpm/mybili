@@ -1,10 +1,12 @@
 <?php
+
 namespace App\Enums;
 
-enum SettingKey: string {
-    case FAVORITE_SYNC_ENABLED            = 'favorite_sync_enabled';
-    case VIDEO_DOWNLOAD_ENABLED           = 'video_download_enabled';
-    case DANMAKU_DOWNLOAD_ENABLED         = 'danmaku_download_enabled';
+enum SettingKey: string
+{
+    case FAVORITE_SYNC_ENABLED = 'favorite_sync_enabled';
+    case VIDEO_DOWNLOAD_ENABLED = 'video_download_enabled';
+    case DANMAKU_DOWNLOAD_ENABLED = 'danmaku_download_enabled';
     case MULTI_PARTITION_DOWNLOAD_ENABLED = 'multi_partition_download_enabled';
     case HUMAN_READABLE_NAME_ENABLED = 'human_readable_name_enabled';
 
@@ -14,15 +16,21 @@ enum SettingKey: string {
     case USAGE_ANALYTICS_ENABLED = 'usage_analytics_enabled';
 
     case FAVORITE_EXCLUDE = 'fav_exclude';
-    case NAME_EXCLUDE     = 'name_exclude';
-    case SIZE_EXCLUDE     = 'size_exclude';
+    case NAME_EXCLUDE = 'name_exclude';
+    case SIZE_EXCLUDE = 'size_exclude';
     case DURATION_VIDEO_EXCLUDE = 'duration_video_exclude';
     case DURATION_VIDEO_PART_EXCLUDE = 'duration_video_part_exclude';
     case FAV_TIME_EXCLUDE = 'fav_time_exclude';
 
-
     case INSTALLED_DATETIME = 'installed_datetime';
     case COOKIES_CONTENT = 'cookies_content';
+
+    // 定时任务配置（JSON：task_key => {enabled, frequency, time}，见 ScheduleConfigService::TASKS）
+    case SCHEDULED_TASKS = 'scheduled_tasks';
+    // 评论下载配置（JSON：limit/incremental/auto_update/percent/max_videos/interval/sleep）
+    case COMMENT_DOWNLOAD_CONFIG = 'comment_download_config';
+    // 转码配置（JSON：hwaccel/quality/preset）
+    case TRANSCODE_CONFIG = 'transcode_config';
 
     // Telegram Bot 设置
     case TELEGRAM_BOT_API_URL = 'telegram_bot_api_url';
@@ -51,7 +59,7 @@ enum SettingKey: string {
 
             self::INSTALLED_DATETIME => '安装日期时间',
             self::COOKIES_CONTENT => 'Cookies 内容',
-            
+
             // Telegram Bot 设置
             self::TELEGRAM_BOT_API_URL => 'Telegram Bot API URL',
             self::TELEGRAM_BOT_ENABLED => 'Telegram Bot 启用',

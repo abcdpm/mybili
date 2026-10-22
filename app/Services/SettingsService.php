@@ -5,11 +5,10 @@ namespace App\Services;
 use App\Models\Setting;
 
 /**
- * 系统设置读写服务（settings 表 + 请求级记忆缓存）。
+ * 系统设置读写服务（settings 表，key/value JSON 编码存储）。
  *
- * 说明：get() 命中实例缓存后不再查表（单请求内多处读取零成本）；
- * set() 写表并同步缓存，settings 以 key/value（JSON 编码）存储，
- * 默认值由 SettingsController::presets() 提供（无库行时返回预设，保证 API 形状稳定）。
+ * 说明：get() 读不到时返回 null（调用方/控制器 presets() 提供默认值，保证 API 形状稳定）；
+ * put() 走 updateOrCreate 幂等写入。定时任务配置等复合配置以 JSON 数组整体存取。
  */
 class SettingsService
 {

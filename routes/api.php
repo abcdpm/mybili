@@ -24,6 +24,8 @@ Route::post('/cookie/upload', [CookieController::class, 'uploadCookieFile']);
 Route::get('/settings', [SettingsController::class, 'getSettings']);
 Route::post('/settings', [SettingsController::class, 'saveSettings']);
 Route::post('/settings/test-telegram', [SettingsController::class, 'testTelegramConnection']);
+// 定时任务注册表元数据（任务名/中文说明/默认频率/当前配置），供定时任务配置页使用
+Route::get('/system/scheduled-tasks', [SettingsController::class, 'scheduledTasks']);
 
 Route::apiResource('/subscription', SubscriptionController::class)->only(['index', 'store', 'update', 'destroy', 'show']);
 

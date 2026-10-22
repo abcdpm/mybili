@@ -55,6 +55,24 @@ class SettingsController extends Controller
             SettingKey::TELEGRAM_BOT_ENABLED->value => 'off',
             SettingKey::TELEGRAM_BOT_TOKEN->value => '',
             SettingKey::TELEGRAM_CHAT_ID->value => '',
+            // 定时任务配置：空数组表示全部按注册表默认运行（见 ScheduleConfigService）
+            SettingKey::SCHEDULED_TASKS->value => [],
+            // 评论下载配置：默认值与旧版命令行参数一致（auto-update 3% + 增量 20 条）
+            SettingKey::COMMENT_DOWNLOAD_CONFIG->value => [
+                'auto_update' => true,
+                'percent' => 3,
+                'incremental' => 20,
+                'limit' => 0,
+                'max_videos' => 0,
+                'interval' => 0,
+                'sleep' => 0,
+            ],
+            // 转码配置：默认值与 TranscodeVideoJob 旧硬编码一致
+            SettingKey::TRANSCODE_CONFIG->value => [
+                'hwaccel' => 'auto',
+                'quality' => 26,
+                'preset' => 'veryfast',
+            ],
         ];
 
         foreach ($presets as $key => $value) {
@@ -65,6 +83,20 @@ class SettingsController extends Controller
         }
 
         return response()->json($presets);
+    }
+
+    /**
+     * 定时任务注册表元数据（第 14 项：定时任务配置页）。
+     *
+     * 返回每个任务的任务键、中文名称、说明、默认频率与当前生效配置；
+     * 保存走 POST /settings 的 scheduled_tasks 字段，此处只读。
+     */
+    public function scheduledTasks()
+    {
+        return response()->json([
+            'frequencies' => array_keys(\App\Services\ScheduleConfigService::FREQUENCIES),
+            'tasks' => app(\App\Services\ScheduleConfigService::class)->describe(),
+        ]);
     }
 
     public function saveSettings(Request $request)
@@ -83,8 +115,8 @@ class SettingsController extends Controller
             SettingKey::DOWNLOAD_COMMENTS_ENABLED->value => 'required|string|in:on,off',
 
             SettingKey::NAME_EXCLUDE->value => 'required|array',
-            SettingKey::NAME_EXCLUDE->value.'.contains' => 'required_if:name_exclude.type,contains|string',
-            SettingKey::NAME_EXCLUDE->value.'.regex' => 'required_if:name_exclude.type,regex|string',
+            SettingKey::NAME_EXCLUDE->value.'.contains' => 'required_if:name_exclude.type,contains|nullable|string',
+            SettingKey::NAME_EXCLUDE->value.'.regex' => 'required_if:name_exclude.type,regex|nullable|string',
             SettingKey::NAME_EXCLUDE->value.'.type' => 'required|string|in:off,contains,regex',
 
             SettingKey::SIZE_EXCLUDE->value => 'required|array',
@@ -100,7 +132,7 @@ class SettingsController extends Controller
             SettingKey::DURATION_VIDEO_PART_EXCLUDE->value.'.type' => 'required|string|in:off,30min,60min,120min,custom',
 
             SettingKey::FAV_TIME_EXCLUDE->value => 'required|array',
-            SettingKey::FAV_TIME_EXCLUDE->value.'.custom_date' => 'required_if:fav_time_exclude.type,custom|date_format:Y-m-d',
+            SettingKey::FAV_TIME_EXCLUDE->value.'.custom_date' => 'required_if:fav_time_exclude.type,custom|nullable|date_format:Y-m-d',
             SettingKey::FAV_TIME_EXCLUDE->value.'.type' => 'required|string|in:off,1m,3m,6m,custom',
 
             SettingKey::FAVORITE_EXCLUDE->value => 'required|array',
@@ -111,6 +143,28 @@ class SettingsController extends Controller
             SettingKey::TELEGRAM_BOT_ENABLED->value => 'required|string|in:on,off',
             SettingKey::TELEGRAM_BOT_TOKEN->value => 'required_if:telegram_bot_enabled,on|string',
             SettingKey::TELEGRAM_CHAT_ID->value => 'required_if:telegram_bot_enabled,on|string',
+
+            // 定时任务配置（JSON）：key => {enabled: bool, frequency: enum, time: "HH:MM"}
+            SettingKey::SCHEDULED_TASKS->value => 'nullable|array',
+            SettingKey::SCHEDULED_TASKS->value.'.*.enabled' => 'nullable|boolean',
+            SettingKey::SCHEDULED_TASKS->value.'.*.frequency' => 'nullable|string|in:everyMinute,everyFiveMinutes,everyTenMinutes,everyThirtyMinutes,hourly,daily,weekly',
+            SettingKey::SCHEDULED_TASKS->value.'.*.time' => 'nullable|date_format:H:i',
+
+            // 评论下载配置（JSON）
+            SettingKey::COMMENT_DOWNLOAD_CONFIG->value => 'nullable|array',
+            SettingKey::COMMENT_DOWNLOAD_CONFIG->value.'.auto_update' => 'nullable|boolean',
+            SettingKey::COMMENT_DOWNLOAD_CONFIG->value.'.percent' => 'nullable|integer|min:1|max:100',
+            SettingKey::COMMENT_DOWNLOAD_CONFIG->value.'.incremental' => 'nullable|integer|min:0|max:1000',
+            SettingKey::COMMENT_DOWNLOAD_CONFIG->value.'.limit' => 'nullable|integer|min:0|max:20000',
+            SettingKey::COMMENT_DOWNLOAD_CONFIG->value.'.max_videos' => 'nullable|integer|min:0|max:5000',
+            SettingKey::COMMENT_DOWNLOAD_CONFIG->value.'.interval' => 'nullable|integer|min:0|max:3600',
+            SettingKey::COMMENT_DOWNLOAD_CONFIG->value.'.sleep' => 'nullable|integer|min:0|max:60',
+
+            // 转码配置（JSON）
+            SettingKey::TRANSCODE_CONFIG->value => 'nullable|array',
+            SettingKey::TRANSCODE_CONFIG->value.'.hwaccel' => 'nullable|string|in:auto,cpu,cuda,qsv',
+            SettingKey::TRANSCODE_CONFIG->value.'.quality' => 'nullable|integer|min:0|max:51',
+            SettingKey::TRANSCODE_CONFIG->value.'.preset' => 'nullable|string|in:ultrafast,veryfast,faster,fast,medium,slow,p1,p2,p3,p4,p5,p6,p7',
         ]);
 
         foreach ($data as $key => $value) {
