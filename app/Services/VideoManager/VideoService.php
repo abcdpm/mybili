@@ -110,12 +110,26 @@ class VideoService implements VideoServiceInterface
             }
         }
 
+        // 【第5项优化】旧版对同一过滤条件执行 5 次 count()（含 LIKE 时各自全表扫描），
+        // 现聚合成 1 次聚合查询；reorder() 去掉排序避免聚合时的无谓排序开销
+        $statRow = (clone $query)
+            ->reorder()
+            ->selectRaw('
+                COUNT(*) AS total,
+                COALESCE(SUM(CASE WHEN video_downloaded_num > 0 THEN 1 ELSE 0 END), 0) AS downloaded,
+                COALESCE(SUM(CASE WHEN invalid = 1 THEN 1 ELSE 0 END), 0) AS invalid,
+                COALESCE(SUM(CASE WHEN invalid = 0 THEN 1 ELSE 0 END), 0) AS valid,
+                COALESCE(SUM(CASE WHEN frozen = 1 THEN 1 ELSE 0 END), 0) AS frozen
+            ')
+            ->toBase()
+            ->first();
+
         $stat = [
-            'count'      => (clone $query)->count(),
-            'downloaded' => (clone $query)->where('video_downloaded_num', '>', 0)->count(),
-            'invalid'    => (clone $query)->where('invalid', 1)->count(),
-            'valid'      => (clone $query)->where('invalid', 0)->count(),
-            'frozen'     => (clone $query)->where('frozen', 1)->count(),
+            'count'      => (int) ($statRow->total ?? 0),
+            'downloaded' => (int) ($statRow->downloaded ?? 0),
+            'invalid'    => (int) ($statRow->invalid ?? 0),
+            'valid'      => (int) ($statRow->valid ?? 0),
+            'frozen'     => (int) ($statRow->frozen ?? 0),
         ];
 
         return [
