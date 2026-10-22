@@ -1,8 +1,8 @@
 <?php
 
-namespace App\Jobs;
+namespace App\Jobs\Legacy;
 
-use App\Services\RateLimitConfig;
+use App\Services\Legacy\RateLimitConfig;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\PendingDispatch;
 use Illuminate\Foundation\Queue\Queueable;

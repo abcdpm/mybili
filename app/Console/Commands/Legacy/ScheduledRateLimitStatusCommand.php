@@ -1,9 +1,9 @@
 <?php
 
-namespace App\Console\Commands;
+namespace App\Console\Commands\Legacy;
 
-use App\Services\ScheduledRateLimiterService;
-use App\Services\RateLimitConfig;
+use App\Services\Legacy\ScheduledRateLimiterService;
+use App\Services\Legacy\RateLimitConfig;
 use Illuminate\Console\Command;
 
 class ScheduledRateLimitStatusCommand extends Command

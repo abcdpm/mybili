@@ -1,5 +1,5 @@
 <?php
-namespace App\Services;
+namespace App\Services\Legacy;
 
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
@@ -8,6 +8,10 @@ use Illuminate\Support\Facades\Redis;
 /**
  * 预安排执行时间的频率限制器
  * 在任务触发时就安排好执行时间，避免重试
+ */
+/**
+ * @deprecated 历史遗留：计划限流器。无任何 Job 继承/调用（仅 Legacy 状态查询命令引用），
+ * 其 sleep(1) 阻塞式等待已不在活跃代码路径出现。保留仅为兼容老用户手工排查。
  */
 class ScheduledRateLimiterService
 {
