@@ -128,17 +128,22 @@ class DanmakuFileStore
         $path     = $this->filePath($cid);
         $relative = $this->relativePath($path);
 
-        $json = json_encode($merged, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        $json = json_encode($merged, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE);
         if ($json === false) {
-            Log::error('[弹幕存储] 弹幕序列化失败', ['cid' => $cid, 'count' => $count]);
-
-            return 0;
+            // 清洗后仍序列化失败（理论上已不可能），抛出让调用方决策：
+            // 迁移命令会跳过该 cid 且不删除数据库遗留行；下载任务会失败等待重新抓取
+            Log::error('[弹幕存储] 弹幕序列化失败', [
+                'cid' => $cid,
+                'count' => $count,
+                'error' => json_last_error_msg(),
+            ]);
+            throw new \RuntimeException('弹幕序列化失败: ' . json_last_error_msg());
         }
 
         if (! $this->writeAtomic($path, gzencode($json, 6))) {
             Log::error('[弹幕存储] 弹幕文件写入失败', ['cid' => $cid, 'path' => $path]);
-
-            return 0;
+            // 写盘失败（如磁盘满）：抛出让调用方决策，绝不静默吞掉
+            throw new \RuntimeException('弹幕文件写入失败: ' . $path);
         }
 
         // 写入成功：同步索引（先索引、后清遗留行，任何中断都是安全的）
@@ -184,6 +189,23 @@ class DanmakuFileStore
     }
 
     /**
+     * 清洗非法 UTF-8 字节。
+     *
+     * B 站弹幕（protobuf bytes 字段）中偶见非法 UTF-8 脏数据（老弹幕尤甚），
+     * 会导致 json_encode 直接失败。合法 UTF-8 原样保留；非法字节替换为 U+FFFD，
+     * 与 B 站网页端对该类弹幕的容错行为一致，不丢失可显示内容。
+     */
+    private function scrubUtf8(string $value): string
+    {
+        // 快速路径：合法 UTF-8 原样返回（绝大多数弹幕）
+        if (preg_match('//u', $value) === 1) {
+            return $value;
+        }
+
+        return mb_scrub($value, 'UTF-8');
+    }
+
+    /**
      * 按弹幕 id 去重（无 id 的按内容特征去重），后出现的覆盖先出现的。
      *
      * @param  array<int, array<string, mixed>>  $items
@@ -197,15 +219,16 @@ class DanmakuFileStore
             if (! is_array($item)) {
                 continue;
             }
+            $content = $this->scrubUtf8((string) ($item['content'] ?? ''));
             $key = isset($item['id']) && $item['id'] !== '' && $item['id'] !== null
                 ? 'i:' . $item['id']
-                : 's:' . md5(($item['content'] ?? '') . '|' . ($item['progress'] ?? '') . '|' . ($item['mode'] ?? ''));
+                : 's:' . md5($content . '|' . ($item['progress'] ?? '') . '|' . ($item['mode'] ?? ''));
             $result[$key] = [
                 'id'       => $item['id'] ?? null,
                 'progress' => (int) ($item['progress'] ?? 0),
                 'mode'     => (int) ($item['mode'] ?? 1),
                 'color'    => (int) ($item['color'] ?? 16777215),
-                'content'  => (string) ($item['content'] ?? ''),
+                'content'  => $content,
             ];
         }
 

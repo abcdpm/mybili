@@ -81,7 +81,13 @@ class DanmakuMigrateToFiles extends Command
             $videoId = $videoId !== null ? (int) $videoId : null;
 
             // 1) 合并写入文件（save 内部会先合并已有文件数据）
-            $count = $store->save($cid, $rows, $videoId);
+            //    序列化/写盘失败会抛异常 → 跳过该 cid 且保留数据库遗留行，数据零丢失
+            try {
+                $count = $store->save($cid, $rows, $videoId);
+            } catch (\Throwable $e) {
+                $this->error(sprintf('cid=%d 迁移失败（%s），保留数据库数据不删除', $cid, $e->getMessage()));
+                continue;
+            }
 
             // 2) 校验：文件必须存在且条数不少于源数据
             $fileItems = $store->read($cid);

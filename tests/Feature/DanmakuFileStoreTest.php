@@ -143,4 +143,26 @@ class DanmakuFileStoreTest extends TestCase
 
         $this->assertSame(1, $count);
     }
+
+    public function test_dirty_utf8_content_is_scrubbed_not_lost(): void
+    {
+        // B 站老弹幕偶见非法 UTF-8 字节，此前会导致 json_encode 失败（迁移报"弹幕序列化失败"）
+        $dirty = "正常弹幕" . chr(0xB1) . chr(0x31) . "尾部";
+
+        $count = $this->store->save(10008, [
+            ['id' => 1, 'progress' => 0, 'mode' => 1, 'color' => 255, 'content' => $dirty],
+            ['id' => 2, 'progress' => 0, 'mode' => 1, 'color' => 255, 'content' => '普通弹幕'],
+        ]);
+
+        $this->assertSame(2, $count, '非法 UTF-8 弹幕不应导致保存失败');
+
+        $items = $this->store->read(10008);
+        $this->assertCount(2, $items);
+        $this->assertStringContainsString('正常弹幕', $items[0]['content'], '可显示部分应保留');
+        $this->assertStringContainsString('尾部', $items[0]['content']);
+        $this->assertStringContainsString('普通弹幕', $items[1]['content']);
+
+        // 文件内容必须是合法 UTF-8 JSON（读取回来的 content 不含非法字节）
+        $this->assertSame(1, preg_match('//u', $items[0]['content']));
+    }
 }
