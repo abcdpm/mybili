@@ -50,7 +50,12 @@
               <h3 class="text-lg font-medium mb-2">{{ t('about.versionInfo') }}</h3>
               <div class="space-y-2 text-gray-600">
                 <p>{{ t('about.appVersion') }}：{{ systemInfo.app_version }}</p>
-                <p>{{ t('about.phpVersion') }}：{{ systemInfo.php_version }}</p>
+                <p>{{ t('about.phpVersion') }}：{{ systemInfo.php_version }}<span
+                    v-if="systemInfo.php_sapi"
+                    class="ml-2 text-xs text-gray-400"
+                >{{ systemInfo.php_sapi }}</span></p>
+                <p v-if="systemInfo.php_cli_version && systemInfo.php_cli_version !== systemInfo.php_version">
+                    {{ t('about.phpVersion') }}（CLI）：{{ systemInfo.php_cli_version }}</p>
                 <p>{{ t('about.laravelVersion') }}：{{ systemInfo.laravel_version }}</p>
                 <p>{{ t('about.databaseVersion') }}：{{ systemInfo.database_version }}</p>
               </div>
@@ -110,6 +115,8 @@ interface MediaUsage {
 interface SystemInfo {
   app_version: string
   php_version: string
+  php_sapi?: string
+  php_cli_version?: string
   laravel_version: string
   database_version: string
   timezone: string

@@ -2,20 +2,21 @@
 
 namespace App\Console\Commands;
 
+use App\Models\Comment;
+use App\Models\Danmaku;
+use App\Models\Emote;
+use App\Models\FavoriteList;
+use App\Models\Video;
+use App\Models\VideoPart;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
-use App\Models\Video;
-use App\Models\VideoPart;
-use App\Models\Danmaku;
-use App\Models\Comment;
-use App\Models\Emote;
-use App\Models\FavoriteList;
 use PDO;
 
 class CalculateSystemStats extends Command
 {
     protected $signature = 'app:calculate-system-stats';
+
     protected $description = '全量计算系统数据库与媒体文件使用情况并存入缓存';
 
     public function handle()
@@ -42,18 +43,35 @@ class CalculateSystemStats extends Command
         $this->info('系统数据全量统计完成！');
     }
 
+    /**
+     * 计算数据库文件的精确字节大小。
+     *
+     * 旧实现 `SUM(rootpage) × 1024` 有两个错误：
+     * ① rootpage 的单位是"页"而非 KB；② SQLite 默认页大小为 4096 而非 1024 —— 实测低估约 76 倍。
+     * 正确做法：PRAGMA page_count × page_size（等价于文件实际占用），失败时回退文件系统大小。
+     */
     private function getDatabaseSize(): int
     {
         if (DB::connection()->getPdo()->getAttribute(PDO::ATTR_DRIVER_NAME) == 'sqlite') {
-            return (int) DB::table('sqlite_master')->where('type', 'table')->sum('rootpage') * 1024;
+            try {
+                $pageCount = (int) (DB::selectOne('PRAGMA page_count')?->page_count ?? 0);
+                $pageSize = (int) (DB::selectOne('PRAGMA page_size')?->page_size ?? 0);
+                if ($pageCount > 0 && $pageSize > 0) {
+                    return $pageCount * $pageSize;
+                }
+            } catch (\Throwable) {
+                // PRAGMA 不可用时走文件兜底
+            }
         }
-        return 0;
+        $databasePath = database_path('database.sqlite');
+
+        return file_exists($databasePath) ? (int) filesize($databasePath) : 0;
     }
 
     private function getMediaSizeBytes(string $directory): int
     {
-        $mediasPath = storage_path("app/public/" . $directory);
-        if (!file_exists($mediasPath)) {
+        $mediasPath = storage_path('app/public/'.$directory);
+        if (! file_exists($mediasPath)) {
             return 0;
         }
         // 使用 -sb 返回精确的 byte 大小，而非人类可读格式
@@ -61,6 +79,7 @@ class CalculateSystemStats extends Command
         if ($result !== 0 || empty($output)) {
             return 0;
         }
+
         return (int) explode("\t", $output[0])[0];
     }
 }
