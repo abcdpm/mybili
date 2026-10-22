@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Services;
 
 use App\Enums\SettingKey;
@@ -6,12 +7,15 @@ use App\Models\Video;
 use Carbon\Carbon;
 use Log;
 
+/**
+ * 下载过滤服务（按收藏夹/订阅/标题/大小/时长/收藏时间等维度决定是否排除下载）。
+ *
+ * 说明：排除规则来自系统设置（SettingKey::*_EXCLUDE），在入队前统一判定，
+ * 被排除的分P直接跳过不进入队列，避免无效下载任务堆积。
+ */
 class DownloadFilterService
 {
-    public function __construct(public SettingsService $settings)
-    {
-
-    }
+    public function __construct(public SettingsService $settings) {}
 
     public function shouldExcludeByName(string $name)
     {
@@ -26,13 +30,15 @@ class DownloadFilterService
             return true;
         }
         try {
-            if ($nameExclude['regex'] && preg_match('/' . $nameExclude['regex'] . '/', $name)) {
+            if ($nameExclude['regex'] && preg_match('/'.$nameExclude['regex'].'/', $name)) {
                 return true;
             }
         } catch (\Throwable $e) {
             Log::error('Regex error', ['error' => $e->getMessage(), 'name' => $name]);
+
             return false;
         }
+
         return false;
     }
 
@@ -51,6 +57,7 @@ class DownloadFilterService
         if ($sizeExclude['type'] === 'custom') {
             return $size > ($sizeExclude['custom_size'] * 1024 * 1024 * 1024);
         }
+
         return false;
     }
 
@@ -60,6 +67,7 @@ class DownloadFilterService
         if (! $favExclude || $favExclude['enabled'] === false) {
             return false;
         }
+
         return in_array($favId, $favExclude['selected']);
     }
 
@@ -89,13 +97,14 @@ class DownloadFilterService
     public function isMultiPEnabled()
     {
         $multiP = $this->settings->get(SettingKey::MULTI_PARTITION_DOWNLOAD_ENABLED);
+
         return $multiP === 'on';
     }
 
     public function shouldExcludeByDuration(int $duration)
     {
         $durationExclude = $this->settings->get(SettingKey::DURATION_VIDEO_EXCLUDE);
-        if (!$durationExclude) {
+        if (! $durationExclude) {
             return false;
         }
         if ($durationExclude['type'] === 'off') {
@@ -110,13 +119,14 @@ class DownloadFilterService
         if ($durationExclude['type'] === 'custom') {
             return $duration > $durationExclude['custom_duration'] * 60;
         }
+
         return false;
     }
 
     public function shouldExcludeByDurationPart(int $duration)
     {
         $durationPartExclude = $this->settings->get(SettingKey::DURATION_VIDEO_PART_EXCLUDE);
-        if (!$durationPartExclude) {
+        if (! $durationPartExclude) {
             return false;
         }
         if ($durationPartExclude['type'] === 'off') {
@@ -131,6 +141,7 @@ class DownloadFilterService
         if ($durationPartExclude['type'] === 'custom') {
             return $duration > $durationPartExclude['custom_duration'] * 60;
         }
+
         return false;
     }
 

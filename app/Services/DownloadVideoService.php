@@ -1,12 +1,15 @@
 <?php
+
 namespace App\Services;
 
 use App\Models\VideoPart;
-use App\Services\BilibiliService;
-use App\Services\BilibiliSuspendService;
-use App\Services\DownloadFilterService;
-use App\Services\SettingsService;
 
+/**
+ * 视频下载服务（调用 B 站接口取下载直链并落盘）。
+ *
+ * 说明：统一处理清晰度选择、下载限速、旧路径兼容（getOldDownloadPath）
+ * 以及下载完成后的文件登记（video_download_path / video_downloaded_at）。
+ */
 class DownloadVideoService
 {
     public string $downloadFolder = 'videos';
@@ -22,11 +25,11 @@ class DownloadVideoService
 
     public function createDownloadDirectory(): void
     {
-        $path = storage_path('app/public/' . $this->downloadFolder);
+        $path = storage_path('app/public/'.$this->downloadFolder);
         if (! is_dir($path)) {
             mkdir($path, 0644);
             if (! is_dir($path)) {
-                throw new \Exception("下载路径不存在, 创建失败");
+                throw new \Exception('下载路径不存在, 创建失败');
             }
         }
     }
@@ -34,19 +37,21 @@ class DownloadVideoService
     protected function getDownloadPath(string $id, int $part = 1): string
     {
 
-        $path = storage_path('app/public/' . $this->downloadFolder);
+        $path = storage_path('app/public/'.$this->downloadFolder);
         if ($part === 1) {
             return sprintf('%s/%s.mp4', $path, $id);
         }
+
         return sprintf('%s/%s.part%d.mp4', $path, $id, $part);
     }
 
     public function getDownloadHashPath(string $id, int $part = 1): string
     {
-        $path = storage_path('app/public/' . $this->downloadFolder);
+        $path = storage_path('app/public/'.$this->downloadFolder);
         if ($part === 1) {
             return sprintf('%s/%s.mp4.hash', $path, $id);
         }
+
         return sprintf('%s/%s.part%d.mp4.hash', $path, $id, $part);
     }
 
@@ -56,6 +61,7 @@ class DownloadVideoService
         if (is_file($hashPath)) {
             return trim(file_get_contents($hashPath));
         }
+
         return null;
     }
 
@@ -86,10 +92,11 @@ class DownloadVideoService
     public function getOldDownloadPath(string $id, int $part = 1): string
     {
 
-        $path = storage_path('app/public/' . $this->downloadFolder);
+        $path = storage_path('app/public/'.$this->downloadFolder);
         if ($part === 1) {
             return sprintf('%s/%s.mp4', $path, $id);
         }
+
         return sprintf('%s/%s.part%d.mp4', $path, $id, $part);
     }
 
@@ -107,6 +114,7 @@ class DownloadVideoService
         if ($result) {
             return true;
         }
+
         return false;
     }
 

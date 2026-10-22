@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Services\VideoManager;
 
 use App\Events\VideoUpdated;
@@ -19,6 +20,14 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Log;
 
+/**
+ * 视频领域主服务（列表查询/详情组装/统计聚合）。
+ *
+ * 性能要点：
+ *  - getVideosByPage：统计信息以单条 SUM(CASE) 聚合查询替代逐状态 count（4×N → 1）；
+ *  - 详情接口预取 tags/emotes（EmoteResolver 批量 prime），序列化期零散查询；
+ *  - 弹幕/评论等大文本不进入列表投影，列表接口保持轻量。
+ */
 class VideoService implements VideoServiceInterface
 {
     public $ttl = 86400; // 1 day
@@ -64,7 +73,7 @@ class VideoService implements VideoServiceInterface
             } elseif (preg_match('/^\d+$/', $conditions['query'])) {
                 $query->where('id', $conditions['query']);
             } else {
-                $query->where('title', 'like', '%' . $conditions['query'] . '%');
+                $query->where('title', 'like', '%'.$conditions['query'].'%');
             }
         }
 
@@ -125,11 +134,11 @@ class VideoService implements VideoServiceInterface
             ->first();
 
         $stat = [
-            'count'      => (int) ($statRow->total ?? 0),
+            'count' => (int) ($statRow->total ?? 0),
             'downloaded' => (int) ($statRow->downloaded ?? 0),
-            'invalid'    => (int) ($statRow->invalid ?? 0),
-            'valid'      => (int) ($statRow->valid ?? 0),
-            'frozen'     => (int) ($statRow->frozen ?? 0),
+            'invalid' => (int) ($statRow->invalid ?? 0),
+            'valid' => (int) ($statRow->valid ?? 0),
+            'frozen' => (int) ($statRow->frozen ?? 0),
         ];
 
         return [
@@ -147,10 +156,10 @@ class VideoService implements VideoServiceInterface
             }
 
             return [[
-                'id'         => $audioPart->sid,
-                'part'       => 1,
-                'url'        => $audioPart->audio_download_url,
-                'title'      => $video->title,
+                'id' => $audioPart->sid,
+                'part' => 1,
+                'url' => $audioPart->audio_download_url,
+                'title' => $video->title,
                 'downloaded' => (bool) $audioPart->audio_download_path,
             ]];
         }
@@ -158,11 +167,11 @@ class VideoService implements VideoServiceInterface
         $list = [];
         foreach ($video->parts as $videoPart) {
             $list[] = [
-                'id'         => $videoPart['cid'],
-                'part'       => $videoPart['page'],
-                'url'        => $videoPart['video_download_url'] ?: null,
+                'id' => $videoPart['cid'],
+                'part' => $videoPart['page'],
+                'url' => $videoPart['video_download_url'] ?: null,
                 'mobile_url' => $videoPart['mobile_url'],
-                'title'      => $videoPart['part'] ?? 'P' . $videoPart['page'],
+                'title' => $videoPart['part'] ?? 'P'.$videoPart['page'],
                 'downloaded' => (bool) $videoPart['video_download_path'],
             ];
         }
@@ -181,11 +190,11 @@ class VideoService implements VideoServiceInterface
         ')->first();
 
         return [
-            'count'      => (int) $stats->count,
+            'count' => (int) $stats->count,
             'downloaded' => (int) $stats->downloaded,
-            'invalid'    => (int) $stats->invalid,
-            'valid'      => (int) $stats->valid,
-            'frozen'     => (int) $stats->frozen,
+            'invalid' => (int) $stats->invalid,
+            'valid' => (int) $stats->valid,
+            'frozen' => (int) $stats->frozen,
         ];
     }
 
@@ -201,10 +210,10 @@ class VideoService implements VideoServiceInterface
 
     public function deleteVideos(array $ids, array $options = []): array
     {
-        $permanentDelete    = (bool) ($options['permanent'] ?? true);
+        $permanentDelete = (bool) ($options['permanent'] ?? true);
         $requeueAfterDelete = (bool) ($options['requeue'] ?? false);
-        $deletedIds         = [];
-        $videos             = Video::query()->whereIn('id', $ids)->get();
+        $deletedIds = [];
+        $videos = Video::query()->whereIn('id', $ids)->get();
 
         foreach ($videos as $video) {
             $this->removeVideoFilesAndResetState($video);
@@ -218,11 +227,12 @@ class VideoService implements VideoServiceInterface
                     $deletedIds[] = $video->id;
                     event(new VideoUpdated($video->getAttributes(), []));
                 }
+
                 continue;
             }
 
             $video->video_downloaded_num = 0;
-            $video->video_downloaded_at  = null;
+            $video->video_downloaded_at = null;
             $video->save();
 
             if ($requeueAfterDelete) {
@@ -236,10 +246,10 @@ class VideoService implements VideoServiceInterface
         }
 
         Log::info('Delete videos completed', [
-            'ids'         => $ids,
+            'ids' => $ids,
             'deleted_ids' => $deletedIds,
-            'permanent'   => $permanentDelete,
-            'requeue'     => $requeueAfterDelete,
+            'permanent' => $permanentDelete,
+            'requeue' => $requeueAfterDelete,
         ]);
 
         return $deletedIds;
@@ -317,6 +327,7 @@ class VideoService implements VideoServiceInterface
 
         if ($video->isAudio() && $video->audioPart) {
             $queueService->enqueueAudio($video->audioPart);
+
             return;
         }
 
@@ -328,7 +339,7 @@ class VideoService implements VideoServiceInterface
     public function getFavVideosLightweight(int $favId): array
     {
         $cacheKey = "fav_videos:{$favId}";
-        $cached   = redis()->get($cacheKey);
+        $cached = redis()->get($cacheKey);
         if ($cached) {
             return json_decode($cached, true);
         }
@@ -344,7 +355,7 @@ class VideoService implements VideoServiceInterface
     public function getSubVideosLightweight(int $subId): array
     {
         $cacheKey = "sub_videos:{$subId}";
-        $cached   = redis()->get($cacheKey);
+        $cached = redis()->get($cacheKey);
         if ($cached) {
             return json_decode($cached, true);
         }
@@ -380,7 +391,7 @@ class VideoService implements VideoServiceInterface
             ->orderByDesc('videos.created_at')
             ->get();
 
-        return $rows->map(fn($row) => $this->transformLightweightVideo($row))->toArray();
+        return $rows->map(fn ($row) => $this->transformLightweightVideo($row))->toArray();
     }
 
     private function querySubVideosLightweight(int $subId): array
@@ -406,17 +417,17 @@ class VideoService implements VideoServiceInterface
             ->orderByDesc('videos.created_at')
             ->get();
 
-        return $rows->map(fn($row) => $this->transformLightweightVideo($row))->toArray();
+        return $rows->map(fn ($row) => $this->transformLightweightVideo($row))->toArray();
     }
 
     private function transformLightweightVideo(object $row): array
     {
-        $item                    = (array) $row;
+        $item = (array) $row;
         $item['cover_image_url'] = $item['cover_path']
             ? Storage::url($item['cover_path'])
             : null;
         unset($item['cover_path']);
-        $item['pubtime']  = $item['pubtime'] ? strtotime($item['pubtime']) : null;
+        $item['pubtime'] = $item['pubtime'] ? strtotime($item['pubtime']) : null;
         $item['fav_time'] = $item['fav_time'] ? strtotime($item['fav_time']) : null;
 
         return $item;

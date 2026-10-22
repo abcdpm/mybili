@@ -1,13 +1,22 @@
 <?php
+
 namespace App\Services;
 
 use App\Models\AudioPart;
 use App\Models\DownloadQueue;
 use App\Models\VideoPart;
 use Illuminate\Database\Eloquent\Collection;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
+/**
+ * 下载队列服务（Redis 通知 + SQLite 队列表持久化的双层结构）。
+ *
+ * 设计要点：
+ *  - SQLite 行为队列事实来源（可查询/可恢复），Redis List 仅作"有活了"的唤醒信号；
+ *  - 令牌桶限流放行，限流归还槽位（running→pending）不消耗重试次数；
+ *  - 去重 unique_key（type:video_part_id）保证同一分P不重复入队；
+ *  - 失败标记为 failed 并记录 error_msg（错误对用户可见，不静默吞掉）。
+ */
 class DownloadQueueService
 {
     /**
@@ -28,19 +37,20 @@ class DownloadQueueService
         $item = DownloadQueue::updateOrCreate(
             ['unique_key' => $uniqueKey],
             [
-                'type'          => DownloadQueue::TYPE_VIDEO,
-                'video_id'      => $videoPart->video_id,
+                'type' => DownloadQueue::TYPE_VIDEO,
+                'video_id' => $videoPart->video_id,
                 'video_part_id' => $videoPart->id,
-                'status'        => DownloadQueue::STATUS_PENDING,
-                'priority'      => $priority,
-                'retry_count'   => 0,
-                'error_msg'     => null,
-                'scheduled_at'  => null,
-                'completed_at'  => null,
+                'status' => DownloadQueue::STATUS_PENDING,
+                'priority' => $priority,
+                'retry_count' => 0,
+                'error_msg' => null,
+                'scheduled_at' => null,
+                'completed_at' => null,
             ]
         );
 
         Log::info('Enqueued video download', ['video_part_id' => $videoPart->id, 'video_id' => $videoPart->video_id]);
+
         return $item;
     }
 
@@ -62,19 +72,20 @@ class DownloadQueueService
         $item = DownloadQueue::updateOrCreate(
             ['unique_key' => $uniqueKey],
             [
-                'type'          => DownloadQueue::TYPE_AUDIO,
-                'video_id'      => $audioPart->video_id,
+                'type' => DownloadQueue::TYPE_AUDIO,
+                'video_id' => $audioPart->video_id,
                 'video_part_id' => null,
-                'status'        => DownloadQueue::STATUS_PENDING,
-                'priority'      => $priority,
-                'retry_count'   => 0,
-                'error_msg'     => null,
-                'scheduled_at'  => null,
-                'completed_at'  => null,
+                'status' => DownloadQueue::STATUS_PENDING,
+                'priority' => $priority,
+                'retry_count' => 0,
+                'error_msg' => null,
+                'scheduled_at' => null,
+                'completed_at' => null,
             ]
         );
 
         Log::info('Enqueued audio download', ['video_id' => $audioPart->video_id, 'sid' => $audioPart->sid]);
+
         return $item;
     }
 
@@ -93,7 +104,7 @@ class DownloadQueueService
     public function markRunning(DownloadQueue $item): void
     {
         $item->update([
-            'status'       => DownloadQueue::STATUS_RUNNING,
+            'status' => DownloadQueue::STATUS_RUNNING,
             'scheduled_at' => now(),
         ]);
     }
@@ -104,7 +115,7 @@ class DownloadQueueService
      */
     public function markPendingByVideoPart(int $videoPartId): void
     {
-        $key  = DownloadQueue::buildUniqueKey(DownloadQueue::TYPE_VIDEO, $videoPartId);
+        $key = DownloadQueue::buildUniqueKey(DownloadQueue::TYPE_VIDEO, $videoPartId);
         $item = DownloadQueue::where('unique_key', $key)->first();
         if ($item && $item->status === DownloadQueue::STATUS_RUNNING) {
             $item->update(['status' => DownloadQueue::STATUS_PENDING]);
@@ -113,7 +124,7 @@ class DownloadQueueService
 
     public function markPendingByAudio(int $videoId): void
     {
-        $key  = DownloadQueue::buildUniqueKey(DownloadQueue::TYPE_AUDIO, $videoId);
+        $key = DownloadQueue::buildUniqueKey(DownloadQueue::TYPE_AUDIO, $videoId);
         $item = DownloadQueue::where('unique_key', $key)->first();
         if ($item && $item->status === DownloadQueue::STATUS_RUNNING) {
             $item->update(['status' => DownloadQueue::STATUS_PENDING]);
@@ -122,52 +133,52 @@ class DownloadQueueService
 
     public function markDoneByVideoPart(int $videoPartId): void
     {
-        $key  = DownloadQueue::buildUniqueKey(DownloadQueue::TYPE_VIDEO, $videoPartId);
+        $key = DownloadQueue::buildUniqueKey(DownloadQueue::TYPE_VIDEO, $videoPartId);
         $item = DownloadQueue::where('unique_key', $key)->first();
         if ($item) {
             $item->update([
-                'status'       => DownloadQueue::STATUS_DONE,
+                'status' => DownloadQueue::STATUS_DONE,
                 'completed_at' => now(),
-                'error_msg'    => null,
+                'error_msg' => null,
             ]);
         }
     }
 
     public function markDoneByAudio(int $videoId): void
     {
-        $key  = DownloadQueue::buildUniqueKey(DownloadQueue::TYPE_AUDIO, $videoId);
+        $key = DownloadQueue::buildUniqueKey(DownloadQueue::TYPE_AUDIO, $videoId);
         $item = DownloadQueue::where('unique_key', $key)->first();
         if ($item) {
             $item->update([
-                'status'       => DownloadQueue::STATUS_DONE,
+                'status' => DownloadQueue::STATUS_DONE,
                 'completed_at' => now(),
-                'error_msg'    => null,
+                'error_msg' => null,
             ]);
         }
     }
 
     public function markFailedByVideoPart(int $videoPartId, string $error): void
     {
-        $key  = DownloadQueue::buildUniqueKey(DownloadQueue::TYPE_VIDEO, $videoPartId);
+        $key = DownloadQueue::buildUniqueKey(DownloadQueue::TYPE_VIDEO, $videoPartId);
         $item = DownloadQueue::where('unique_key', $key)->first();
         if ($item) {
             $item->update([
-                'status'       => DownloadQueue::STATUS_FAILED,
+                'status' => DownloadQueue::STATUS_FAILED,
                 'completed_at' => now(),
-                'error_msg'    => mb_substr($error, 0, 500),
+                'error_msg' => mb_substr($error, 0, 500),
             ]);
         }
     }
 
     public function markFailedByAudio(int $videoId, string $error): void
     {
-        $key  = DownloadQueue::buildUniqueKey(DownloadQueue::TYPE_AUDIO, $videoId);
+        $key = DownloadQueue::buildUniqueKey(DownloadQueue::TYPE_AUDIO, $videoId);
         $item = DownloadQueue::where('unique_key', $key)->first();
         if ($item) {
             $item->update([
-                'status'       => DownloadQueue::STATUS_FAILED,
+                'status' => DownloadQueue::STATUS_FAILED,
                 'completed_at' => now(),
-                'error_msg'    => mb_substr($error, 0, 500),
+                'error_msg' => mb_substr($error, 0, 500),
             ]);
         }
     }
@@ -178,7 +189,7 @@ class DownloadQueueService
      */
     public function markRetryOrFailedByVideoPart(int $videoPartId, string $error): void
     {
-        $key  = DownloadQueue::buildUniqueKey(DownloadQueue::TYPE_VIDEO, $videoPartId);
+        $key = DownloadQueue::buildUniqueKey(DownloadQueue::TYPE_VIDEO, $videoPartId);
         $item = DownloadQueue::where('unique_key', $key)->first();
         if (! $item) {
             return;
@@ -188,17 +199,17 @@ class DownloadQueueService
 
         if ($retryCount >= DownloadQueue::MAX_RETRIES) {
             $item->update([
-                'status'       => DownloadQueue::STATUS_FAILED,
-                'retry_count'  => $retryCount,
+                'status' => DownloadQueue::STATUS_FAILED,
+                'retry_count' => $retryCount,
                 'completed_at' => now(),
-                'error_msg'    => mb_substr($error, 0, 500),
+                'error_msg' => mb_substr($error, 0, 500),
             ]);
             Log::warning('DownloadVideoJob permanently failed', ['video_part_id' => $videoPartId, 'retries' => $retryCount, 'error' => $error]);
         } else {
             $item->update([
-                'status'      => DownloadQueue::STATUS_PENDING,
+                'status' => DownloadQueue::STATUS_PENDING,
                 'retry_count' => $retryCount,
-                'error_msg'   => mb_substr("[retry {$retryCount}] " . $error, 0, 500),
+                'error_msg' => mb_substr("[retry {$retryCount}] ".$error, 0, 500),
             ]);
             Log::info('DownloadVideoJob failed, reset to pending for retry', ['video_part_id' => $videoPartId, 'retry_count' => $retryCount]);
         }
@@ -206,7 +217,7 @@ class DownloadQueueService
 
     public function markRetryOrFailedByAudio(int $videoId, string $error): void
     {
-        $key  = DownloadQueue::buildUniqueKey(DownloadQueue::TYPE_AUDIO, $videoId);
+        $key = DownloadQueue::buildUniqueKey(DownloadQueue::TYPE_AUDIO, $videoId);
         $item = DownloadQueue::where('unique_key', $key)->first();
         if (! $item) {
             return;
@@ -216,17 +227,17 @@ class DownloadQueueService
 
         if ($retryCount >= DownloadQueue::MAX_RETRIES) {
             $item->update([
-                'status'       => DownloadQueue::STATUS_FAILED,
-                'retry_count'  => $retryCount,
+                'status' => DownloadQueue::STATUS_FAILED,
+                'retry_count' => $retryCount,
                 'completed_at' => now(),
-                'error_msg'    => mb_substr($error, 0, 500),
+                'error_msg' => mb_substr($error, 0, 500),
             ]);
             Log::warning('DownloadAudioJob permanently failed', ['video_id' => $videoId, 'retries' => $retryCount, 'error' => $error]);
         } else {
             $item->update([
-                'status'      => DownloadQueue::STATUS_PENDING,
+                'status' => DownloadQueue::STATUS_PENDING,
                 'retry_count' => $retryCount,
-                'error_msg'   => mb_substr("[retry {$retryCount}] " . $error, 0, 500),
+                'error_msg' => mb_substr("[retry {$retryCount}] ".$error, 0, 500),
             ]);
             Log::info('DownloadAudioJob failed, reset to pending for retry', ['video_id' => $videoId, 'retry_count' => $retryCount]);
         }
@@ -242,6 +253,7 @@ class DownloadQueueService
             return false;
         }
         $item->update(['status' => DownloadQueue::STATUS_CANCELLED]);
+
         return true;
     }
 
@@ -255,12 +267,13 @@ class DownloadQueueService
             return false;
         }
         $item->update([
-            'status'       => DownloadQueue::STATUS_PENDING,
-            'retry_count'  => 0,
-            'error_msg'    => null,
+            'status' => DownloadQueue::STATUS_PENDING,
+            'retry_count' => 0,
+            'error_msg' => null,
             'scheduled_at' => null,
             'completed_at' => null,
         ]);
+
         return true;
     }
 
@@ -274,6 +287,7 @@ class DownloadQueueService
             return false;
         }
         $item->update(['priority' => $priority]);
+
         return true;
     }
 
@@ -283,10 +297,11 @@ class DownloadQueueService
     public function resetStuckTasks(): int
     {
         $cutoff = now()->subSeconds(DownloadQueue::STUCK_TIMEOUT);
+
         return DownloadQueue::where('status', DownloadQueue::STATUS_RUNNING)
             ->where('scheduled_at', '<', $cutoff)
             ->update([
-                'status'    => DownloadQueue::STATUS_PENDING,
+                'status' => DownloadQueue::STATUS_PENDING,
                 'error_msg' => 'Reset: stuck timeout',
             ]);
     }
@@ -307,14 +322,14 @@ class DownloadQueueService
     public function getStat(): array
     {
         $rows = DownloadQueue::selectRaw(
-            "status, COUNT(*) as cnt"
+            'status, COUNT(*) as cnt'
         )->groupBy('status')->pluck('cnt', 'status')->toArray();
 
         return [
-            'pending'   => (int) ($rows[DownloadQueue::STATUS_PENDING]   ?? 0),
-            'running'   => (int) ($rows[DownloadQueue::STATUS_RUNNING]   ?? 0),
-            'done'      => (int) ($rows[DownloadQueue::STATUS_DONE]      ?? 0),
-            'failed'    => (int) ($rows[DownloadQueue::STATUS_FAILED]    ?? 0),
+            'pending' => (int) ($rows[DownloadQueue::STATUS_PENDING] ?? 0),
+            'running' => (int) ($rows[DownloadQueue::STATUS_RUNNING] ?? 0),
+            'done' => (int) ($rows[DownloadQueue::STATUS_DONE] ?? 0),
+            'failed' => (int) ($rows[DownloadQueue::STATUS_FAILED] ?? 0),
             'cancelled' => (int) ($rows[DownloadQueue::STATUS_CANCELLED] ?? 0),
         ];
     }
