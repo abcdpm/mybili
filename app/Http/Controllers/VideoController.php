@@ -155,6 +155,9 @@ class VideoController extends Controller
     /**
      * 获取指定 CID 的弹幕数据（新格式）
      *
+     * 性能（第3项优化）：转换结果按内容指纹缓存 + HTTP ETag/Cache-Control，
+     * 重复播放命中缓存与 304 协商，大幅降低热门分 P 的读取与转换开销。
+     *
      * @return \Illuminate\Http\JsonResponse
      */
     public function danmaku(Request $request)
@@ -169,15 +172,23 @@ class VideoController extends Controller
             ]);
         }
 
-        // 获取原始弹幕数据
-        $danmakuList = $this->danmakuService->getDanmaku($cid);
+        $result = $this->danmakuService->getConvertedDanmaku((string) $cid);
+        $etag   = '"' . $result['etag'] . '"';
 
-        // 转换为新格式
-        $convertedData = $this->danmakuConverterService->convert($danmakuList);
+        // 协商缓存：客户端持有的 ETag 未变化 → 304 无响应体
+        if ($request->header('If-None-Match') === $etag) {
+            return response()->noContent(304)->withHeaders([
+                'ETag' => $etag,
+                'Cache-Control' => 'public, max-age=60',
+            ]);
+        }
 
         return response()->json([
             'code' => 0,
-            'data' => $convertedData,
+            'data' => $result['data'],
+        ])->withHeaders([
+            'ETag' => $etag,
+            'Cache-Control' => 'public, max-age=60',
         ]);
     }
 
