@@ -150,9 +150,24 @@ RUN if [ -n "$APK_MIRROR" ]; then \
 COPY --from=composer/composer:2-bin /composer /usr/bin/composer
 
 # 2. 配置并安装 PHP 扩展
-# 增加 gd 扩展的安装，并开启 jpg/webp/freetype 支持
-RUN docker-php-ext-configure gd --with-freetype --with-jpeg --with-webp --with-avif \
-    && docker-php-ext-install -j$(nproc) gd pcntl
+# 优先复用 fetch-packages.sh 预编译的 gd/pcntl（秒级），并做三重校验（架构/PHP 版本/扩展API目录）
+# 与冒烟测试；任何一项不通过自动回退源码编译，绝不因此构建失败。
+COPY docker-packages/php-ext/${TARGETARCH}/ /tmp/mybili-pkgs/php-ext/
+RUN set -e; \
+    EXT_DIR=$(php -r 'echo ini_get("extension_dir");'); \
+    if [ -f /tmp/mybili-pkgs/php-ext/gd.so ] && [ -f /tmp/mybili-pkgs/php-ext/pcntl.so ] \
+       && [ "$EXT_DIR" = "$(cat /tmp/mybili-pkgs/php-ext/.ext-dir 2>/dev/null)" ] \
+       && php -r 'exit(version_compare(PHP_VERSION, trim(@file_get_contents("/tmp/mybili-pkgs/php-ext/.php-version")), "=") ? 0 : 1);' \
+       && cp /tmp/mybili-pkgs/php-ext/gd.so /tmp/mybili-pkgs/php-ext/pcntl.so "$EXT_DIR/" \
+       && docker-php-ext-enable gd pcntl >/dev/null 2>&1 \
+       && php -m | grep -qx 'gd' && php -m | grep -qx 'pcntl'; then \
+        echo "==> [offline] 复用预编译 PHP 扩展（gd/pcntl），跳过源码编译"; \
+    else \
+        echo "==> [compile] 预编译扩展缺失/校验失败，回退源码编译（可运行 ./fetch-packages.sh --target php-ext 预编译加速）"; \
+        rm -f "$EXT_DIR/gd.so" "$EXT_DIR/pcntl.so" /usr/local/etc/php/conf.d/docker-php-ext-gd.ini /usr/local/etc/php/conf.d/docker-php-ext-pcntl.ini; \
+        docker-php-ext-configure gd --with-freetype --with-jpeg --with-webp --with-avif \
+        && docker-php-ext-install -j$(nproc) gd pcntl; \
+    fi
 
 # 从下载阶段复制二进制文件到系统路径（各平台自动使用对应架构的产物）
 COPY --from=downloader /downloads/ffmpeg /usr/local/bin/ffmpeg

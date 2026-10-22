@@ -16,7 +16,7 @@
 #
 # 选项:
 #   --arch amd64|arm64|all     目标架构（默认 amd64；all = 两者）
-#   --target debian|alpine|tools|composer|npm|all   （默认 all）
+#   --target debian|alpine|tools|php-ext|composer|npm|all   （默认 all）
 #   --check / --force / --dry-run
 #
 # 镜像源（与 build-and-push.sh 一致，国内网络建议开启）:
@@ -123,7 +123,7 @@ while [ $# -gt 0 ]; do
 done
 
 case "$ARCH" in amd64|arm64|all) : ;; *) die "--arch 仅支持 amd64/arm64/all" ;; esac
-case "$TARGET" in debian|alpine|tools|composer|npm|all) : ;; *) die "--target 仅支持 debian/alpine/tools/composer/npm/all" ;; esac
+case "$TARGET" in debian|alpine|tools|php-ext|composer|npm|all) : ;; *) die "--target 仅支持 debian/alpine/tools/php-ext/composer/npm/all" ;; esac
 
 # 国内镜像源预设（显式环境变量优先）
 if [ -n "$MIRROR" ]; then
@@ -147,7 +147,7 @@ if [ "$DRY_RUN" -eq 0 ]; then
 fi
 
 ensure_dirs() {
-    for d in debian/amd64 debian/arm64 alpine/amd64 alpine/arm64 tools composer-cache npm-store; do
+    for d in debian/amd64 debian/arm64 alpine/amd64 alpine/arm64 tools php-ext/amd64 php-ext/arm64 composer-cache npm-store; do
         mkdir -p "$PKG_DIR/$d"
         # .gitkeep 保证 git 新克隆后 Dockerfile 的 COPY 永不失败
         [ -f "$PKG_DIR/$d/.gitkeep" ] || : > "$PKG_DIR/$d/.gitkeep"
@@ -329,6 +329,54 @@ fetch_tools() {
 }
 
 # =====================================================================
+# 目标 4: 预编译 PHP 扩展（gd/pcntl）——一次编译，构建时秒级复用
+#
+# 背景：docker-php-ext-install gd 源码编译在 NAS 级 CPU 上耗时 2-8 分钟，
+# 且层缓存失效就要重编。预编译产物 .so 按「架构 + PHP 版本 + 扩展 API 目录」
+# 三重校验后复用，构建时冒烟测试失败会自动回退源码编译（绝不因此构建失败）。
+# =====================================================================
+fetch_php_ext() {
+    _arch="$1"
+    _dir="$PKG_DIR/php-ext/$_arch"
+    log "[php-ext/$_arch] 预编译 PHP 扩展（gd/pcntl）——首次编译较慢（约 2-8 分钟），之后构建秒级复用..."
+
+    if [ "$DRY_RUN" -eq 1 ]; then
+        printf '[dry-run] docker run --platform %s %s sh -c "apk add <libs> && docker-php-ext-configure gd && docker-php-ext-install gd pcntl"\n' "$(ARCH_PLATFORM "$_arch")" "$PHP_IMAGE_DEFAULT"
+        return 0
+    fi
+
+    if [ "$CHECK_ONLY" -eq 1 ]; then
+        if [ -f "$_dir/gd.so" ] && [ -f "$_dir/pcntl.so" ]; then
+            ok "[php-ext/$_arch] 已有预编译产物（PHP $(cat "$_dir/.php-version" 2>/dev/null)）"
+        else
+            warn "[php-ext/$_arch] 无预编译产物（构建时将源码编译）"
+        fi
+        return 0
+    fi
+
+    # 在运行时基础镜像内编译（保证扩展 ABI 与镜像严格一致），完成后拷出 .so
+    if docker run --rm --platform "$(ARCH_PLATFORM "$_arch")" \
+        -e APK_MIRROR="${APK_MIRROR:-}" -v "$_dir:/out" "$PHP_IMAGE_DEFAULT" sh -c '
+            set -e
+            if [ -n "$APK_MIRROR" ]; then
+                sed -i "s|dl-cdn.alpinelinux.org|$APK_MIRROR|g" /etc/apk/repositories
+            fi
+            apk add --no-cache '"$APK_PACKAGES"' >/dev/null
+            docker-php-ext-configure gd --with-freetype --with-jpeg --with-webp --with-avif >/dev/null
+            docker-php-ext-install -j"$(nproc)" gd pcntl >/dev/null
+            EXT_DIR=$(php -r "echo ini_get('"'"'extension_dir'"'"');")
+            cp "$EXT_DIR/gd.so" "$EXT_DIR/pcntl.so" /out/
+            php -r "echo PHP_VERSION;" > /out/.php-version
+            printf %s "$EXT_DIR" > /out/.ext-dir
+        '; then
+        manifest_set "php-ext/$_arch/gd.so" "$(file_md5 "$_dir/gd.so")" "$(wc -c < "$_dir/gd.so" | tr -d ' ')" "" "local-build $(cat "$_dir/.php-version" 2>/dev/null)"
+        ok "[php-ext/$_arch] 预编译完成（PHP $(cat "$_dir/.php-version" 2>/dev/null)）"
+    else
+        warn "[php-ext/$_arch] 预编译失败（构建时自动回退源码编译，不影响构建）"
+    fi
+}
+
+# =====================================================================
 # 目标 4: Composer 包缓存预热（lockfile 自带完整性校验）
 # =====================================================================
 fetch_composer() {
@@ -391,9 +439,10 @@ log "目标: $TARGET | 架构: $ARCHS | 模式: $([ "$CHECK_ONLY" -eq 1 ] && ech
 log "存储目录: $PKG_DIR"
 
 for a in $ARCHS; do
-    case "$TARGET" in debian|all)  fetch_debian "$a"  ;; esac
-    case "$TARGET" in alpine|all)  fetch_alpine "$a"  ;; esac
-    case "$TARGET" in tools|all)   fetch_tools "$a"   ;; esac
+    case "$TARGET" in debian|all)   fetch_debian "$a"   ;; esac
+    case "$TARGET" in alpine|all)   fetch_alpine "$a"   ;; esac
+    case "$TARGET" in tools|all)    fetch_tools "$a"    ;; esac
+    case "$TARGET" in php-ext|all)  fetch_php_ext "$a"  ;; esac
 done
 case "$TARGET" in composer|all) fetch_composer ;; esac
 case "$TARGET" in npm|all)      fetch_npm      ;; esac

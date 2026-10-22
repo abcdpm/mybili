@@ -264,8 +264,9 @@ docker login
 ### ⚡ 离线包加速构建（强烈推荐国内网络使用）
 
 构建所需的 **Debian 包 / Alpine 包 / 工具二进制（ffmpeg、yt-dlp、frankenphp、supervisord）/
-npm / Composer 依赖** 可预先下载并持久化到本地 `docker-packages/` 目录（自动 gitignore），
-之后构建时直接从本地复制安装，**不再受境外网络与 GitHub 抽风影响**：
+PHP 扩展预编译产物（gd/pcntl）/ npm / Composer 依赖** 可预先下载并持久化到本地
+`docker-packages/` 目录（自动 gitignore），之后构建时直接从本地复制安装，
+**不再受境外网络与 GitHub 抽风影响**：
 
 ```bash
 # 1. 预取离线包（默认 amd64；约 2-3GB，增量刷新只下载变化部分）
@@ -285,6 +286,7 @@ npm / Composer 依赖** 可预先下载并持久化到本地 `docker-packages/` 
 | apt .deb | apt 官方索引 **MD5/SHA256** | 上游安全更新自动表现为哈希变化，仅重下变化的包 |
 | apk .apk | 包版本 + manifest 记录 | 在 `phpswoole` 运行时镜像内拉取，alpine 版本严格一致 |
 | 工具二进制 | 固定版本 MD5 防损坏；yt-dlp(latest) 用 **ETag/Last-Modified** | 变化才重下 |
+| **PHP 扩展 .so** | 三重校验：架构 + PHP 版本 + 扩展 API 目录 | **一次编译终身复用**（跳过 2-8 分钟的 gd 源码编译）；冒烟测试失败自动回退编译 |
 | npm / Composer | lockfile 完整性哈希（sha512/sha1） | lock 变化自动增量补全 |
 
 **常用命令：**
@@ -293,8 +295,14 @@ npm / Composer 依赖** 可预先下载并持久化到本地 `docker-packages/` 
 ./fetch-packages.sh --check        # 只校验新鲜度并输出报告（不下载）
 ./fetch-packages.sh --force        # 强制全量刷新
 ./fetch-packages.sh --target tools # 只处理工具二进制
+./fetch-packages.sh --target php-ext  # 预编译 PHP 扩展（跳过 gd 编译慢的问题）
 ./build-and-push.sh --offline      # 严格离线：包不全直接报错（防止误回退在线）
 ```
+
+> 💡 **构建卡在 `docker-php-ext-install gd` 特别慢？**
+> 这是 gd 源码编译（NAS 级 CPU 约 2-8 分钟/次，层缓存失效就要重编）。
+> 运行 `./fetch-packages.sh --target php-ext` 预编译一次后，构建时直接复用 `.so`
+> （构建日志显示 `==> [offline] 复用预编译 PHP 扩展` 即生效），此后这一步只需秒级。
 
 **兼容性保证：**
 
