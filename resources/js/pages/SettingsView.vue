@@ -4,8 +4,21 @@
         <div class="max-w-4xl mx-auto">
             <h1 class="text-3xl font-bold mb-8 text-gray-800 text-center">{{ t('settings.title') }}</h1>
 
+            <!-- 设置分组导航（第13项：分组化设置页） -->
+            <div class="flex flex-wrap justify-center gap-2 mb-8">
+                <button v-for="tabItem in tabs" :key="tabItem.key" @click="tab = tabItem.key"
+                    :class="[
+                        'px-5 py-2.5 rounded-full text-sm font-semibold transition-all duration-200',
+                        tab === tabItem.key
+                            ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-lg'
+                            : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200 shadow-sm'
+                    ]">
+                    {{ tabItem.label }}
+                </button>
+            </div>
+
             <!-- 功能开关分组 -->
-            <div class="bg-white rounded-lg shadow-lg p-6 mb-6">
+            <div v-show="tab === 'general'" class="bg-white rounded-lg shadow-lg p-6 mb-6">
                 <h2 class="text-xl font-semibold mb-6 text-gray-800 border-b border-gray-200 pb-3">
                     <span class="inline-flex items-center">
                         <svg class="w-5 h-5 mr-2 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -157,7 +170,7 @@
             </div>
 
             <!-- 过滤设置分组 -->
-            <div class="bg-white rounded-lg shadow-lg p-6 mb-6" v-if="availableCollections">
+            <div class="bg-white rounded-lg shadow-lg p-6 mb-6" v-if="availableCollections" v-show="tab === 'filters'">
                 <h2 class="text-xl font-semibold mb-6 text-gray-800 border-b border-gray-200 pb-3">
                     <span class="inline-flex items-center">
                         <svg class="w-5 h-5 mr-2 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -368,7 +381,7 @@
 
 
             <!-- 通知设置分组 -->
-            <div class="bg-white rounded-lg shadow-lg p-6 mb-6">
+            <div v-show="tab === 'notify'" class="bg-white rounded-lg shadow-lg p-6 mb-6">
                 <h2 class="text-xl font-semibold mb-6 text-gray-800 border-b border-gray-200 pb-3">
                     <span class="inline-flex items-center">
                         <svg class="w-5 h-5 mr-2 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -502,7 +515,150 @@
             </div>
 
 
-            <!-- Save Button -->
+            <!-- 定时任务配置（第14项） -->
+            <div v-show="tab === 'scheduled'" class="bg-white rounded-lg shadow-lg p-6 mb-6">
+                <h2 class="text-xl font-semibold mb-2 text-gray-800 border-b border-gray-200 pb-3">
+                    <span class="inline-flex items-center">⏰ {{ t('settings.scheduled.title') }}</span>
+                </h2>
+                <p class="text-sm text-gray-500 mb-6">{{ t('settings.scheduled.subtitle') }}</p>
+
+                <div class="space-y-3">
+                    <div v-for="task in scheduledTasks" :key="task.key"
+                        class="flex flex-col md:flex-row md:items-center gap-3 p-4 rounded-xl border border-gray-200 hover:border-purple-300 hover:shadow-sm transition-all duration-200"
+                        :class="taskForm[task.key]?.enabled ? 'bg-white' : 'bg-gray-50 opacity-80'">
+                        <div class="flex items-start gap-3 flex-1 min-w-0">
+                            <!-- 启用开关 -->
+                            <label class="relative inline-flex items-center cursor-pointer flex-shrink-0 mt-0.5">
+                                <input type="checkbox" v-model="taskForm[task.key].enabled" class="sr-only peer">
+                                <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-purple-300 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600"></div>
+                            </label>
+                            <div class="min-w-0">
+                                <h3 class="font-semibold text-gray-800">{{ task.name }}</h3>
+                                <p class="text-sm text-gray-500 leading-relaxed">{{ task.description }}</p>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2 flex-shrink-0">
+                            <select v-model="taskForm[task.key].frequency"
+                                class="text-sm border border-gray-300 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-purple-400 focus:border-purple-400">
+                                <option v-for="freq in frequencyLabels" :key="freq.value" :value="freq.value">{{ freq.label }}</option>
+                            </select>
+                            <input v-if="['daily','weekly'].includes(taskForm[task.key].frequency)" type="time"
+                                v-model="taskForm[task.key].time"
+                                class="text-sm border border-gray-300 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-purple-400 focus:border-purple-400">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+
+            <!-- 评论下载设置（第15项） -->
+            <div v-show="tab === 'comments'" class="bg-white rounded-lg shadow-lg p-6 mb-6">
+                <h2 class="text-xl font-semibold mb-2 text-gray-800 border-b border-gray-200 pb-3">
+                    <span class="inline-flex items-center">💬 {{ t('settings.comments.title') }}</span>
+                </h2>
+                <p class="text-sm text-gray-500 mb-6">{{ t('settings.comments.subtitle') }}</p>
+
+                <div class="space-y-5">
+                    <!-- 智能模式 -->
+                    <div class="flex items-center justify-between p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-200/50">
+                        <div>
+                            <h3 class="font-semibold text-gray-800">{{ t('settings.comments.autoUpdate') }}</h3>
+                            <p class="text-sm text-gray-500">{{ t('settings.comments.autoUpdateDesc') }}</p>
+                        </div>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" v-model="commentConfig.auto_update" class="sr-only peer">
+                            <div class="w-11 h-6 bg-gray-200 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                        </label>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div v-if="commentConfig.auto_update">
+                            <label class="block text-sm font-medium text-gray-700 mb-1">{{ t('settings.comments.percent') }}</label>
+                            <input type="number" min="1" max="100" v-model.number="commentConfig.percent"
+                                class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-400 focus:border-blue-400">
+                            <p class="text-xs text-gray-400 mt-1">{{ t('settings.comments.percentDesc') }}</p>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">{{ t('settings.comments.incremental') }}</label>
+                            <input type="number" min="0" max="1000" v-model.number="commentConfig.incremental"
+                                class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-400 focus:border-blue-400">
+                            <p class="text-xs text-gray-400 mt-1">{{ t('settings.comments.incrementalDesc') }}</p>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">{{ t('settings.comments.limit') }}</label>
+                            <input type="number" min="0" max="20000" v-model.number="commentConfig.limit"
+                                class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-400 focus:border-blue-400">
+                            <p class="text-xs text-gray-400 mt-1">{{ t('settings.comments.limitDesc') }}</p>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">{{ t('settings.comments.maxVideos') }}</label>
+                            <input type="number" min="0" max="5000" v-model.number="commentConfig.max_videos"
+                                class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-400 focus:border-blue-400">
+                            <p class="text-xs text-gray-400 mt-1">{{ t('settings.comments.maxVideosDesc') }}</p>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">{{ t('settings.comments.interval') }}</label>
+                            <input type="number" min="0" max="3600" v-model.number="commentConfig.interval"
+                                class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-400 focus:border-blue-400">
+                            <p class="text-xs text-gray-400 mt-1">{{ t('settings.comments.intervalDesc') }}</p>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">{{ t('settings.comments.sleep') }}</label>
+                            <input type="number" min="0" max="60" v-model.number="commentConfig.sleep"
+                                class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-400 focus:border-blue-400">
+                            <p class="text-xs text-gray-400 mt-1">{{ t('settings.comments.sleepDesc') }}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+
+            <!-- 转码设置（第19项） -->
+            <div v-show="tab === 'transcode'" class="bg-white rounded-lg shadow-lg p-6 mb-6">
+                <h2 class="text-xl font-semibold mb-2 text-gray-800 border-b border-gray-200 pb-3">
+                    <span class="inline-flex items-center">🎬 {{ t('settings.transcode.title') }}</span>
+                </h2>
+                <p class="text-sm text-gray-500 mb-6">{{ t('settings.transcode.subtitle') }}</p>
+
+                <div class="space-y-5">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">{{ t('settings.transcode.hwaccel') }}</label>
+                            <select v-model="transcodeConfig.hwaccel"
+                                class="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-purple-400 focus:border-purple-400">
+                                <option value="auto">{{ t('settings.transcode.hwAuto') }}</option>
+                                <option value="cpu">{{ t('settings.transcode.hwCpu') }}</option>
+                                <option value="cuda">{{ t('settings.transcode.hwCuda') }}</option>
+                                <option value="qsv">{{ t('settings.transcode.hwQsv') }}</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">{{ t('settings.transcode.quality') }}（{{ transcodeConfig.quality }}）</label>
+                            <input type="range" min="18" max="32" v-model.number="transcodeConfig.quality"
+                                class="w-full accent-purple-600">
+                            <p class="text-xs text-gray-400 mt-1">{{ t('settings.transcode.qualityDesc') }}</p>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">{{ t('settings.transcode.preset') }}</label>
+                            <select v-model="transcodeConfig.preset"
+                                class="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-purple-400 focus:border-purple-400">
+                                <option value="ultrafast">ultrafast</option>
+                                <option value="veryfast">veryfast</option>
+                                <option value="faster">faster</option>
+                                <option value="fast">fast</option>
+                                <option value="medium">medium</option>
+                                <option value="slow">slow</option>
+                            </select>
+                            <p class="text-xs text-gray-400 mt-1">{{ t('settings.transcode.presetDesc') }}</p>
+                        </div>
+                    </div>
+                    <div class="p-4 bg-amber-50 border border-amber-200/60 rounded-xl text-sm text-amber-800">
+                        {{ t('settings.transcode.note') }}
+                    </div>
+                </div>
+            </div>
+
+
             <div class="text-center">
                 <button @click="saveSettingHandler"
                     class="bg-gradient-to-r from-purple-500 to-pink-500 text-white py-3 px-8 rounded-lg hover:from-purple-600 hover:to-pink-600 focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 transition duration-200 text-lg font-medium shadow-lg">
@@ -538,7 +694,7 @@
 
 <script lang="ts" setup>
 import { getFavList } from '@/api/fav';
-import { getSettings, saveSettings, testTelegramConnection as testTelegramAPI } from '@/api/settings';
+import { getSettings, saveSettings, getScheduledTasks, testTelegramConnection as testTelegramAPI } from '@/api/settings';
 import { onMounted, ref, nextTick } from 'vue';
 import { useI18n } from 'vue-i18n';
 
@@ -619,6 +775,47 @@ const favExclude = ref({
 
 const availableCollections = ref<Collection[]>([]);
 
+// ===== 设置分组导航（第13项） =====
+const tab = ref('general');
+const tabs = ref<{ key: string; label: string }[]>([]);
+
+// ===== 定时任务配置（第14项） =====
+const scheduledTasks = ref<any[]>([]);
+const taskForm = ref<Record<string, { enabled: boolean; frequency: string; time: string }>>({});
+const frequencyLabels = ref<{ value: string; label: string }[]>([]);
+
+// ===== 评论下载配置（第15项） =====
+const commentConfig = ref({
+    auto_update: true,
+    percent: 3,
+    incremental: 20,
+    limit: 0,
+    max_videos: 0,
+    interval: 0,
+    sleep: 0,
+});
+
+// ===== 转码配置（第19项） =====
+const transcodeConfig = ref({
+    hwaccel: 'auto',
+    quality: 26,
+    preset: 'veryfast',
+});
+
+/** 频率枚举的中文标签（与 ScheduleConfigService::FREQUENCIES 对应） */
+const freqLabel = (freq: string) => t(`settings.scheduled.freq.${freq}`);
+
+const buildTabs = () => {
+    tabs.value = [
+        { key: 'general', label: t('settings.groups.general') },
+        { key: 'filters', label: t('settings.groups.filters') },
+        { key: 'scheduled', label: t('settings.groups.scheduled') },
+        { key: 'comments', label: t('settings.groups.comments') },
+        { key: 'transcode', label: t('settings.groups.transcode') },
+        { key: 'notify', label: t('settings.groups.notify') },
+    ];
+};
+
 const saveSettingHandler = () => {
     // Telegram 启用前置校验：启用状态下必须填写 Token 与 Chat ID，
     // 在前端提前拦截并给出明确提示，避免后端 422 报出难以理解的英文错误。
@@ -646,13 +843,17 @@ const saveSettingHandler = () => {
         telegram_bot_token: telegramBotToken.value,
         telegram_chat_id: telegramChatId.value,
         telegram_bot_api_url: telegramBotApiUrl.value,
+        // 定时任务 / 评论下载 / 转码配置（第14/15/19项）
+        scheduled_tasks: taskForm.value,
+        comment_download_config: commentConfig.value,
+        transcode_config: transcodeConfig.value,
     };
 
     saveSettings(payload).then(()=>{
         showNotification(t('settings.settingsSaved'));
     }).catch((err)=>{
         // 422 校验错误：提取字段级错误信息，给出可读提示（而非英文 "Request failed"）
-        const errors = err?.response?.data?.errors;
+        const errors = err?.errors ?? err?.response?.data?.errors;
         if (errors) {
             const detail = Object.values(errors).flat().join('；');
             showNotification(t('settings.settingsSaveFailed') + '：' + detail, true);
@@ -687,15 +888,30 @@ const testTelegramConnection = async () => {
 };
 
 onMounted(()=>{
+    buildTabs();
     getFavList().then((data)=>{
         availableCollections.value = data.map((item:any)=>({
             id: item.id,
             name: item.title,
         }));
     })
-    getSettings().then((data)=>{
-        console.log(data);
 
+    // 定时任务注册表元数据（任务名/说明/默认频率/当前配置）
+    getScheduledTasks().then((data) => {
+        scheduledTasks.value = data.tasks ?? [];
+        const form: Record<string, { enabled: boolean; frequency: string; time: string }> = {};
+        for (const task of scheduledTasks.value) {
+            form[task.key] = {
+                enabled: task.current?.enabled ?? true,
+                frequency: task.current?.frequency ?? task.default?.frequency ?? 'daily',
+                time: task.current?.time ?? task.default?.time ?? '00:00',
+            };
+        }
+        taskForm.value = form;
+        frequencyLabels.value = (data.frequencies ?? []).map((f: string) => ({ value: f, label: freqLabel(f) }));
+    });
+
+    getSettings().then((data)=>{
         nameExclude.value = data.name_exclude;
         sizeExclude.value = data.size_exclude;
         favExclude.value = data.fav_exclude;
@@ -716,6 +932,14 @@ onMounted(()=>{
         telegramBotToken.value = data.telegram_bot_token || '';
         telegramChatId.value = data.telegram_chat_id || '';
         telegramBotApiUrl.value = data.telegram_bot_api_url || '';
+
+        // 加载定时任务/评论下载/转码配置（第14/15/19项，缺省用预设）
+        if (data.comment_download_config) {
+            commentConfig.value = { ...commentConfig.value, ...data.comment_download_config };
+        }
+        if (data.transcode_config) {
+            transcodeConfig.value = { ...transcodeConfig.value, ...data.transcode_config };
+        }
     })
 })
 
