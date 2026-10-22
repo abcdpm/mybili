@@ -177,6 +177,53 @@ remote_tag() {
 ARCH_PLATFORM() { echo "linux/$1"; }
 
 # =====================================================================
+# 容器内执行 + 文件进出（docker create / docker cp 方式）
+#
+# 为什么不使用 -v bind mount：在 Docker-in-Docker / socket 映射环境中
+# （daemon 不在当前容器），-v 绑定的是 daemon 所在机器的路径，Docker 会
+# 静默创建空目录挂载，导致容器内产物"丢失"、输入文件"不存在"。
+# docker cp 走 Docker API 传输，与 daemon 位置无关，任何环境都可靠。
+#
+# 用法: container_io <platform> <script> <输出目录> [环境变量A=1,B=2] [cp-in宿主路径:容器路径,...] [镜像(默认 PHP 运行时)]
+#       约定容器内产物写到 /out/ 下，执行完成后自动拷回 <输出目录>
+# 返回: 容器脚本退出码（产物是否有效请调用方自行校验）
+# =====================================================================
+container_io() {
+    _platform="$1"; _script="$2"; _outdir="$3"; _envs="${4:-}"; _cpin="${5:-}"; _image="${6:-$PHP_IMAGE_DEFAULT}"
+
+    # 组装 create 参数（环境变量在 create 时传入；K=V 以逗号分隔，值不含空格）
+    _create_args="--platform $_platform"
+    if [ -n "$_envs" ]; then
+        _oldifs=$IFS; IFS=','
+        for _kv in $_envs; do
+            if [ -n "$_kv" ]; then _create_args="$_create_args -e $_kv"; fi
+        done
+        IFS=$_oldifs
+    fi
+
+    _cid=$(docker create $_create_args "$_image" sh -c "$_script") || return 1
+
+    # 输入文件送入容器
+    if [ -n "$_cpin" ]; then
+        _oldifs=$IFS; IFS=','
+        for _pair in $_cpin; do
+            _src=${_pair%%:*}; _dst=${_pair#*:}
+            docker cp "$_src" "$_cid:$_dst" >/dev/null 2>&1 || true
+        done
+        IFS=$_oldifs
+    fi
+
+    docker start -a "$_cid"
+    _rc=$?
+
+    # 产物拷回宿主（docker cp 走 API，兼容 Docker-in-Docker/远程 daemon）
+    mkdir -p "$_outdir"
+    docker cp "$_cid:/out/." "$_outdir/" >/dev/null 2>&1 || true
+    docker rm -f "$_cid" >/dev/null 2>&1 || true
+    return $_rc
+}
+
+# =====================================================================
 # 目标 1: debian 离线包（apt 依赖闭包，官方 MD5/SHA256 校验）
 # =====================================================================
 fetch_debian() {
@@ -257,25 +304,30 @@ fetch_alpine() {
         return 0
     fi
 
-    # 在运行时基础镜像容器内拉取（保证 alpine 版本与镜像严格一致）
-    if docker run --rm --platform "$(ARCH_PLATFORM "$_arch")" \
-        -e APK_MIRROR="${APK_MIRROR:-}" -v "$_dir:/out" "$PHP_IMAGE_DEFAULT" sh -c '
-            if [ -n "$APK_MIRROR" ]; then
-                sed -i "s|dl-cdn.alpinelinux.org|$APK_MIRROR|g" /etc/apk/repositories 2>/dev/null || true
-            fi
-            apk update >/dev/null 2>&1
-            cd /out && apk fetch -R '"$APK_PACKAGES"' >/dev/null 2>&1
-        '; then
-        _count=$(find "$_dir" -name '*.apk' 2>/dev/null | wc -l | tr -d ' ')
-        if [ "$_count" -gt 0 ]; then
-            ok "[alpine/$_arch] 完成：$_count 个 .apk"
-            return 0
+    # 在运行时基础镜像容器内拉取（保证 alpine 版本与镜像严格一致）；
+    # 通过 docker cp 传出产物，兼容 Docker-in-Docker/远程 daemon
+    _apk_script='
+        set -e
+        if [ -n "$APK_MIRROR" ]; then
+            sed -i "s|dl-cdn.alpinelinux.org|$APK_MIRROR|g" /etc/apk/repositories
         fi
+        mkdir -p /out
+        apk update >/dev/null 2>&1 || true
+        cd /out
+        apk fetch -R '"$APK_PACKAGES"' >/dev/null 2>&1 \
+            || apk fetch '"$APK_PACKAGES"' >/dev/null 2>&1 \
+            || true
+    '
+    container_io "$(ARCH_PLATFORM "$_arch")" "$_apk_script" "$_dir" "APK_MIRROR=${APK_MIRROR:-}" || true
+
+    _count=$(find "$_dir" -name '*.apk' 2>/dev/null | wc -l | tr -d ' ')
+    if [ "$_count" -gt 0 ]; then
+        ok "[alpine/$_arch] 完成：$_count 个 .apk"
+        return 0
     fi
 
-    # 安全兜底：apk fetch 失败 → 清理半成品保持目录为空（Dockerfile 自动回退在线，不影响构建）
+    # 安全兜底：拉取失败 → 保持目录为空（Dockerfile 自动回退在线，不影响构建）
     warn "[alpine/$_arch] apk 离线包拉取失败（构建时自动回退在线安装）"
-    find "$_dir" -name '*.apk' -delete 2>/dev/null || true
     return 0
 }
 
@@ -354,28 +406,33 @@ fetch_php_ext() {
         return 0
     fi
 
-    # 在运行时基础镜像内编译（保证扩展 ABI 与镜像严格一致），完成后拷出 .so
-    if docker run --rm --platform "$(ARCH_PLATFORM "$_arch")" \
-        -e APK_MIRROR="${APK_MIRROR:-}" -v "$_dir:/out" "$PHP_IMAGE_DEFAULT" sh -c '
-            set -e
-            if [ -n "$APK_MIRROR" ]; then
-                sed -i "s|dl-cdn.alpinelinux.org|$APK_MIRROR|g" /etc/apk/repositories
-            fi
-            apk add --no-cache '"$APK_PACKAGES"' >/dev/null
-            docker-php-ext-configure gd --with-freetype --with-jpeg --with-webp --with-avif >/dev/null
-            docker-php-ext-install -j"$(nproc)" gd pcntl >/dev/null
-            EXT_DIR=$(php -r "echo ini_get('"'"'extension_dir'"'"');")
-            cp "$EXT_DIR/gd.so" "$EXT_DIR/pcntl.so" /out/
-            php -r "echo PHP_VERSION;" > /out/.php-version
-            printf %s "$EXT_DIR" > /out/.ext-dir
-        '; then
-        manifest_set "php-ext/$_arch/gd.so" "$(file_md5 "$_dir/gd.so")" "$(wc -c < "$_dir/gd.so" | tr -d ' ')" "" "local-build $(cat "$_dir/.php-version" 2>/dev/null)"
-        ok "[php-ext/$_arch] 预编译完成（PHP $(cat "$_dir/.php-version" 2>/dev/null)）"
+    # 在运行时基础镜像内编译（保证扩展 ABI 与镜像严格一致），通过 docker cp 拷出 .so
+    # （不使用 -v bind mount：Docker-in-Docker/远程 daemon 下挂载的是 daemon 侧路径）
+    _ext_script='
+        set -e
+        if [ -n "$APK_MIRROR" ]; then
+            sed -i "s|dl-cdn.alpinelinux.org|$APK_MIRROR|g" /etc/apk/repositories
+        fi
+        mkdir -p /out
+        apk add --no-cache '"$APK_PACKAGES"' >/dev/null
+        docker-php-ext-configure gd --with-freetype --with-jpeg --with-webp --with-avif >/dev/null
+        docker-php-ext-install -j"$(nproc)" gd pcntl >/dev/null
+        EXT_DIR=$(php -r "echo ini_get(\"extension_dir\");")
+        cp "$EXT_DIR/gd.so" "$EXT_DIR/pcntl.so" /out/
+        php -r "echo PHP_VERSION;" > /out/.php-version
+        printf %s "$EXT_DIR" > /out/.ext-dir
+    '
+    container_io "$(ARCH_PLATFORM "$_arch")" "$_ext_script" "$_dir" "APK_MIRROR=${APK_MIRROR:-}" || true
+
+    # 产物强校验：杜绝"容器成功但文件缺失"的假阳性
+    if [ -s "$_dir/gd.so" ] && [ -s "$_dir/pcntl.so" ] && [ -s "$_dir/.php-version" ] && [ -s "$_dir/.ext-dir" ]; then
+        manifest_set "php-ext/$_arch/gd.so" "$(file_md5 "$_dir/gd.so")" "$(wc -c < "$_dir/gd.so" | tr -d ' ')" "" "local-build $(cat "$_dir/.php-version")"
+        ok "[php-ext/$_arch] 预编译完成（PHP $(cat "$_dir/.php-version")）"
     else
-        warn "[php-ext/$_arch] 预编译失败（构建时自动回退源码编译，不影响构建）"
+        rm -f "$_dir/gd.so" "$_dir/pcntl.so" "$_dir/.php-version" "$_dir/.ext-dir"
+        warn "[php-ext/$_arch] 预编译产物缺失（构建时自动回退源码编译，不影响构建）"
     fi
 }
-
 # =====================================================================
 # 目标 4: Composer 包缓存预热（lockfile 自带完整性校验）
 # =====================================================================
@@ -392,13 +449,26 @@ fetch_composer() {
         return 0
     fi
 
-    docker run --rm -v "$ROOT_DIR:/app" -v "$_dir:/composer-cache" \
-        -e COMPOSER_CACHE_DIR=/composer-cache -e COMPOSER_ALLOW_SUPERUSER=1 \
-        -e HTTP_PROXY="${HTTP_PROXY:-}" -e HTTPS_PROXY="${HTTPS_PROXY:-}" \
-        -w /tmp "$PHP_IMAGE_DEFAULT" sh -c '
-            cp /app/composer.json /app/composer.lock /tmp/ && cd /tmp \
-            && composer install --no-scripts --no-autoloader --prefer-dist --no-interaction >/dev/null 2>&1
-        ' && ok "[composer] 缓存预热完成" || warn "[composer] 预热失败（构建时在线下载，不影响构建）"
+    # 容器内预热缓存后 docker cp 拷回（兼容 Docker-in-Docker/远程 daemon）
+    _composer_script='
+        set -e
+        export COMPOSER_CACHE_DIR=/out
+        export COMPOSER_ALLOW_SUPERUSER=1
+        if [ -n "$COMPOSER_MIRROR" ]; then composer config -g repos.packagist composer "$COMPOSER_MIRROR"; fi
+        mkdir -p /out
+        cd /tmp
+        composer install --no-scripts --no-autoloader --prefer-dist --no-interaction --ignore-platform-reqs >/dev/null
+    '
+    container_io "linux/$(uname -m | sed 's/x86_64/amd64/; s/aarch64/arm64/')" "$_composer_script" "$_dir" \
+        "HTTP_PROXY=${HTTP_PROXY:-},HTTPS_PROXY=${HTTPS_PROXY:-},COMPOSER_MIRROR=${COMPOSER_MIRROR:-}" \
+        "$ROOT_DIR/composer.json:/tmp/,${ROOT_DIR}/composer.lock:/tmp/" || true
+
+    _count=$(find "$_dir" -type f ! -name '.gitkeep' 2>/dev/null | wc -l | tr -d ' ')
+    if [ "$_count" -gt 0 ]; then
+        ok "[composer] 缓存预热完成：$_count 个缓存文件"
+    else
+        warn "[composer] 预热失败（构建时在线下载，不影响构建）"
+    fi
 }
 
 # =====================================================================
@@ -417,14 +487,30 @@ fetch_npm() {
         return 0
     fi
 
-    docker run --rm -v "$ROOT_DIR:/app" -v "$_dir:/store" \
-        -e HTTP_PROXY="${HTTP_PROXY:-}" -e HTTPS_PROXY="${HTTPS_PROXY:-}" \
-        -e NPM_REGISTRY="${NPM_REGISTRY:-}" \
-        "$NODE_IMAGE" sh -c '
-            if [ -n "$NPM_REGISTRY" ]; then npm config set registry "$NPM_REGISTRY"; fi
-            npm install -g pnpm@latest-11 >/dev/null 2>&1
-            cd /app && pnpm fetch --store-dir /store >/dev/null 2>&1
-        ' && ok "[npm] 依赖 store 预热完成" || warn "[npm] 预热失败（构建时在线下载，不影响构建）"
+    # 容器内预热 store 后 docker cp 拷回（兼容 Docker-in-Docker/远程 daemon）
+    _npm_script='
+        set -e
+        mkdir -p /out
+        if [ -n "$NPM_REGISTRY" ]; then npm config set registry "$NPM_REGISTRY"; fi
+        npm install -g pnpm@latest-11 >/dev/null
+        cd /tmp
+        pnpm fetch --store-dir /out >/dev/null
+        # pnpm store 含指向构建目录的符号链接（v11/projects/*），docker cp 会拒绝
+        # 越界 symlink 导致拷贝中断；内容寻址文件（v11/files）才是复用所需，链接可由
+        # pnpm 安装时自建，故拷出前清除
+        find /out -type l -delete 2>/dev/null || true
+    '
+    container_io "linux/$(uname -m | sed 's/x86_64/amd64/; s/aarch64/arm64/')" "$_npm_script" "$_dir" \
+        "HTTP_PROXY=${HTTP_PROXY:-},HTTPS_PROXY=${HTTPS_PROXY:-},NPM_REGISTRY=${NPM_REGISTRY:-}" \
+        "$ROOT_DIR/package.json:/tmp/,${ROOT_DIR}/pnpm-lock.yaml:/tmp/,${ROOT_DIR}/pnpm-workspace.yaml:/tmp/" \
+        "$NODE_IMAGE" || true
+
+    _count=$(find "$_dir" -type f ! -name '.gitkeep' 2>/dev/null | wc -l | tr -d ' ')
+    if [ "$_count" -gt 0 ]; then
+        ok "[npm] 依赖 store 预热完成：$_count 个文件"
+    else
+        warn "[npm] 预热失败（构建时在线下载，不影响构建）"
+    fi
 }
 
 # =====================================================================
