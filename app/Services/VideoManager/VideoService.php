@@ -141,6 +141,26 @@ class VideoService implements VideoServiceInterface
             'frozen' => (int) ($statRow->frozen ?? 0),
         ];
 
+        // 【第18项】列表排序：白名单映射列名防注入；不传 sort 保持旧版自然顺序。
+        // 弹幕数排序走 danmaku_files.count 的相关子查询（video_id 有索引），
+        // 仅在用户主动选择该排序时才付出该开销，不影响默认列表。
+        $sortMap = [
+            'view' => 'view',
+            'duration' => 'duration',
+            'pubtime' => 'pubtime',
+            'favtime' => 'fav_time',
+        ];
+        if (isset($conditions['sort'])) {
+            $direction = ($conditions['order'] ?? 'desc') === 'asc' ? 'asc' : 'desc';
+            if (isset($sortMap[$conditions['sort']])) {
+                $query->orderBy($sortMap[$conditions['sort']], $direction);
+            } elseif ($conditions['sort'] === 'danmaku') {
+                $query->orderByRaw(
+                    '(SELECT COALESCE(SUM(df.count), 0) FROM danmaku_files df WHERE df.video_id = videos.id) '.$direction
+                );
+            }
+        }
+
         return [
             'list' => $query->offset(($page - 1) * $perPage)->limit($perPage)->get(),
             'stat' => $stat,

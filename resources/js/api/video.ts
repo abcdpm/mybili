@@ -18,6 +18,10 @@ export interface VideoListParams {
     downloaded?: string;
     multi_part?: string;
     fav_id?: string;
+    /** 第18项：排序字段 view|danmaku|duration|pubtime|favtime */
+    sort?: string;
+    /** 排序方向 asc|desc */
+    order?: string;
 }
 
 export interface DeleteVideoOptions {

@@ -3,6 +3,22 @@
         <Breadcrumbs :items="breadcrumbItems">
             <template #actions>
                 <div class="flex items-center gap-2">
+                    <!-- 第18项：排序 -->
+                    <select v-model="sortKey"
+                        class="text-sm border border-slate-300 rounded-lg px-2 py-1.5 bg-white text-slate-600 focus:ring-2 focus:ring-blue-400">
+                        <option value="">{{ t('favorites.sortDefault') }}</option>
+                        <option value="view">{{ t('favorites.sortView') }}</option>
+                        <option value="danmaku">{{ t('favorites.sortDanmaku') }}</option>
+                        <option value="duration">{{ t('favorites.sortDuration') }}</option>
+                        <option value="pubtime">{{ t('favorites.sortPubtime') }}</option>
+                        <option value="favtime">{{ t('favorites.sortFavtime') }}</option>
+                    </select>
+                    <!-- 第17项：隐藏已失效 -->
+                    <label class="text-slate-500">{{ t('favorites.showInvalid') }}</label>
+                    <div class="checkbox-wrapper-7">
+                        <input class="tgl tgl-ios" id="cb2-9" type="checkbox" v-model="showInvalid" />
+                        <label class="tgl-btn" for="cb2-9"></label>
+                    </div>
                     <label class="text-slate-500">{{ t('favorites.downloaded') }}</label>
                     <div class="checkbox-wrapper-7">
                         <input class="tgl tgl-ios" id="cb2-7" type="checkbox" v-model="isFilterDownloaded" />
@@ -115,7 +131,7 @@
 </template>
 
 <script lang="ts" setup>
-import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
+import { computed, nextTick, onActivated, onDeactivated, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import Image from '@/components/Image.vue';
@@ -140,6 +156,19 @@ const videoList = ref<FavVideo[]>([]);
 const loading = ref(true);
 const isFilterDownloaded = ref(false);
 
+// 【第20项】滚动位置恢复：keep-alive 页面切走时记录窗口滚动位置，返回时还原
+const savedScrollY = ref(0);
+onActivated(() => {
+    nextTick(() => window.scrollTo(0, savedScrollY.value));
+});
+onDeactivated(() => {
+    savedScrollY.value = window.scrollY;
+});
+// 第17项：默认隐藏已失效视频（打开开关可查看）
+const showInvalid = ref(false);
+// 第18项：客户端排序键（收藏夹页视频已全量在内存中，排序零后端开销）
+const sortKey = ref('');
+
 // 搜索相关状态
 const showSearchPanel = ref(false);
 const searchQuery = ref('');
@@ -157,13 +186,31 @@ const breadcrumbItems = computed(() => {
 });
 
 // === 【恢复】您的核心过滤逻辑 (将原可见列表重命名回 showVideoList 修复报错) ===
+// 第17项：默认隐藏已失效视频；第18项：按所选字段排序（desc）
 const showVideoList = computed(() => {
-    return videoList.value.filter((value: FavVideo) => {
+    let list = videoList.value.filter((value: FavVideo) => {
+        if (!showInvalid.value && (value as any)?.invalid === 1) {
+            return false;
+        }
         if (isFilterDownloaded.value) {
             return value.video_downloaded_num > 0 || value.audio_downloaded_num > 0;
         }
         return true;
     });
+    if (sortKey.value) {
+        const keyMap: Record<string, (v: any) => number> = {
+            view: (v) => Number(v.view ?? 0),
+            danmaku: (v) => Number(v.danmaku_count ?? 0),
+            duration: (v) => Number(v.duration ?? 0),
+            pubtime: (v) => Number(v.pubtime ?? 0),
+            favtime: (v) => Number(v.fav_time ?? 0),
+        };
+        const getter = keyMap[sortKey.value];
+        if (getter) {
+            list = [...list].sort((a, b) => getter(b) - getter(a));
+        }
+    }
+    return list;
 });
 
 // === 【恢复】您的前端切片懒加载逻辑 ===

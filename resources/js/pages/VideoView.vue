@@ -16,9 +16,10 @@
                     <div class="bg-white/90 backdrop-blur-sm rounded-xl shadow-lg border border-gray-200/50 p-4 mb-4">
                         <div class="flex flex-col md:flex-row md:items-center gap-4">
                             <div class="flex-1 min-w-0">
-                                <h2 class="text-2xl font-bold text-gray-800 leading-tight break-words">{{ videoInfo.title }}</h2>
+                                <!-- 移动端（第16项）：标题/元信息自适应字号 -->
+                                <h2 class="text-xl md:text-2xl font-bold text-gray-800 leading-tight break-words">{{ videoInfo.title }}</h2>
                                 <!-- 元信息行：播放量 / 弹幕数 / 视频发布时间 -->
-                                <div class="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-gray-600">
+                                <div class="mt-2 flex flex-wrap items-center gap-x-3 sm:gap-x-4 gap-y-1 text-xs sm:text-sm text-gray-600">
                                     <span class="inline-flex items-center">
                                         <span class="mr-1 text-blue-500">▶</span>
                                         {{ t('video.viewCount') }} {{ (videoInfo.view ?? 0).toLocaleString() }}

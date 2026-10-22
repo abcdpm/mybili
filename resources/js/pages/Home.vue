@@ -50,13 +50,22 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, nextTick, onActivated, onDeactivated, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { Favorite } from '@/api/fav';
 
 const { t } = useI18n();
 
 const favList = ref<Favorite[]>([]);
+
+// 【第20项】首页滚动位置恢复：keep-alive 页面切走时记录窗口滚动位置，返回时还原
+const savedScrollY = ref(0);
+onActivated(() => {
+    nextTick(() => window.scrollTo(0, savedScrollY.value));
+});
+onDeactivated(() => {
+    savedScrollY.value = window.scrollY;
+});
 
 import { formatTimestamp, image } from "../lib/helper"
 import Image from '@/components/Image.vue';

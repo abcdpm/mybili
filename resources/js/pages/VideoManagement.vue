@@ -56,6 +56,32 @@
                             </select>
                         </div>
 
+                        <!-- 第18项：列表排序 -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">
+                                {{ t('videoManagement.sortBy') }}
+                            </label>
+                            <select v-model="filters.sort"
+                                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                                <option value="">{{ t('videoManagement.sortDefault') }}</option>
+                                <option value="view">{{ t('videoManagement.sortView') }}</option>
+                                <option value="danmaku">{{ t('videoManagement.sortDanmaku') }}</option>
+                                <option value="duration">{{ t('videoManagement.sortDuration') }}</option>
+                                <option value="pubtime">{{ t('videoManagement.sortPubtime') }}</option>
+                                <option value="favtime">{{ t('videoManagement.sortFavtime') }}</option>
+                            </select>
+                        </div>
+                        <div v-if="filters.sort">
+                            <label class="block text-sm font-medium text-gray-700 mb-2">
+                                {{ t('videoManagement.sortOrder') }}
+                            </label>
+                            <select v-model="filters.order"
+                                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                                <option value="desc">{{ t('videoManagement.sortDesc') }}</option>
+                                <option value="asc">{{ t('videoManagement.sortAsc') }}</option>
+                            </select>
+                        </div>
+
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-2">
                                 {{ t('videoManagement.cacheStatus') }}
@@ -264,9 +290,13 @@ const stat = ref({
 
 const filters = ref({
     favId: '',
-    status: 'all',
+    // 第17项：默认隐藏已失效视频（切到 'all' / 'invalid' 可查看）
+    status: 'valid',
     downloaded: 'all',
     multiPart: 'all',
+    // 第18项：排序字段（空=旧版自然顺序）
+    sort: '',
+    order: 'desc',
 })
 
 const filteredVideos = computed(() => videoList.value)
@@ -282,9 +312,11 @@ const resetFilters = () => {
     searchQuery.value = ''
     filters.value = {
         favId: '',
-        status: 'all',
+        status: 'valid',
         downloaded: 'all',
-        multiPart: 'all'
+        multiPart: 'all',
+        sort: '',
+        order: 'desc',
     }
     selectedVideos.value.clear()
     resetAndLoad()
@@ -367,6 +399,8 @@ const loadVideos = async (sleep: number = 500, isReset: boolean = false) => {
                 downloaded: filters.value.downloaded,
                 multi_part: filters.value.multiPart,
                 fav_id: filters.value.favId,
+                sort: filters.value.sort,
+                order: filters.value.order,
             })
 
             const newVideos = jsonData.list ?? []
@@ -406,7 +440,7 @@ const handleScroll = () => {
     }
 }
 
-watch(() => [filters.value.status, filters.value.downloaded, filters.value.multiPart, filters.value.favId], resetAndLoad, { deep: true })
+watch(() => [filters.value.status, filters.value.downloaded, filters.value.multiPart, filters.value.favId, filters.value.sort, filters.value.order], resetAndLoad, { deep: true })
 
 onMounted(() => {
     getFavList().then(res => favList.value = res)

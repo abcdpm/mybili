@@ -156,7 +156,15 @@ const messages = {
             loading: '正在加载收藏夹...',
             published: '发布',
             favorited: '收藏',
-            downloaded: '已下载'
+            downloaded: '已下载',
+            // 第17/18项：失效隐藏与排序
+            showInvalid: '已失效',
+            sortDefault: '默认排序',
+            sortView: '按播放量',
+            sortDanmaku: '按弹幕数',
+            sortDuration: '按时长',
+            sortPubtime: '按发布时间',
+            sortFavtime: '按收藏时间'
         },
 
         // 视频页面
@@ -417,6 +425,16 @@ const messages = {
             allStatus: '全部状态',
             validOnly: '仅有效视频',
             invalidOnly: '仅无效视频',
+            sortBy: '排序方式',
+            sortDefault: '默认顺序',
+            sortView: '播放量',
+            sortDanmaku: '弹幕数',
+            sortDuration: '时长',
+            sortPubtime: '发布时间',
+            sortFavtime: '收藏时间',
+            sortOrder: '排序方向',
+            sortDesc: '降序',
+            sortAsc: '升序',
             frozenOnly: '仅冻结视频',
             cacheStatus: '缓存状态',
             allCache: '全部',
@@ -658,7 +676,14 @@ const messages = {
             loading: 'Loading favorites...',
             published: 'Published',
             favorited: 'Favorited',
-            downloaded: 'Downloaded'
+            downloaded: 'Downloaded',
+            showInvalid: 'Invalid',
+            sortDefault: 'Default Sort',
+            sortView: 'By Views',
+            sortDanmaku: 'By Danmaku',
+            sortDuration: 'By Duration',
+            sortPubtime: 'By Publish Time',
+            sortFavtime: 'By Favorite Time'
         },
 
         // 视频页面
@@ -914,6 +939,16 @@ const messages = {
             allStatus: 'All Status',
             validOnly: 'Valid Only',
             invalidOnly: 'Invalid Only',
+            sortBy: 'Sort By',
+            sortDefault: 'Default Order',
+            sortView: 'Views',
+            sortDanmaku: 'Danmaku',
+            sortDuration: 'Duration',
+            sortPubtime: 'Publish Time',
+            sortFavtime: 'Favorite Time',
+            sortOrder: 'Order',
+            sortDesc: 'Desc',
+            sortAsc: 'Asc',
             frozenOnly: 'Frozen Only',
             cacheStatus: 'Cache Status',
             allCache: 'All',
