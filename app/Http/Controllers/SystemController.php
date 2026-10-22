@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Http\Controllers;
 
 use App\Services\SystemService;
@@ -84,8 +85,11 @@ class SystemController extends Controller
             // 获取队列全名 (底层依赖库会自动处理 prefix)
             $queueKey = 'queues:' . $queueName;
 
-            // 抽样取出前 100000 条任务 (不会删除任务)
-            $jobs = $redis->lrange($queueKey, 0, 100000);
+            // 【内存优化】旧版 lrange 拉取前 10 万条任务 JSON 进内存
+            // （单条数百字节 × 10 万 = 数十 MB 峰值）；现 LLEN 取总数 +
+            // 仅抽样前 500 条统计任务类型构成（运维视图足够，峰值内存降 99%）
+            $queueTotal = (int) $redis->llen($queueKey);
+            $jobs = $redis->lrange($queueKey, 0, 499);
 
             $stats = [];
             foreach ($jobs as $jobJson) {
@@ -114,7 +118,11 @@ class SystemController extends Controller
                 ];
             }
 
-            return response()->json(['data' => $result]);
+            return response()->json([
+                'data' => $result,
+                'queue_total' => $queueTotal,
+                'sampled' => count($jobs),
+            ]);
         } catch (\Exception $e) {
             return response()->json(['error' => $e->getMessage()], 500);
         }
