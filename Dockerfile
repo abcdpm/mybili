@@ -40,10 +40,11 @@ RUN if [ -n "$APT_MIRROR" ]; then \
     fi; \
     if ls /tmp/mybili-pkgs/debs/*.deb >/dev/null 2>&1; then \
         echo "==> [offline] 使用本地 Debian 离线包安装"; \
-        apt-get install -y --no-download /tmp/mybili-pkgs/debs/*.deb || { \
-            echo "==> [fallback] 离线安装失败，回退在线安装"; \
+        dpkg -i /tmp/mybili-pkgs/debs/*.deb || { \
+            echo "==> [fallback] 离线安装失败，修复并回退在线安装"; \
+            dpkg --configure -a >/dev/null 2>&1 || true; \
             apt-get -o Acquire::http::Timeout=20 -o Acquire::Retries=2 update && \
-            apt-get -o Acquire::http::Timeout=20 -o Acquire::Retries=2 install -y xz-utils curl wget tar; \
+            apt-get -o Acquire::http::Timeout=20 -o Acquire::Retries=2 install -y -f xz-utils curl wget tar; \
         }; \
     else \
         echo "==> [online] 本地离线包缺失，走在线安装（可运行 ./fetch-packages.sh 预取加速）"; \
@@ -159,7 +160,8 @@ RUN set -e; \
        && [ "$EXT_DIR" = "$(cat /tmp/mybili-pkgs/php-ext/.ext-dir 2>/dev/null)" ] \
        && php -r 'exit(version_compare(PHP_VERSION, trim(@file_get_contents("/tmp/mybili-pkgs/php-ext/.php-version")), "=") ? 0 : 1);' \
        && cp /tmp/mybili-pkgs/php-ext/gd.so /tmp/mybili-pkgs/php-ext/pcntl.so "$EXT_DIR/" \
-       && docker-php-ext-enable gd pcntl >/dev/null 2>&1 \
+       && printf 'extension=gd\n' > /usr/local/etc/php/conf.d/docker-php-ext-gd.ini \
+       && printf 'extension=pcntl\n' > /usr/local/etc/php/conf.d/docker-php-ext-pcntl.ini \
        && php -m | grep -qx 'gd' && php -m | grep -qx 'pcntl'; then \
         echo "==> [offline] 复用预编译 PHP 扩展（gd/pcntl），跳过源码编译"; \
     else \
