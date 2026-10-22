@@ -620,28 +620,14 @@ const favExclude = ref({
 const availableCollections = ref<Collection[]>([]);
 
 const saveSettingHandler = () => {
-    console.log('Settings saved:', {
-        name_exclude: nameExclude.value,
-        size_exclude: sizeExclude.value,
-        duration_video_exclude: durationVideoExclude.value,
-        duration_video_part_exclude: durationVideoPartExclude.value,
-        fav_time_exclude: favTimeExclude.value,
-        fav_exclude: favExclude.value,
-        multi_partition_download_enabled: multiPartitionDownloadEnabled.value,
-        danmaku_download_enabled: danmakuDownloadEnabled.value,
-        video_download_enabled: videoDownloadEnabled.value,
-        favorite_sync_enabled: favoriteSyncEnabled.value,
-        human_readable_name_enabled: humanReadableNameEnabled.value,
-        download_comments_enabled: downloadCommentsEnabled.value,
-        transcode_video_enabled: transcodeVideoEnabled.value,
-        usage_analytics_enabled: usageAnalyticsEnabled.value,
-        telegram_bot_enabled: telegramBotEnabled.value,
-        telegram_bot_token: telegramBotToken.value,
-        telegram_chat_id: telegramChatId.value,
-        telegram_bot_api_url: telegramBotApiUrl.value,
-    });
+    // Telegram 启用前置校验：启用状态下必须填写 Token 与 Chat ID，
+    // 在前端提前拦截并给出明确提示，避免后端 422 报出难以理解的英文错误。
+    if (telegramBotEnabled.value === 'on' && (!telegramBotToken.value || !telegramChatId.value)) {
+        showNotification(t('settings.notifications.fillRequiredFields'), true);
+        return;
+    }
 
-    saveSettings({
+    const payload = {
         name_exclude: nameExclude.value,
         size_exclude: sizeExclude.value,
         duration_video_exclude: durationVideoExclude.value,
@@ -660,10 +646,19 @@ const saveSettingHandler = () => {
         telegram_bot_token: telegramBotToken.value,
         telegram_chat_id: telegramChatId.value,
         telegram_bot_api_url: telegramBotApiUrl.value,
-    }).then(()=>{
+    };
+
+    saveSettings(payload).then(()=>{
         showNotification(t('settings.settingsSaved'));
     }).catch((err)=>{
-        showNotification(t('settings.settingsSaveFailed') + ' ' + err.message, true);
+        // 422 校验错误：提取字段级错误信息，给出可读提示（而非英文 "Request failed"）
+        const errors = err?.response?.data?.errors;
+        if (errors) {
+            const detail = Object.values(errors).flat().join('；');
+            showNotification(t('settings.settingsSaveFailed') + '：' + detail, true);
+            return;
+        }
+        showNotification(t('settings.settingsSaveFailed') + ' ' + (err?.message ?? ''), true);
     });
 };
 
