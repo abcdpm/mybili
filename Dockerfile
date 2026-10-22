@@ -33,7 +33,8 @@ ARG APT_MIRROR=
 RUN if [ -n "$APT_MIRROR" ]; then \
         sed -i "s|deb.debian.org|${APT_MIRROR}|g" /etc/apt/sources.list.d/debian.sources; \
     fi \
-    && apt-get update && apt-get install -y xz-utils curl wget tar
+    && apt-get -o Acquire::http::Timeout=20 -o Acquire::Retries=2 update \
+    && apt-get -o Acquire::http::Timeout=20 -o Acquire::Retries=2 install -y xz-utils curl wget tar
 
 # 1. 下载 FFMPEG
 RUN PLATFORM="${TARGETPLATFORM:-linux/$(uname -m)}" && \

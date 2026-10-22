@@ -268,15 +268,19 @@ docker login
 推荐以下任一方式：
 
 ```bash
-# 方式一（推荐）：一键切换国内镜像源（TUNA apt/apk + npmmirror + 阿里云 Composer）
+# 方式一（推荐，一次配置永久生效）：.env 中配置 BUILD_MIRROR=cn，
+# 之后直接 ./build-and-push.sh 即自动使用国内源
+BUILD_MIRROR=cn
+
+# 方式二：命令行临时指定（优先级最高）
 ./build-and-push.sh --mirror cn
 
-# 方式二：逐项自定义（优先级高于 --mirror 预设）
+# 方式三：逐项自定义（优先级高于 --mirror 预设）
 APT_MIRROR=mirrors.aliyun.com \
 NPM_REGISTRY=https://registry.npmmirror.com \
 ./build-and-push.sh --mirror cn
 
-# 方式三：构建全程走代理（可覆盖 GitHub 等下载）
+# 方式四：构建全程走代理（可覆盖 GitHub 等下载）
 HTTP_PROXY=http://192.168.0.2:1082 ./build-and-push.sh
 ```
 

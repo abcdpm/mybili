@@ -97,6 +97,9 @@ echo "$APP_VERSION" | grep -Eq '^[A-Za-z0-9_.-]+$' || die "APP_VERSION 含非法
 # 可选构建参数（优先取进程环境变量，其次 .env；未配置则不传）
 WEBSITE_ID=${WEBSITE_ID:-$(grep -E '^WEBSITE_ID=' "$ENV_FILE" | tail -n 1 | cut -d= -f2- | tr -d '"' | tr -d "'")}
 
+# 国内网络用户可在 .env 配置 BUILD_MIRROR=cn 一次生效（命令行 --mirror 优先级更高）
+MIRROR=${MIRROR:-$(grep -E '^BUILD_MIRROR=' "$ENV_FILE" | tail -n 1 | cut -d= -f2- | tr -d '"' | tr -d "'")}
+
 # ---------- 国内镜像源预设（显式环境变量优先于预设） ----------
 if [ -n "$MIRROR" ]; then
     case "$MIRROR" in
@@ -136,6 +139,11 @@ log "镜像:      $IMAGE_NAME"
 log "版本:      $APP_VERSION（来源 .env APP_VERSION）"
 log "目标平台:  $PLATFORMS"
 log "推送:      $([ "$PUSH" -eq 1 ] && echo '是（latest + '$APP_VERSION'）' || echo '否')"
+if [ -n "${APT_MIRROR:-}${NPM_REGISTRY:-}" ]; then
+    log "国内源:    已启用${MIRROR:+（预设: $MIRROR）}"
+else
+    log "国内源:    未启用（国内网络如遇连接超时，请加 --mirror cn 或在 .env 配置 BUILD_MIRROR=cn）"
+fi
 
 # ---------- 环境检查 ----------
 if [ "$DRY_RUN" -eq 0 ]; then
@@ -207,6 +215,17 @@ fi
 
 # ---------- 执行构建 ----------
 # 说明: --provenance=false --sbom=false 与 CI 保持一致，避免旧版 docker 拉取兼容问题
+build_failed() {
+    warn "=========================================================="
+    warn "构建失败！如上方日志出现 apt/npm/Composer/GitHub 连接超时，"
+    warn "请改用国内镜像源重新构建（国内网络环境必开）："
+    warn "  ./build-and-push.sh --mirror cn"
+    warn "或在 .env 中配置 BUILD_MIRROR=cn 后直接 ./build-and-push.sh"
+    warn "GitHub 资源下载失败可叠加代理: HTTP_PROXY=http://ip:port ./build-and-push.sh --mirror cn"
+    warn "=========================================================="
+    exit 1
+}
+
 run docker buildx build \
     -f "$ROOT_DIR/Dockerfile" \
     --platform "$PLATFORMS" \
@@ -216,7 +235,7 @@ run docker buildx build \
     $OUTPUT_ARGS \
     --provenance=false \
     --sbom=false \
-    "$ROOT_DIR"
+    "$ROOT_DIR" || build_failed
 
 if [ "$DRY_RUN" -eq 0 ] && [ "$PUSH" -eq 1 ]; then
     log "推送完成:"
