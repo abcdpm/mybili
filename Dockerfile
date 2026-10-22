@@ -17,10 +17,12 @@ RUN if [ -n "$NPM_REGISTRY" ]; then \
     && npm install -g pnpm@latest-11
 
 # [优化核心] 先只复制依赖描述文件，利用缓存
-COPY package.json pnpm-lock.yaml ./
+# 注意必须包含 pnpm-workspace.yaml：其中的 allowBuilds 白名单（esbuild 等构建脚本）
+# 缺失时 pnpm 11 严格模式会报 ERR_PNPM_IGNORED_BUILDS 导致 install 失败
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 
 # 安装依赖 (如果 package.json 没变，这一步会直接使用缓存)
-RUN pnpm install
+RUN pnpm install --frozen-lockfile
 
 # 再复制其余源代码
 COPY . .
