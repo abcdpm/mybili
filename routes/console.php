@@ -138,9 +138,11 @@ Schedule::command('app:scan-cover-image', ['--target=favorite'])->hourly();
 // ==========================================================================
 // 作用：启动轮询，每天动态抽取最久未更新评论的视频进行状态刷新。
 //      默认按照有效视频总数的 3% 抽取任务，自适应抓取热门/最新评论。
+// 调度（第12项重构）：任务按 --interval 错峰投递到 comments-batch 队列
+//      （默认把当日任务均匀摊到约 20 小时平稳消化），
+//      替代旧版一次性投递 + sleep 阻塞 worker，彻底避免任务堆积。
 // 频率：每天凌晨 3:00执行一次
-// Schedule::command('app:download-all-comments --incremental=20 --sleep=5 --max-videos=3000')->dailyAt('3:00'); // 旧增量更新方案
-Schedule::command('app:download-all-comments --auto-update --percent=3 --incremental=20 --sleep=5')->dailyAt('3:00');
+Schedule::command('app:download-all-comments --auto-update --percent=3 --incremental=20 --sleep=0')->dailyAt('3:00');
 
 // ==========================================================================
 // 12. 处理下载队列

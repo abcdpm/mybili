@@ -7,6 +7,7 @@ use App\Models\Comment; // 引入 Comment 模型
 use Carbon\Carbon;
 use App\Jobs\DownloadCommentsJob;
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\DB;
 use App\Enums\SettingKey;
 use App\Services\SettingsService;
 
@@ -28,6 +29,7 @@ class DownloadAllComments extends Command
                             {--limit= : 自定义评论下载数量}
                             {--max-videos= : 每次轮询处理的最大视频数量}
                             {--sleep=3 : 每次请求后的休眠时间(秒)}
+                            {--interval= : 轮询模式下相邻任务的投递间隔秒数（默认自动：当日任务摊到约20小时）}
                             {--auto-update : 开启智能模式，进行自动轮询，按时间衰减自适应刷新已有视频的最新评论}
                             {--percent=3 : 智能模式下，按有效视频总数的百分比执行 (如: 3 表示 3%)}
                             {--status : 查看当前评论下载进度统计 (不执行任务)}';
@@ -119,28 +121,43 @@ class DownloadAllComments extends Command
         $bar->start();
 
         if ($isPollingMode) {
-            foreach ($videos as $video) {
-                if ($isAutoUpdate) {
-                    // 智能模式：$limit 默认为 null，触发 Action 内部的自适应模型
-                    // $jobLimit = $limit; 
+            // 【第12项】调度重构：
+            // 1) 任务错峰投递——按 --interval 把当日任务均匀摊开（默认约 20 小时），
+            //    由延迟队列承担等待；替代旧版"凌晨一次性投递 + 每任务 sleep 阻塞
+            //    worker"，彻底解决"每天跑不完、任务大量堆积"的问题；
+            // 2) 评论数一次聚合预取，消除逐条 count 的 N+1。
+            $totalJobs = count($videos);
+            $interval  = (int) ($this->option('interval') ?: max(1, intdiv(72000, max(1, $totalJobs))));
 
-                    // 在智能模式基础上，追加指定数量
-                    $localCount = $video->comments()->count();
-                    $jobLimit = $localCount + (int)$incremental;
-                } else {
-                    // 传统模式：读取已有数量再累加
-                    $localCount = $video->comments()->count();
-                    $jobLimit = $localCount + (int)$incremental;
-                }
-                
-                dispatch(new DownloadCommentsJob($video, $jobLimit, $sleep, 'comments-batch'));
+            $localCounts = DB::table('comments')
+                ->selectRaw('video_id, COUNT(*) AS c')
+                ->whereIn('video_id', $videos->pluck('id'))
+                ->groupBy('video_id')
+                ->pluck('c', 'video_id');
+
+            $index = 0;
+            foreach ($videos as $video) {
+                // 已有评论数 + 增量追加（$incremental 为空时交由 Action 自适应模型）
+                $localCount = (int) ($localCounts[$video->id] ?? 0);
+                $jobLimit   = $localCount + (int) $incremental;
+
+                dispatch(
+                    (new DownloadCommentsJob($video, $jobLimit, 0, 'comments-batch'))
+                        ->delay(now()->addSeconds($index * $interval))
+                );
+                $index++;
                 $bar->advance();
             }
+            $this->newLine();
+            $this->info(sprintf(
+                '已错峰投递 %d 个任务：间隔 %d 秒（约 %d 小时内平稳消化），队列 comments-batch',
+                $totalJobs, $interval, (int) ceil($totalJobs * $interval / 3600)
+            ));
+
             // 刷新更新时间，防止重复捞取
             Video::whereIn('id', $videos->pluck('id'))->update([
                 'comments_updated_at' => Carbon::now()
-            ]);
-        } else {
+            ]);        } else {
             // 常规模式
             $query->chunkById(100, function ($videos) use ($bar, $limit, $sleep, $incremental) {
                 foreach ($videos as $video) {

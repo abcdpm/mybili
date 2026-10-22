@@ -91,12 +91,48 @@ class DownloadDanmakuAction
             $videoPart->save();
 
         } catch (\Throwable $e) {
-            Log::error('Download danmaku failed', ['id' => $videoPart->cid, 'title' => $videoPart->part, 'error' => $e->getMessage()]);
+            // 【第10项】异常分类：可重试（网络/磁盘/风控）→ 抛出交给队列重试
+            // （DownloadDanmakuJob: tries=3, backoff=[60,300,600]），避免"任务显示成功
+            // 但弹幕实际丢失"的静默吞错；明确的业务性错误记录后跳过。
+            if ($this->isRetryableException($e)) {
+                Log::warning('Download danmaku failed (retryable, rethrow to queue)', [
+                    'id'    => $videoPart->cid,
+                    'title' => $videoPart->part,
+                    'error' => $e->getMessage(),
+                    'class' => get_class($e),
+                ]);
+                throw $e;
+            }
+
+            Log::error('Download danmaku failed (non-retryable, skipped)', [
+                'id'    => $videoPart->cid,
+                'title' => $videoPart->part,
+                'error' => $e->getMessage(),
+                'class' => get_class($e),
+            ]);
             return;
         } finally {
             // 移除下载锁
             redis()->del(sprintf('danmaku_downloading:%s', $videoPart->cid));
             Log::info('Download danmaku end, take time', ['time' => microtime(true) - $start_time, 'id' => $videoPart->cid, 'title' => $videoPart->part]);
         }
+    }
+
+    /**
+     * 异常分类（第10项）：判断是否应交由队列重试。
+     *
+     * 默认可重试——宁可多试一次也不丢弹幕（重试次数由 Job $tries=3 限界、
+     * backoff=[60,300,600] 阶梯退避）；仅明确的业务性/参数性错误不重试。
+     */
+    private function isRetryableException(\Throwable $e): bool
+    {
+        if ($e instanceof \InvalidArgumentException) {
+            return false; // 参数错误，重试无意义
+        }
+        if ($e instanceof \App\Exceptions\ApiGetVideoStatusException) {
+            return false; // 稿件不可见/审核中等业务状态，重试无意义
+        }
+
+        return true;
     }
 }
