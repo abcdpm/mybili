@@ -1,9 +1,10 @@
 <?php
+
 namespace App\Console\Commands;
 
 use App\Jobs\DownloadDanmakuJob;
-use App\Models\VideoPart;
-use App\Models\Danmaku; // 引入弹幕模型用于统计总条数
+use App\Models\Danmaku;
+use App\Models\VideoPart; // 引入弹幕模型用于统计总条数
 use Illuminate\Console\Command;
 
 class DanmakuDownload extends Command
@@ -25,6 +26,7 @@ class DanmakuDownload extends Command
         // 如果用户传入了 --status，则仅展示统计面板并退出
         if ($this->option('status')) {
             $this->showStatus();
+
             return;
         }
 
@@ -34,23 +36,27 @@ class DanmakuDownload extends Command
         $query = VideoPart::query();
 
         if ($videoId) {
-            // 如果指定了具体视频，查询该视频下的所有分P
+            // 如果指定了具体视频，查询该视频下的所有分P（显式指定时不做过滤，尊重用户意图）
             $query->where('video_id', $videoId);
             $this->info("模式: 仅处理视频 ID {$videoId} 的弹幕");
         } else {
-            if (!$force) {
+            // 【全局任务优化】自动跳过已失效视频（invalid=1）：其分P通常已从 B 站下架，
+            // 弹幕接口大概率 404/报错，跳过可减少无效请求与任务堆积。
+            $query->whereHas('video', fn ($q) => $q->where('invalid', 0));
+            if (! $force) {
                 // 缺省状态：只找出没有弹幕的时间戳记录，防止重复下载
                 $query->whereNull('danmaku_downloaded_at');
-                $this->info("模式: 扫描并自动补全缺失弹幕的视频分P");
+                $this->info('模式: 扫描并自动补全缺失弹幕的视频分P（已跳过失效视频）');
             } else {
-                $this->info("模式: 强制重新下载库中所有视频的弹幕");
+                $this->info('模式: 强制重新下载库中所有视频的弹幕（已跳过失效视频）');
             }
         }
 
         $total = $query->count();
 
         if ($total == 0) {
-            $this->info("🎉 没有发现需要处理的视频分P。");
+            $this->info('🎉 没有发现需要处理的视频分P。');
+
             return;
         }
 
@@ -71,7 +77,7 @@ class DanmakuDownload extends Command
 
         $bar->finish();
         $this->newLine();
-        $this->info("✅ 所有弹幕下载任务已成功投递至队列，请在 Horizon 中查看进度。");
+        $this->info('✅ 所有弹幕下载任务已成功投递至队列，请在 Horizon 中查看进度。');
     }
 
     /**
@@ -79,7 +85,7 @@ class DanmakuDownload extends Command
      */
     protected function showStatus()
     {
-        $this->info("正在实时计算弹幕库状态...");
+        $this->info('正在实时计算弹幕库状态...');
 
         // 统计各项数据
         $totalParts = VideoPart::count();
@@ -101,7 +107,7 @@ class DanmakuDownload extends Command
                 ['弹幕覆盖率进度', "{$percent}%"],
             ]
         );
-        
-        $this->info("注意：此统计基于数据库当前状态。");
+
+        $this->info('注意：此统计基于数据库当前状态。');
     }
 }

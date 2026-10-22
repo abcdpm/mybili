@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Services\VideoManager\Actions\Video;
 
 use App\Enums\SettingKey;
@@ -20,8 +21,7 @@ class CheckVideoPartFileToDownloadAction
         public DownloadVideoService $downloadVideoService,
         public DownloadFilterService $downloadFilterService,
         public DownloadQueueService $downloadQueueService
-    ) {
-    }
+    ) {}
 
     public function execute(VideoPart $videoPart, bool $tryDownload = false): void
     {
@@ -29,17 +29,20 @@ class CheckVideoPartFileToDownloadAction
 
         if (! $video) {
             Log::info('[视频下载] 视频未找到或已删除', ['id' => $videoPart->video_id]);
+
             return;
         }
 
         if ($this->downloadFilterService->shouldExcludeByFavTime($video)) {
             Log::info('Download excluded by favorite time', ['id' => $videoPart->cid, 'title' => $videoPart->part]);
+
             return;
         }
 
         // 检查是否能下载该收藏夹或订阅的视频：只要有一个收藏夹或订阅未被过滤就继续下载
         if ($this->downloadFilterService->shouldExcludeByVideo($video)) {
             Log::info('Download excluded by favorite and subscription', ['id' => $videoPart->cid, 'title' => $videoPart->part]);
+
             return;
         }
 
@@ -60,7 +63,7 @@ class CheckVideoPartFileToDownloadAction
         if ($isNumberNamed) {
             $currentIndex = $videoPart->page;
         } else {
-            $videoParts   = $videoParts->sortBy('video_id');
+            $videoParts = $videoParts->sortBy('video_id');
             $currentIndex = $videoParts->search(function ($item) use ($videoPart) {
                 return $item['cid'] == $videoPart->cid;
             }) + 1;
@@ -84,15 +87,26 @@ class CheckVideoPartFileToDownloadAction
                 return;
             }
 
+            // 【全局任务优化】自动跳过已失效视频：B 站侧已下架/失效的视频（invalid=1 或标题为"已失效视频"）
+            // 永远无法下载完成。旧行为是每次同步都重新入队 → 失败 → 再入队（无限空转、任务堆积）。
+            // 现在在入队闸门处直接跳过；已存在的本地文件仍会在下方正常登记，不影响历史数据。
+            if ($video->invalid || video_has_invalid($video->toArray())) {
+                Log::info('[视频下载] 已失效视频，自动跳过下载', ['id' => $video->id, 'title' => $video->title]);
+
+                return;
+            }
+
             if ($this->settingsService->get(SettingKey::VIDEO_DOWNLOAD_ENABLED) == 'on') {
 
                 if ($this->downloadFilterService->shouldExcludeByDuration(intval($video->duration))) {
                     Log::info('[视频下载] 视频文件不存在, 因总时长触发排除规则', ['id' => $video->id, 'title' => $video->title]);
+
                     return;
                 }
 
                 if ($this->downloadFilterService->shouldExcludeByDurationPart($videoPart->duration)) {
                     Log::info('[视频下载] 视频分片文件不存在, 因分片时长触发排除规则', ['id' => $videoPart->cid, 'title' => $videoPart->part]);
+
                     return;
                 }
 
