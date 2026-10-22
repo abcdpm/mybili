@@ -1,9 +1,23 @@
-# 构建基础镜像命令:
-# docker build -f Dockerfile.base -t mybili-base:1 .
-# docker build -f Dockerfile.base -t mybili-base:1 --build-arg HTTP_PROXY=http://192.168.0.2:1082 .
+# =====================================================================
+# Mybili 基础镜像（可选的独立构建入口）
+#
+# 注意：Dockerfile 已内联本文件的全部阶段（多架构构建的正式路径），
+# 修改本文件时请务必同步修改 Dockerfile 中对应的两个基础阶段！
+#
+# 本文件保留用途：
+#   - 手动预构建/调试基础环境: docker build -f Dockerfile.base -t mybili-base:1 .
+#   - 单架构本地实验
+#
+# 构建命令:
+#   docker build -f Dockerfile.base -t mybili-base:1 .
+#   docker build -f Dockerfile.base -t mybili-base:1 --build-arg HTTP_PROXY=http://192.168.0.2:1082 .
+#   docker build -f Dockerfile.base -t mybili-base:1 --build-arg PHP_IMAGE=php:8.5.12-cli-alpine .
+# =====================================================================
 
 # === 阶段 1: 下载工具链 (使用 Debian 环境以便复用原有脚本) ===
 ARG NODE_VERSION=22
+# PHP 基础镜像（默认 PHP 8.5 系；可精确锁定如 php:8.5.12-cli-alpine）
+ARG PHP_IMAGE=phpswoole/swoole:php8.5-alpine
 FROM node:${NODE_VERSION}-bookworm-slim AS downloader
 
 WORKDIR /downloads
@@ -66,8 +80,8 @@ RUN PLATFORM="${TARGETPLATFORM:-linux/$(uname -m)}" && \
     tar -xzf supervisord.tar.gz --strip-components=1 && \
     chmod +x supervisord
 
-# === 阶段 2: 构建最终基础镜像 (Alpine) ===
-FROM phpswoole/swoole:php8.3-alpine
+# === 阶段 2: 构建最终基础镜像 (Alpine, PHP 8.5) ===
+FROM ${PHP_IMAGE}
 
 ENV PHPRC=/etc/php.ini
 ENV COMPOSER_ALLOW_SUPERUSER=1

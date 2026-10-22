@@ -245,13 +245,18 @@ docker login
 | `--no-push` | 仅本地构建不推送（多平台自动降级为当前平台） |
 | `--platforms STR` | 目标平台，默认 `linux/amd64,linux/arm64`（与 CI 一致） |
 | `--image NAME` | 镜像名，默认 `llllalex/mybili` |
-| `--rebuild-base` | 强制重建基础镜像 `mybili-base:1`（默认缺失时才自动构建） |
 | `--cache` | 启用 Docker Hub registry 构建缓存（`:buildcache`） |
 | `--dry-run` | 只打印将执行的命令，不实际执行 |
 
 **其他说明：**
 
-- 前置依赖：Docker（含 buildx 插件）；首次构建会自动构建基础镜像 `mybili-base:1`（耗时较长，之后有缓存）；
+- 前置依赖：Docker（含 buildx 插件）；脚本会自动创建支持多平台的 buildx 构建器；
+- **PHP 8.5**：镜像默认基于 `phpswoole/swoole:php8.5-alpine`（PHP 8.5 系），
+  如需精确锁定补丁版本可设置 `PHP_IMAGE=php:8.5.12-cli-alpine`；
+- **跨架构（amd64/arm64）**：`Dockerfile` 已内联基础镜像的全部阶段，
+  buildx 为每个平台独立编译工具链与 PHP 扩展，无需手动预构建 `mybili-base`；
+  Linux 服务器构建 arm64 需要 QEMU 支持（报 `exec format error` 时执行
+  `docker run --privileged --rm tonistiigi/binfmt --install`，Docker Desktop 无需）；
 - `.env` 中配置 `WEBSITE_ID`（或以环境变量传入）会作为构建参数注入镜像，用于匿名使用统计（默认不开启，详见隐私声明）；
 - 构建期如需代理，可设置 `HTTP_PROXY` / `HTTPS_PROXY` 环境变量，脚本会自动透传；
 - CI（GitHub Actions）在推送 main / tag 时也会自动构建多架构镜像，本地脚本与其构建参数保持一致。

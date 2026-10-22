@@ -9,7 +9,7 @@ on:
 
 jobs:
   phpunit:
-    name: PHPUnit (PHP 8.2)
+    name: PHPUnit (PHP 8.5)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -17,7 +17,7 @@ jobs:
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.2'
+          php-version: '8.5'
           extensions: sqlite3, pdo_sqlite, mbstring, gd, tokenizer, xml
           coverage: none
 

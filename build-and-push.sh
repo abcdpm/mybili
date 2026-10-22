@@ -12,11 +12,14 @@
 #   --platforms STR     目标平台，逗号分隔（默认 linux/amd64,linux/arm64）
 #   --mirror NAME       国内镜像源预设: cn/tuna/aliyun/ustc（国内网络环境建议开启，
 #                       等价于设置 APT_MIRROR/APK_MIRROR/NPM_REGISTRY/COMPOSER_MIRROR）
-#   --rebuild-base      强制重建本地基础镜像 mybili-base:1
 #   --cache             启用 Docker Hub registry 构建缓存 (:buildcache)
 #   --no-push           只构建不推送（多平台自动降级为当前平台 --load）
 #   --dry-run           打印命令后退出
 #   -h, --help          显示帮助
+#
+# 多架构说明: 构建 linux/arm64 需要 QEMU/binfmt 支持（Docker Desktop 自带；
+# Linux 服务器如报 exec format error，请执行:
+#   docker run --privileged --rm tonistiigi/binfmt --install）
 #
 # 版本号来源: 项目根目录 .env 中的 APP_VERSION（例如 APP_VERSION=1.4.0）
 #   - 作为 Dockerfile 的 --build-arg APP_VERSION（决定容器内 config('app.version')）
@@ -27,6 +30,8 @@
 #   APK_MIRROR          Alpine apk 源（如 mirrors.tuna.tsinghua.edu.cn）
 #   NPM_REGISTRY        npm 源（如 https://registry.npmmirror.com）
 #   COMPOSER_MIRROR     Composer 源（如 https://mirrors.aliyun.com/composer/）
+#   PHP_IMAGE           PHP 基础镜像（默认 phpswoole/swoole:php8.5-alpine = PHP 8.5 系，
+#                       可精确锁定如 php:8.5.12-cli-alpine）
 #   HTTP_PROXY / HTTPS_PROXY / NO_PROXY   构建期代理，自动透传给 docker build
 #
 # 国内网络环境推荐:
@@ -35,18 +40,16 @@
 #
 # 前置条件:
 #   1. 已安装 docker（含 buildx 插件）并 docker login 到 Docker Hub
-#   2. 本地存在基础镜像 mybili-base:1（不存在时本脚本会自动构建，
-#      也可用 --rebuild-base 强制重建，见 Dockerfile.base 顶部注释）
+#   2. 多架构构建需要 QEMU/binfmt（Docker Desktop 自带；Linux 服务器自行安装）
 # =====================================================================
 set -eu
 
 # ---------- 默认值 ----------
 IMAGE_NAME="llllalex/mybili"
-PLATFORMS="linux/amd64,linux/arm64"
+PLATFORMS="linux/amd64"
 MIRROR=""
 PUSH=1
 DRY_RUN=0
-REBUILD_BASE=0
 USE_CACHE=0
 
 # ---------- 工具函数 ----------
@@ -73,7 +76,6 @@ while [ $# -gt 0 ]; do
         --mirror)      MIRROR="$2"; shift 2 ;;
         --no-push)     PUSH=0; shift ;;
         --dry-run)     DRY_RUN=1; shift ;;
-        --rebuild-base) REBUILD_BASE=1; shift ;;
         --cache)       USE_CACHE=1; shift ;;
         -h|--help)     usage ;;
         *)             die "未知参数: $1（用 --help 查看用法）" ;;
@@ -127,7 +129,7 @@ for mirror_var in APT_MIRROR APK_MIRROR; do
 done
 
 if [ -n "$MIRROR_ARGS" ] || [ -n "$PROXY_ARGS" ]; then
-    log "国内源/代理参数将同时作用于基础镜像与业务镜像构建"
+    log "国内源/代理参数将作用于构建（内联基础阶段与业务阶段共用）"
 fi
 
 log "镜像:      $IMAGE_NAME"
@@ -141,22 +143,38 @@ if [ "$DRY_RUN" -eq 0 ]; then
     docker buildx version >/dev/null 2>&1 || die "未找到 docker buildx 插件，请升级 Docker 或安装 buildx"
 fi
 
-# ---------- 基础镜像检查/构建 ----------
-# 业务 Dockerfile 依赖本地基础镜像 mybili-base:1（见 Dockerfile.base）
-BASE_EXISTS=$(docker images -q mybili-base:1 2>/dev/null | head -n 1 || true)
-if [ "$REBUILD_BASE" -eq 1 ] || [ -z "$BASE_EXISTS" ]; then
-    if [ "$REBUILD_BASE" -eq 1 ]; then
-        log "强制重建基础镜像 mybili-base:1 ..."
-    else
-        warn "本地不存在基础镜像 mybili-base:1，自动构建中（首次构建耗时较长）..."
+# ---------- 配置 buildx 构建器（跨架构构建的核心） ----------
+# 旧版依赖本地单架构镜像 mybili-base:1：多平台构建时容器驱动无法解析该本地镜像
+# （或 arm64 平台拿到 amd64 镜像导致 exec format error）。
+# 现 Dockerfile 已内联基础阶段，buildx 为每个目标平台独立编译工具链与 PHP 扩展。
+if [ "$DRY_RUN" -eq 0 ]; then
+    if ! docker buildx inspect mybili-builder >/dev/null 2>&1; then
+        log "创建 buildx 构建器 mybili-builder（docker-container 驱动，支持多平台）..."
+        docker buildx create --name mybili-builder --driver docker-container --use >/dev/null
     fi
-    run docker build -f "$ROOT_DIR/Dockerfile.base" $MIRROR_ARGS $PROXY_ARGS -t mybili-base:1 "$ROOT_DIR"
+    docker buildx use mybili-builder >/dev/null 2>&1 || true
+
+    # 多平台时预检 QEMU/binfmt 支持
+    case "$PLATFORMS" in
+        *,*)
+            BUILDER_PLATFORMS=$(docker buildx inspect mybili-builder 2>/dev/null | grep -i '^ *Platforms' || true)
+            case "$BUILDER_PLATFORMS" in
+                *linux/arm64*) : ;;
+                *) warn "构建器未报告 linux/arm64 支持；如构建报 exec format error，请先执行:
+    docker run --privileged --rm tonistiigi/binfmt --install" ;;
+            esac ;;
+    esac
 fi
 
 # ---------- 组装 docker buildx build 命令 ----------
 BUILD_ARGS="--build-arg APP_VERSION=$APP_VERSION"
 if [ -n "${WEBSITE_ID:-}" ]; then
     BUILD_ARGS="$BUILD_ARGS --build-arg WEBSITE_ID=$WEBSITE_ID"
+fi
+
+# PHP 基础镜像覆盖（如需精确锁定 php:8.5.12-cli-alpine 等）
+if [ -n "${PHP_IMAGE:-}" ]; then
+    BUILD_ARGS="$BUILD_ARGS --build-arg PHP_IMAGE=$PHP_IMAGE"
 fi
 
 # npm / Composer 源（国内镜像）
