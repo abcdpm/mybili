@@ -1,4 +1,10 @@
 <template>
+    <!-- 分块加载进度（现代化顶部细进度条） -->
+    <div v-if="loading" class="fixed top-0 left-0 right-0 z-50 h-0.5 bg-transparent" role="progressbar"
+        :aria-valuenow="loadingPercent" aria-valuemin="0" aria-valuemax="100">
+        <div class="h-full bg-gradient-to-r from-blue-500 to-sky-400 shadow-[0_0_8px_rgba(59,130,246,0.6)] transition-[width] duration-300 ease-out"
+            :style="{ width: loadingPercent + '%' }"></div>
+    </div>
     <div class="w-full flex justify-center">
         <div class="container mx-auto justify-center" id="main">
             <div class="m-4">
@@ -285,6 +291,9 @@ const router = useRouter();
 
 const videoList = ref<ProgressVideo[]>([])
 const progress = ref(0)
+// 分块加载状态（第7项优化：进度页数据分块拉取）
+const loading = ref(true)
+const loadingPercent = ref(0)
 const showCachedOnly = ref(false)
 const isScrolled = ref(false) 
 const filterRef = ref<HTMLElement>() 
@@ -519,14 +528,36 @@ onUnmounted(() => {
     window.removeEventListener('scroll', handleScroll);
 });
 
-fetch(`/api/progress`).then(async (rsp) => {
-    if (rsp.ok) {
-        const jsonData = await rsp.json()
-        videoList.value = jsonData.data
-        stat.value = jsonData.stat
-        progress.value = parseInt((stat.value.downloaded / stat.value.count * 100).toFixed(2))
+// 【第7项优化】分块拉取进度页数据：24K 条一次返回数 MB，
+// 改为 3000 条/块增量加载，首屏更快、峰值内存更低
+const CHUNK_SIZE = 3000
+;(async () => {
+    try {
+        let offset = 0
+        let total = 0
+        do {
+            const rsp = await fetch(`/api/progress?offset=${offset}&limit=${CHUNK_SIZE}`)
+            if (!rsp.ok) break
+            const jsonData = await rsp.json()
+            videoList.value.push(...jsonData.data)
+            stat.value = jsonData.stat
+            total = jsonData.total ?? videoList.value.length
+            offset += CHUNK_SIZE
+            loadingPercent.value = total > 0
+                ? Math.min(100, Math.round((videoList.value.length / total) * 100))
+                : 100
+        } while (offset < total)
+
+        if (stat.value.count > 0) {
+            progress.value = parseInt((stat.value.downloaded / stat.value.count * 100).toFixed(2))
+        }
+    } catch (e) {
+        console.error('进度数据加载失败', e)
+    } finally {
+        loadingPercent.value = 100
+        loading.value = false
     }
-})
+})()
 
 const getCurrentFilterLabel = () => {
     switch (filter.value.class) {

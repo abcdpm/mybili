@@ -97,15 +97,30 @@ class VideoController extends Controller
         abort(404);
     }
 
-    public function progress()
+    public function progress(Request $request)
     {
         $list = $this->videoService->getVideosCache();
-        $data = [
-            'data' => $list,
-            'stat' => $this->videoService->getVideosStat([]),
-        ];
+        $stat = $this->videoService->getVideosStat([]);
 
-        return response()->json($data, 200, []);
+        // 【第7项优化】分块拉取：?offset=&limit= 增量返回（24K 条一次返回数 MB）。
+        // 不传 limit 时保持全量返回，兼容旧调用方。
+        $limitInput = $request->input('limit');
+        if ($limitInput !== null && $limitInput !== '') {
+            $limit  = max(1, min(5000, (int) $limitInput));
+            $offset = max(0, (int) $request->input('offset', 0));
+            $total  = count($list);
+
+            return response()->json([
+                'data'     => array_slice($list, $offset, $limit),
+                'stat'     => $stat,
+                'offset'   => $offset,
+                'limit'    => $limit,
+                'total'    => $total,
+                'has_more' => ($offset + $limit) < $total,
+            ]);
+        }
+
+        return response()->json(['data' => $list, 'stat' => $stat], 200, []);
     }
 
 

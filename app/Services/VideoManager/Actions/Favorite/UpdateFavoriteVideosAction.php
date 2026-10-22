@@ -53,10 +53,16 @@ class UpdateFavoriteVideosAction
             return;
         }
 
-        $videos = array_map(function ($item) {
+        // 【第8项优化】一次性预取本地视频（含软删除），替代循环内逐条查询（N+1）
+        $localVideoMap = Video::withTrashed()
+            ->whereIn('id', array_column($videos, 'id'))
+            ->get()
+            ->keyBy(fn ($v) => (int) $v->id);
+
+        $videos = array_map(function ($item) use ($localVideoMap) {
             $videoInvalid = $this->videoIsInvalid($item);
 
-            $exist = Video::withTrashed()->where('id', $item['id'])->first();
+            $exist = $localVideoMap->get((int) $item['id']);
 
             // 如果视频已经删除即忽略
             if ($exist && $exist->trashed()) {
@@ -149,8 +155,14 @@ class UpdateFavoriteVideosAction
             }
         }
 
+        // 【第8项优化】写入循环同样使用预取，避免逐条 firstOrNew（N+1）
+        $writeMap = Video::query()
+            ->whereIn('id', array_column($videos, 'id'))
+            ->get()
+            ->keyBy(fn ($v) => (int) $v->id);
+
         foreach ($videos as $key => $item) {
-            $video = Video::query()->firstOrNew(['id' => $item['id']]);
+            $video = $writeMap->get((int) $item['id']) ?? new Video(['id' => $item['id']]);
             $oldVideoData = $video->getAttributes();
             
             // 检查视频数据是否真正发生了变化
