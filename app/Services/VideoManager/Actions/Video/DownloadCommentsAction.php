@@ -111,68 +111,90 @@ class DownloadCommentsAction
             return;
         }
 
-        // -------------------------------------------------------------
-        // 需求 3: 图片本地化处理
-        // -------------------------------------------------------------
-        foreach ($commentsData as &$data) {
-            // 1. 处理表情包
-            if (!empty($data['emotes'])) {
+        // 图片本地化 + 用户归一化 + 批量写入（第4项性能优化）
+        // 旧版逐条 updateOrCreate（每条评论 2 条 SQL + 每用户 1 条 upsert），
+        // 100 条评论规模 = 300+ 次 SQL 往返；现聚合成 2 次批量 upsert。
+        $userRows    = [];   // mid => 行（同用户多条评论自动去重）
+        $commentRows = [];
+
+        foreach ($commentsData as $data) {
+            // 1. 表情包本地化
+            if (! empty($data['emotes'])) {
                 $data['emotes'] = $this->imageService->processEmotes($data['emotes']);
             }
-            
-            // 2. 处理评论配图
-            if (!empty($data['pictures'])) {
+
+            // 2. 评论配图本地化
+            if (! empty($data['pictures'])) {
                 $data['pictures'] = $this->imageService->processPictures($data['pictures']);
             }
 
-            // 3. 【新增】处理评论区用户头像
-            // B站API通常将用户信息放在 member 对象下，头像字段为 avatar
-            if (isset($data['avatar']) && !empty($data['avatar'])) {
+            // 3. 头像本地化
+            if (! empty($data['avatar'])) {
                 $data['avatar'] = $this->imageService->processAvatar($data['avatar']);
             }
 
-            // 4. 【瘦身】用户信息归一化：写入 comment_users（按 mid 一行），
-            //    评论行不再冗余存储 uname/avatar，从根本上消除千万级重复数据
+            // 4. 用户信息归一化：收集 comment_users 行（按 mid 一行）
             $userId = (int) ($data['mid'] ?? 0);
             if ($userId > 0) {
-                CommentUser::query()->upsert(
-                    [[
-                        'mid'        => $userId,
-                        'uname'      => (string) ($data['uname'] ?? ''),
-                        'avatar'     => (string) ($data['avatar'] ?? ''),
-                        'updated_at' => now(),
-                    ]],
-                    ['mid'],
-                    ['uname', 'avatar', 'updated_at']
-                );
+                $userRows[$userId] = [
+                    'mid'        => $userId,
+                    'uname'      => (string) ($data['uname'] ?? ''),
+                    'avatar'     => (string) ($data['avatar'] ?? ''),
+                    'updated_at' => now(),
+                ];
             }
 
-            // 5. 【瘦身】表情包映射压缩为 key 列表（展示时经 EmoteResolver 还原为完整映射）。
-            //    仅当全部表情都已本地化（值为双路径数组）时才压缩；
-            //    存在远程 URL 兜底值时保留完整映射，避免展示丢失。
-            if (! empty($data['emotes']) && is_array($data['emotes'])) {
+            // 5. 表情映射压缩为 key 列表（仅当全部表情已本地化时才压缩，
+            //    存在远程 URL 兜底值时保留完整映射，避免展示丢失）
+            $emotes = $data['emotes'] ?? null;
+            if (! empty($emotes) && is_array($emotes)) {
                 $allLocalized = ! in_array(false, array_map(
                     fn ($v) => is_array($v) && isset($v['webp']),
-                    $data['emotes']
+                    $emotes
                 ), true);
                 if ($allLocalized) {
-                    $data['emotes'] = array_values(array_keys($data['emotes']));
+                    $emotes = array_values(array_keys($emotes));
                 }
             }
 
-            // 6. 评论行内的 uname/avatar 置空（真实数据已归一化到 comment_users；
-            //    历史评论行的旧值在回填完成前仍可兜底展示）
-            $data['uname']  = '';
-            $data['avatar'] = '';
+            // 6. 组装评论行：uname/avatar 归一化置空（权威数据在 comment_users），
+            //    无 mid 的异常行保留原值兜底；JSON 字段手动编码（批量 upsert 不经 Eloquent cast）
+            $commentRows[] = [
+                'rpid'       => (int) $data['rpid'],
+                'video_id'   => $video->id,
+                'oid'        => (int) ($data['oid'] ?? 0),
+                'mid'        => $userId,
+                'uname'      => $userId > 0 ? '' : (string) ($data['uname'] ?? ''),
+                'avatar'     => $userId > 0 ? '' : (string) ($data['avatar'] ?? ''),
+                'content'    => (string) ($data['content'] ?? ''),
+                'like'       => (int) ($data['like'] ?? 0),
+                'root'       => (int) ($data['root'] ?? 0),
+                'parent'     => (int) ($data['parent'] ?? 0),
+                'ctime'      => $data['ctime'] ?? now(),
+                'pictures'   => json_encode($data['pictures'] ?? [], JSON_UNESCAPED_UNICODE),
+                'emotes'     => json_encode($emotes ?? [], JSON_UNESCAPED_UNICODE),
+                'is_top'     => (int) (bool) ($data['is_top'] ?? false),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ];
+        }
 
-            // 写入主评论
-            Comment::updateOrCreate(
-                ['rpid' => $data['rpid'], 'video_id' => $video->id],
-                $data
+        // 批量写入（rpid 全局唯一；冲突时更新内容列）
+        if (! empty($userRows)) {
+            CommentUser::query()->upsert(
+                array_values($userRows),
+                ['mid'],
+                ['uname', 'avatar', 'updated_at']
             );
         }
-        unset($data); // 解除引用
-
+        if (! empty($commentRows)) {
+            Comment::query()->upsert(
+                $commentRows,
+                ['rpid'],
+                ['oid', 'mid', 'uname', 'avatar', 'content', 'like', 'root', 'parent',
+                 'ctime', 'pictures', 'emotes', 'is_top', 'updated_at']
+            );
+        }
         // [修改] 统一日志格式
         Log::info('[视频评论] 评论下载完成', [
             'video_id' => $video->id,
