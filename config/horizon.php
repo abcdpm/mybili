@@ -208,7 +208,7 @@ return [
         'supervisor-slow' => [
             'connection' => 'redis',
             'queue' => ['slow'],
-            'balance' => 'simple', 
+            'balance' => 'simple',
             'processes' => 2,
             'tries' => 2,
             'timeout' => 1800,
@@ -229,7 +229,7 @@ return [
         'supervisor-transcode' => [
             'connection' => 'redis',
             'queue' => ['transcode'],
-            'balance' => 'simple', 
+            'balance' => 'simple',
             'processes' => 2,       // 限制同时转码的数量，防止服务器 CPU 爆表
             'tries' => 1,           // 转码失败通常不需要立即重试
             'timeout' => 3600,      // 确保超时时间足够长
@@ -251,47 +251,36 @@ return [
 
     'environments' => [
         'production' => [
+            // 【内存治理】合并 fast/default/slow/comments/comments-batch 到单一 supervisor：
+            // 闲置仅 1 个 worker（auto 弹性 min1/max3），峰值按需扩容；
+            // 长任务的 timeout/tries 由 Job 自身属性覆盖（如 DownloadCommentsJob $tries=3）。
+            // 如需恢复队列隔离或更高吞吐，可拆回独立 supervisor 并提高 maxProcesses。
             'supervisor-default' => [
                 'connection' => 'redis',
-                'queue' => ['fast', 'default'],
+                'queue' => ['fast', 'default', 'slow', 'comments', 'comments-batch'],
                 'balance' => 'auto',
-                'processes' => 10,
+                'minProcesses' => 1,
+                'maxProcesses' => 3,
                 'tries' => 3,
                 'timeout' => 1800,
             ],
-            'supervisor-slow' => [
-                'connection' => 'redis',
-                'queue' => ['slow'],
-                'balance' => 'simple', 
-                'processes' => 2,
-                'tries' => 2,
-                'timeout' => 1800,
-            ],
+            // 限流队列保持独立：BilibiliSuspendService 按本 supervisor 名称做 412 暂停/恢复，勿改名
             'supervisor-bilibili-rate-limit' => [
                 'connection' => 'redis',
                 'queue' => ['bilibili-rate-limit'],
                 'balance' => 'simple',
-                'processes' => 2,
+                'processes' => 1,
                 'tries' => 3,
                 'timeout' => 60,
             ],
-            // 专门处理转码任务
+            // 转码保持独立：ffmpeg 长任务防止占满通用 worker
             'supervisor-transcode' => [
                 'connection' => 'redis',
                 'queue' => ['transcode'],
-                'balance' => 'simple', 
-                'processes' => 2,       
-                'tries' => 1,           
-                'timeout' => 3600,      
-            ],
-            // 专门处理评论下载任务
-            'supervisor-comments' => [
-                'connection' => 'redis',
-                'queue' => ['comments', 'comments-batch'],
                 'balance' => 'simple',
-                'processes' => 2,
-                'tries' => 3,
-                'timeout' => 1800,
+                'processes' => 1,
+                'tries' => 1,
+                'timeout' => 3600,
             ],
         ],
 
@@ -307,7 +296,7 @@ return [
             'supervisor-slow' => [
                 'connection' => 'redis',
                 'queue' => ['slow'],
-                'balance' => 'simple', 
+                'balance' => 'simple',
                 'processes' => 2,
                 'tries' => 2,
                 'timeout' => 1800,
@@ -324,7 +313,7 @@ return [
             'supervisor-transcode' => [
                 'connection' => 'redis',
                 'queue' => ['transcode'],
-                'balance' => 'simple', 
+                'balance' => 'simple',
                 'processes' => 2,       // 限制同时转码的数量，防止服务器 CPU 爆表
                 'tries' => 1,           // 转码失败通常不需要立即重试
                 'timeout' => 3600,      // 确保超时时间足够长
