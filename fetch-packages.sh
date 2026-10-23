@@ -59,13 +59,13 @@ TOOL_FILES() {
         amd64)
             echo "ffmpeg-6.0.1-amd64-static.tar.xz|https://www.johnvansickle.com/ffmpeg/old-releases/ffmpeg-6.0.1-amd64-static.tar.xz"
             echo "yt-dlp_musllinux|https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_musllinux"
-            echo "frankenphp-linux-x86_64|https://github.com/dunglas/frankenphp/releases/download/v1.2.5/frankenphp-linux-x86_64"
+            echo "frankenphp-linux-x86_64|https://github.com/dunglas/frankenphp/releases/download/v1.13.2/frankenphp-linux-x86_64"
             echo "supervisord_0.7.3_Linux_64-bit.tar.gz|https://github.com/ochinchina/supervisord/releases/download/v0.7.3/supervisord_0.7.3_Linux_64-bit.tar.gz"
             ;;
         arm64)
             echo "ffmpeg-6.0.1-arm64-static.tar.xz|https://www.johnvansickle.com/ffmpeg/old-releases/ffmpeg-6.0.1-arm64-static.tar.xz"
             echo "yt-dlp_musllinux_aarch64|https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_musllinux_aarch64"
-            echo "frankenphp-linux-aarch64|https://github.com/dunglas/frankenphp/releases/download/v1.2.5/frankenphp-linux-aarch64"
+            echo "frankenphp-linux-aarch64|https://github.com/dunglas/frankenphp/releases/download/v1.13.2/frankenphp-linux-aarch64"
             echo "supervisord_0.7.3_Linux_ARM64.tar.gz|https://github.com/ochinchina/supervisord/releases/download/v0.7.3/supervisord_0.7.3_Linux_ARM64.tar.gz"
             ;;
     esac

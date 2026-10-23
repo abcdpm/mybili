@@ -24,7 +24,6 @@ class SystemService
             'time_now' => Carbon::now()->toDateTimeString(),
 
             // usage：不再实时 count()，O(1) 极速读取缓存
-            // db_size 来自 calculate-system-stats 的 PRAGMA page_count×page_size 精确统计（旧版估算低估约 76 倍）
             'database_usage' => [
                 'favorite_lists' => Cache::get('stat_favorite_lists', 0),
                 'videos' => Cache::get('stat_videos', 0),
@@ -32,7 +31,7 @@ class SystemService
                 'danmaku' => Cache::get('stat_danmaku', 0),
                 'comments' => Cache::get('stat_comments', 0), // 新增评论数量
                 'emotes' => Cache::get('stat_emotes', 0),   // 新增表情包数量
-                'db_size' => $this->formatBytes(Cache::get('stat_db_size', 0)),
+                'db_size' => $this->formatBytes($this->liveDatabaseSize()),
             ],
             // 读取缓存的 Byte 字节数并格式化
             'media_usage' => [
@@ -47,6 +46,34 @@ class SystemService
     /**
      * 将 Byte 转换为人类可读的容量格式
      */
+    /**
+     * 实时计算数据库文件大小（O(1)，SQLite PRAGMA page_count × page_size）。
+     *
+     * 不依赖每日统计缓存：旧行为读 stat_db_size 缓存，值在下次 calculate-system-stats
+     * 运行前一直是旧算法结果（低估约 76 倍）甚至为 0，导致"数据库大小不准确"。
+     * PRAGMA 为常数级元数据读取，每次请求实时取也不会有性能负担；
+     * 非 SQLite 驱动时回退文件大小，最后回退缓存值。
+     */
+    private function liveDatabaseSize(): int
+    {
+        try {
+            $pageCount = (int) (DB::selectOne('PRAGMA page_count')?->page_count ?? 0);
+            $pageSize = (int) (DB::selectOne('PRAGMA page_size')?->page_size ?? 0);
+            if ($pageCount > 0 && $pageSize > 0) {
+                return $pageCount * $pageSize;
+            }
+        } catch (\Throwable) {
+            // 非 SQLite 驱动或 PRAGMA 受限：走下面的兜底
+        }
+
+        $databasePath = database_path('database.sqlite');
+        if (file_exists($databasePath)) {
+            return (int) filesize($databasePath);
+        }
+
+        return (int) Cache::get('stat_db_size', 0);
+    }
+
     private function formatBytes(int $bytes, $precision = 2): string
     {
         $units = ['B', 'KB', 'MB', 'GB', 'TB', 'PB'];

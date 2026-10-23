@@ -92,7 +92,7 @@ RUN PLATFORM="${TARGETPLATFORM:-linux/$(uname -m)}" && \
     if [ -f "/tmp/mybili-pkgs/tools/${FRANKENPHP_ARCH}" ]; then \
         echo "==> [offline] ${FRANKENPHP_ARCH}"; cp "/tmp/mybili-pkgs/tools/${FRANKENPHP_ARCH}" frankenphp; \
     else \
-        echo "==> [online] 下载 ${FRANKENPHP_ARCH}"; wget -O frankenphp "https://github.com/dunglas/frankenphp/releases/download/v1.2.5/${FRANKENPHP_ARCH}"; \
+        echo "==> [online] 下载 ${FRANKENPHP_ARCH}"; wget -O frankenphp "https://github.com/dunglas/frankenphp/releases/download/v1.13.2/${FRANKENPHP_ARCH}"; \
     fi && \
     chmod 775 frankenphp
 
