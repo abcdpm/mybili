@@ -301,23 +301,37 @@ class SplitCommentsDb extends Command
         $pdo->exec('ATTACH DATABASE '.$pdo->quote($sourcePath).' AS src_split');
 
         $copied = [];
+        $chunk = max(1000, (int) $this->option('chunk'));
         foreach (self::TABLES as $table) {
-            $row = $target->table("src_split.{$table}")->selectRaw('MIN(rowid) AS lo, MAX(rowid) AS hi, COUNT(*) AS c')->first();
-            $copied[$table] = (int) $row->c;
-            if ($row->c == 0) {
+            $pk = $table === 'comment_users' ? 'mid' : 'id';
+            $count = (int) $target->table("src_split.{$table}")->count();
+            $copied[$table] = $count;
+            if ($count === 0) {
                 continue;
             }
 
-            $chunk = max(1000, (int) $this->option('chunk'));
-            $bar = $this->output->createProgressBar((int) $row->c);
+            $bar = $this->output->createProgressBar($count);
             $bar->start();
 
-            for ($lo = (int) $row->lo; $lo <= (int) $row->hi; $lo += $chunk) {
-                $hi = $lo + $chunk - 1;
-                $target->getPdo()->exec(
-                    "INSERT INTO \"{$table}\" SELECT * FROM src_split.\"{$table}\" WHERE rowid BETWEEN {$lo} AND {$hi}"
+            // 【keyset 分页】按主键 > last 分批拷贝（INSERT..SELECT + LIMIT）。
+            // 旧版按 rowid 区间推进：comment_users.mid 是 INTEGER PRIMARY KEY（即 rowid 别名），
+            // B 站 UID 键空间稀疏（307 万行散布在 336 亿区间）会退化成上百万次空语句；
+            // keyset 分页与键空间密度无关，批次数 = 行数/chunk，且进度条推进真实行数。
+            $last = 0;
+            while (true) {
+                $affected = (int) $pdo->exec(
+                    "INSERT INTO \"{$table}\" SELECT * FROM src_split.\"{$table}\" WHERE \"{$pk}\" > {$last} ORDER BY \"{$pk}\" LIMIT {$chunk}"
                 );
-                $bar->advance(min($chunk, (int) $row->c));
+                if ($affected <= 0) {
+                    break;
+                }
+                $bar->advance($affected);
+
+                $next = (int) $target->table($table)->max($pk);
+                $last = $next;
+                if ($affected < $chunk) {
+                    break;
+                }
             }
             $bar->finish();
             $this->newLine();
