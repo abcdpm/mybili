@@ -171,6 +171,13 @@ const messages = {
         video: {
             title: '视频',
             videoParts: '视频选集',
+            // 第21项：连播与播放清单
+            autoplay: '连播',
+            autoplayOff: '连播已关闭',
+            autoplayPart: '分P连播中 {current}/{total}',
+            autoplayFav: '收藏夹连播中',
+            autoplayIdle: '连播待命中',
+            playlist: '播放清单',
             videoDescription: '视频简介',
             publishTime: '发布时间',
             favoriteTime: '收藏时间',
@@ -690,6 +697,12 @@ const messages = {
         video: {
             title: 'Video',
             videoParts: 'Video Parts',
+            autoplay: 'Auto Play',
+            autoplayOff: 'Auto Play Off',
+            autoplayPart: 'Parts Auto Play {current}/{total}',
+            autoplayFav: 'Favorites Auto Play',
+            autoplayIdle: 'Auto Play Ready',
+            playlist: 'Playlist',
             videoDescription: 'Video Description',
             publishTime: 'Publish Time',
             favoriteTime: 'Favorite Time',

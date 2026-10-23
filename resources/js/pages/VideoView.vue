@@ -40,6 +40,20 @@
                                     </span>
                                 </div>
                             </div>
+                            <!-- 第21项：连播开关（单一开关）+ 连播范围胶囊标签 -->
+                            <div class="flex items-center gap-2 flex-shrink-0">
+                                <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium"
+                                    :class="autoPlayNext ? 'bg-pink-100 text-pink-700 border border-pink-200' : 'bg-gray-100 text-gray-500 border border-gray-200'">
+                                    {{ autoPlayScopeLabel }}
+                                </span>
+                                <label class="flex items-center gap-2 cursor-pointer select-none">
+                                    <span class="text-sm text-gray-600">{{ t('video.autoplay') }}</span>
+                                    <span class="relative inline-flex items-center">
+                                        <input type="checkbox" v-model="autoPlayNext" class="sr-only peer">
+                                        <div class="w-10 h-5.5 bg-gray-200 rounded-full peer-checked:bg-pink-600 transition-colors duration-200 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-[18px] after:w-[18px] after:transition-all peer-checked:after:translate-x-[20px]"></div>
+                                    </span>
+                                </label>
+                            </div>
                             <!-- 标题右侧：UP 主信息 -->
                             <div v-if="videoInfo.upper" class="flex items-center space-x-3 bg-gradient-to-r from-gray-50 to-gray-100 rounded-lg border border-gray-200/50 px-3 py-2 flex-shrink-0">
                                 <div class="w-10 h-10 rounded-full overflow-hidden flex-shrink-0 bg-gradient-to-br from-pink-400 to-purple-500">
@@ -60,7 +74,7 @@
 
                     <div ref="playerContainer" id="playerContainer" 
                         class="-mx-6 md:mx-0 bg-white shadow-lg overflow-hidden md:border border-gray-200/50 mb-4">
-                        <Player ref="playerRef" @ready="onPlayerReady" :danmaku="danmaku" 
+                        <Player ref="playerRef" @ready="onPlayerReady" @ended="onPlayerEnded" :danmaku="danmaku" 
                             :url="currentPart?.url ?? ''" />
                     </div>
 
@@ -152,9 +166,12 @@
                     <VideoComments v-if="videoInfo && videoInfo.id" :video-id="videoInfo.id" :upper-id="videoInfo.upper_id" />
                 </div>
 
-                <div class="w-full lg:w-72 lg:shrink-0" v-if="videoInfo && videoInfo.video_parts && videoInfo.video_parts.length > 1">
-                    <div class="bg-white/90 backdrop-blur-sm rounded-xl shadow-lg border border-gray-200/50 p-3 flex flex-col"
-                        :style="{ height: sidebarHeight }">
+                <!-- 第21项：侧栏 = 分P列表（置顶固定） + 同收藏夹播放清单（下方分组） -->
+                <div class="w-full lg:w-72 lg:shrink-0 flex flex-col gap-3"
+                    v-if="videoInfo && ((videoInfo.video_parts && videoInfo.video_parts.length > 1) || playlist.length > 0)"
+                    :style="{ height: sidebarHeight }">
+                    <div v-if="videoInfo.video_parts && videoInfo.video_parts.length > 1"
+                        class="bg-white/90 backdrop-blur-sm rounded-xl shadow-lg border border-gray-200/50 p-3 flex flex-col flex-1 min-h-0">
                         <h3 class="text-xl font-semibold mb-3 text-gray-800 flex items-center flex-shrink-0">
                             <span class="w-2 h-2 bg-gradient-to-r from-pink-500 to-purple-600 rounded-full mr-2"></span>
                             {{ t('video.videoParts') }}&nbsp;
@@ -173,6 +190,32 @@
                                 <div class="flex items-center justify-between">
                                     <span class="font-medium truncate">{{ part.title }}</span>
                                     <span v-if="currentPart?.id === part.id" class="text-white/80">▶</span>
+                                </div>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- 同收藏夹播放清单（当前项高亮并自动滚动到可视区） -->
+                    <div v-if="playlist.length > 0"
+                        class="bg-white/90 backdrop-blur-sm rounded-xl shadow-lg border border-gray-200/50 p-3 flex flex-col flex-none max-h-[45%] min-h-0">
+                        <h3 class="text-lg font-semibold mb-2 text-gray-800 flex items-center flex-shrink-0">
+                            <span class="w-2 h-2 bg-gradient-to-r from-amber-400 to-orange-500 rounded-full mr-2"></span>
+                            {{ t('video.playlist') }}&nbsp;
+                            <span class="text-gray-500 text-sm font-normal">
+                                ({{ Math.max(playlistIndex + 1, 0) }}/{{ playlist.length }})
+                            </span>
+                        </h3>
+                        <div ref="playlistListRef" class="space-y-1 overflow-y-auto flex-1 min-h-0 pr-1 custom-scrollbar">
+                            <button v-for="(item, index) in playlist" :key="item.id"
+                                :data-active="item.id === videoInfo?.id ? 'true' : 'false'"
+                                @click="navigateToVideo(item.id)"
+                                class="w-full px-3 py-2 text-left rounded-lg transition-all duration-200"
+                                :class="item.id === videoInfo?.id
+                                    ? 'bg-gradient-to-r from-amber-400 to-orange-500 text-white shadow'
+                                    : 'bg-gray-50 hover:bg-gray-100 text-gray-700 hover:text-gray-900'">
+                                <div class="flex items-center gap-2">
+                                    <span class="text-xs opacity-70 flex-shrink-0">{{ index + 1 }}</span>
+                                    <span class="font-medium truncate">{{ item.title }}</span>
                                 </div>
                             </button>
                         </div>
@@ -274,13 +317,14 @@
 
 <script lang="ts" setup>
 import { computed, onMounted, ref, nextTick, onUnmounted, watch } from 'vue';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { useToast } from '@/composables/toast';
 import { useI18n } from 'vue-i18n';
 import { formatTimestamp } from '../lib/helper';
 import Player from '../components/Player.vue';
 import Breadcrumbs from '../components/Breadcrumbs.vue';
 import type { Video, VideoPartType } from '@/api/fav';
+import { getFavVideos } from '@/api/fav';
 import { getVideoDanmaku, getVideoInfo, getVideoTags, triggerUpdateDanmaku, triggerUpdateComments, triggerUpdateStats, deleteVideo } from '@/api/video';
 import VideoComments from '@/components/VideoComments.vue';
 
@@ -504,6 +548,101 @@ const playPart = (partId: number) => {
     }
 }
 
+// ============================================================================
+// 第21项：同收藏夹连播 + 播放清单侧栏
+// ============================================================================
+// 设计红线（docs/optimization-round2.md 第三批）：
+//   1. 分P连播优先：ended → ① 下一分P → ② 收藏夹清单下一项（需开启连播）→ ③ 停止；
+//   2. 单一连播开关 + 胶囊标签显示当前连播范围（不出现两个开关）；
+//   3. 播放清单：分P列表置顶固定，收藏夹清单在下方分组展示，当前项高亮并自动滚动到可视区；
+//   4. 用户手动暂停/停止后不自动续播（仅响应播放器 ended 事件）。
+const router = useRouter()
+const autoPlayNext = ref(false)          // 单一连播开关（作用域见胶囊标签）
+const playlist = ref<Video[]>([])        // 同收藏夹播放清单（隐藏已失效）
+const playlistFavId = ref<string>('')    // 清单所属收藏夹 ID
+const playlistListRef = ref<HTMLElement | null>(null)
+
+/** 收藏夹清单当前索引（-1 表示不在清单中） */
+const playlistIndex = computed(() => {
+    const id = parseInt(videoId.value as string)
+    return playlist.value.findIndex(v => v.id === id)
+})
+
+/** 胶囊标签：显示当前连播范围（分P优先于收藏夹） */
+const autoPlayScopeLabel = computed(() => {
+    if (!autoPlayNext.value) return t('video.autoplayOff')
+    const parts = videoInfo.value?.video_parts ?? []
+    const idx = parts.findIndex(p => p.id === currentPart.value?.id)
+    if (parts.length > 1 && idx >= 0 && idx < parts.length - 1) {
+        return t('video.autoplayPart', { current: idx + 1, total: parts.length })
+    }
+    if (playlist.value.length > 1 && playlistIndex.value >= 0 && playlistIndex.value < playlist.value.length - 1) {
+        return t('video.autoplayFav')
+    }
+    return t('video.autoplayIdle')
+})
+
+/** 加载同收藏夹播放清单（仅收藏夹上下文；隐藏已失效视频） */
+const loadPlaylist = () => {
+    if (route.name !== 'favlist-video-id') return
+    const favId = route.params.id as string
+    playlistFavId.value = favId
+    getFavVideos(parseInt(favId)).then((list) => {
+        playlist.value = (list ?? []).filter((v: any) => v?.invalid !== 1)
+        scrollPlaylistToCurrent()
+    })
+}
+
+/** 播放清单下一项（跳过已失效，已过滤；末尾返回 null） */
+const nextPlaylistVideo = (): Video | null => {
+    const idx = playlistIndex.value
+    if (idx < 0 || idx + 1 >= playlist.value.length) return null
+    return playlist.value[idx + 1]
+}
+
+/** 跳转到清单中的下一个视频（复用当前路由形态） */
+const navigateToVideo = (targetId: number) => {
+    if (route.name === 'favlist-video-id') {
+        router.push(`/fav/${route.params.id}/video/${targetId}`)
+    } else if (route.name === 'subscription-video-id') {
+        router.push(`/subscription/${route.params.id}/video/${targetId}`)
+    } else {
+        router.push(`/video/${targetId}`)
+    }
+}
+
+/**
+ * 播放结束状态机：① 下一分P → ② 清单下一项（需开启连播）→ ③ 停止。
+ * 仅由播放器 ended 事件触发；用户手动暂停/停止不进入此流程。
+ */
+const onPlayerEnded = () => {
+    // ① 分P连播（优先级最高，属同一视频的自然续播）
+    const parts = videoInfo.value?.video_parts ?? []
+    const idx = parts.findIndex(p => p.id === currentPart.value?.id)
+    if (idx >= 0 && idx + 1 < parts.length) {
+        playPart(parts[idx + 1].id)
+        return
+    }
+    // ② 收藏夹连播（需开启连播开关）
+    if (!autoPlayNext.value) return
+    const next = nextPlaylistVideo()
+    if (next) {
+        navigateToVideo(next.id)
+        return
+    }
+    // ③ 停止：播放器停留在重播界面
+}
+
+/** 清单当前项自动滚动到可视区 */
+const scrollPlaylistToCurrent = () => {
+    nextTick(() => {
+        const container = playlistListRef.value
+        if (!container) return
+        const active = container.querySelector('[data-active="true"]') as HTMLElement | null
+        active?.scrollIntoView({ block: 'nearest' })
+    })
+}
+
 const openDeleteModal = () => {
     showDeleteModal.value = true
 }
@@ -595,7 +734,23 @@ onMounted(() => {
             })
         }
     })
+    // 第21项：加载同收藏夹播放清单（仅收藏夹上下文）
+    loadPlaylist()
     window.addEventListener('scroll', handleScroll);
+})
+
+// 第21项：收藏夹连播跳转时路由参数变化但组件被复用 —— 重新加载视频与首分P
+watch(() => route.params.video_id, (newId) => {
+    if ((route.name === 'favlist-video-id' || route.name === 'subscription-video-id') && newId) {
+        videoId.value = newId as string
+        getVideoInfo(parseInt(newId as string)).then((data) => {
+            if (data) {
+                videoInfo.value = data
+                playPart(data.video_parts?.[0]?.id ?? 0)
+                scrollPlaylistToCurrent()
+            }
+        })
+    }
 })
 
 onUnmounted(() => {

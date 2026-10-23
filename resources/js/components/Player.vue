@@ -15,6 +15,7 @@ const $container = ref<HTMLDivElement | null>(null)
 // 定义事件
 const emit = defineEmits<{
     ready: []
+    ended: []
 }>()
 
 const props = defineProps<{
@@ -157,6 +158,11 @@ onMounted(async () => {
         saveDanmakuConfig(option)
     });
     
+    // 【第21项】播放结束事件：驱动分P连播与收藏夹连播状态机（VideoView 处理）
+    art.value?.on('video:ended', () => {
+        emit('ended')
+    });
+
     emit('ready')
 })
 onBeforeUnmount(() => {
