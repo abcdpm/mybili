@@ -29,8 +29,13 @@ return [
     |
     */
 
-    // 评论库拆分标记文件（批F）：存在即代表拆分已激活（app:split-comments-db --execute 写入）
-    'comments_split_marker' => env('COMMENTS_DB_MARKER', storage_path('app/comments-db-split.json')),
+    // 评论库拆分标记文件（批F）：存在即代表拆分已激活（app:split-comments-db --execute 写入）。
+    // 【持久化安全】默认与主库同目录 —— 主库所在卷必然持久化，标记与独立库跟随它，
+    // 避免落在未持久化路径（如容器内 /app/storage/app）导致容器重建后"标记/独立库丢失"引发数据丢失或脑裂。
+    'comments_split_marker' => env(
+        'COMMENTS_DB_MARKER',
+        dirname(env('DB_DATABASE', database_path('database.sqlite'))) . '/comments-db-split.json'
+    ),
 
     'connections' => [
 
@@ -56,7 +61,11 @@ return [
         'sqlite_comments' => [
             'driver' => 'sqlite',
             'url' => env('COMMENTS_DB_URL'),
-            'database' => env('COMMENTS_DB_DATABASE', database_path('comments.sqlite')),
+            // 【持久化安全】默认与主库同目录（主库卷必然持久化）；COMMENTS_DB_DATABASE 可显式覆盖
+            'database' => env(
+                'COMMENTS_DB_DATABASE',
+                dirname(env('DB_DATABASE', database_path('database.sqlite'))) . '/comments.sqlite'
+            ),
             'prefix' => '',
             // 评论三表的外键指向主库 videos 等表，拆分后跨库外键无法成立，
             // 因此独立库关闭 FK 强制（数据完整性由迁移校验与应用层保证）

@@ -106,6 +106,14 @@
 
 ## 1. 评论库拆分独立 SQLite（`app:split-comments-db`）
 
+**⚠️ 持久化前置检查（必须！）**：拆分产物两个文件必须与主库位于**同一持久化卷**：
+- 独立库：默认 `dirname(DB_DATABASE)/comments.sqlite`（跟随主库目录，主库卷必然持久化）
+- 标记：默认 `dirname(DB_DATABASE)/comments-db-split.json`
+- 标准部署主库在 `/data/database.sqlite`（db-data 卷）→ 产物自动落 `/data`，安全；
+- 若曾用旧默认（`/app/database`、`/app/storage/app`）执行过：**这两个路径按标准 compose 未持久化**，
+  容器重建会丢失独立库与标记（数据丢失/脑裂）——请 `--rollback` 后按新默认重跑；
+- 核查命令：`docker inspect <容器> --format '{{json .Mounts}}'` 或容器内 `df -h /data /app/database`。
+
 **上线步骤（生产，零删除、可回滚）**：
 1. 低峰期执行 `php artisan app:split-comments-db`（只读报告）确认两库统计；
 2. `php artisan app:split-comments-db --execute`：复制（源库真实文件时走 ATTACH SQL 级批量复制，
