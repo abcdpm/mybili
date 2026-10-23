@@ -189,23 +189,3 @@ PragmaConnector 页缓存默认 20MB/连接（评论 worker 实测 134MB vs 同�
 预期：稳态回落 ~300-500MB；如需进一步压缩可下调 horizon 各 supervisor
 processes 或 octane workers（吞吐换内存）。
 
-### 3.1 第二轮治理（同日，目标 ~500MB 闲置）
-
-**修正**：horizon 的 `environments.production` 块**覆盖** `defaults`——首轮改的
-maxProcesses 对生产无效；且闲置大头是 production 块的 8 个固定 worker
-（slow 2 + 限流 2 + 转码 2 + 评论 2）+ `schedule:work` 常驻 62MB。
-
-**措施**：
-| 项 | 旧 | 新 | 省 |
-|---|---|---|---|
-| supervisor-default 队列 | fast/default | 吸收 slow+comments 五队列，auto min1/max3 | 闲置 -2~4 worker |
-| supervisor-slow / supervisor-comments | 独立×2 | 并入 default（Job 级 timeout/tries 覆盖） | -260MB 峰值 |
-| supervisor-bilibili-rate-limit | 2 | 1（**名称被 412 暂停逻辑引用，勿改名**） | -65MB |
-| supervisor-transcode | 2 | 1（ffmpeg 长任务保持独立） | -65MB |
-| schedule:work | 常驻 Laravel 62MB | shell 循环 schedule:run（瞬时进程） | -57MB |
-| php.ini opcache | 默认 128MB | 64MB（仅 Web；CLI worker 不受影响） | -30~60MB |
-
-**预期闲置 ≈ 520-580MB**（1 default + 1 限流 + 1 转码 worker ≈ 195MB + frankenphp ~230MB
-+ horizon 主进程 62MB + 杂项/页缓存 ≈ 80MB）；任务峰值 auto 扩到 3 worker 时 ~700MB。
-如需更快消化评论积压：临时把 maxProcesses 调到 5。
-
