@@ -9,11 +9,8 @@
         </Breadcrumbs>
 
         <div class="space-y-4" v-if="videoInfo != null">
-            <div class="flex flex-col lg:flex-row gap-4">
-                
-                <div class="flex-1 min-w-0"> 
-                    <!-- 【新版布局】视频信息头部位于播放器上方：左侧标题+元信息行，右侧 UP 主信息 -->
-                    <div class="bg-white/90 backdrop-blur-sm rounded-xl shadow-lg border border-gray-200/50 p-4 mb-4">
+            <!-- 【B站样式】标题+UP主信息横跨全宽（延伸到分P清单上方） -->
+            <div class="bg-white/90 backdrop-blur-sm rounded-xl shadow-lg border border-gray-200/50 p-4">
                         <div class="flex flex-col md:flex-row md:items-center gap-4">
                             <div class="flex-1 min-w-0">
                                 <!-- 移动端（第16项）：标题/元信息自适应字号；标题即"在哔哩哔哩观看"入口（原按钮改为超链接） -->
@@ -38,21 +35,20 @@
                                         <span class="mr-1 text-green-500">🕐</span>
                                         {{ t('video.publishTime') }} {{ formatTimestamp(videoInfo.pubtime, "yyyy-mm-dd hh:ii:ss") }}
                                     </span>
-                                </div>
-                            </div>
-                            <!-- 第21项：连播开关（单一开关）+ 连播范围胶囊标签 -->
-                            <div class="flex items-center gap-2 flex-shrink-0">
-                                <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium"
-                                    :class="autoPlayNext ? 'bg-pink-100 text-pink-700 border border-pink-200' : 'bg-gray-100 text-gray-500 border border-gray-200'">
-                                    {{ autoPlayScopeLabel }}
-                                </span>
-                                <label class="flex items-center gap-2 cursor-pointer select-none">
-                                    <span class="text-sm text-gray-600">{{ t('video.autoplay') }}</span>
-                                    <span class="relative inline-flex items-center">
-                                        <input type="checkbox" v-model="autoPlayNext" class="sr-only peer">
-                                        <div class="w-10 h-5.5 bg-gray-200 rounded-full peer-checked:bg-pink-600 transition-colors duration-200 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-[18px] after:w-[18px] after:transition-all peer-checked:after:translate-x-[20px]"></div>
+                                    <!-- 第21项：连播开关（苹果风格 iOS 开关）+ 连播范围胶囊标签 -->
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
+                                        :class="autoPlayNext ? 'bg-green-100 text-green-700 border border-green-200' : 'bg-gray-100 text-gray-500 border border-gray-200'">
+                                        {{ autoPlayScopeLabel }}
                                     </span>
-                                </label>
+                                    <label class="inline-flex items-center cursor-pointer select-none" :title="t('video.autoplay')">
+                                        <span class="text-xs sm:text-sm text-gray-600 mr-2">{{ t('video.autoplay') }}</span>
+                                        <!-- 苹果 iOS 风格开关：圆角轨道 + 白色圆形滑块平移 -->
+                                        <span class="relative inline-block">
+                                            <input type="checkbox" v-model="autoPlayNext" class="sr-only peer">
+                                            <div class="w-[50px] h-[30px] rounded-full bg-gray-200 peer-checked:bg-green-500 transition-colors duration-300 ease-in-out after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:h-[26px] after:w-[26px] after:rounded-full after:bg-white after:shadow-[0_2px_5px_rgba(0,0,0,0.25)] after:transition-transform after:duration-300 after:ease-in-out peer-checked:after:translate-x-[20px]"></div>
+                                        </span>
+                                    </label>
+                                </div>
                             </div>
                             <!-- 标题右侧：UP 主信息 -->
                             <div v-if="videoInfo.upper" class="flex items-center space-x-3 bg-gradient-to-r from-gray-50 to-gray-100 rounded-lg border border-gray-200/50 px-3 py-2 flex-shrink-0">
@@ -72,6 +68,9 @@
                         </div>
                     </div>
 
+            <!-- 播放器与侧栏（分P清单/播放清单） -->
+            <div class="flex flex-col lg:flex-row gap-4">
+                <div class="flex-1 min-w-0">
                     <div ref="playerContainer" id="playerContainer" 
                         class="-mx-6 md:mx-0 bg-white shadow-lg overflow-hidden md:border border-gray-200/50 mb-4">
                         <Player ref="playerRef" @ready="onPlayerReady" @ended="onPlayerEnded" :danmaku="danmaku" 
@@ -122,42 +121,42 @@
                                 </div>
                             </div>
 
-                            <div class="grid grid-cols-2 md:grid-cols-4 gap-3 pt-4 border-t border-gray-200/50">
-                                <button @click="downloadVideo" class="flex items-center justify-center space-x-2 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-3 border border-blue-200/50 hover:shadow hover:from-blue-100 hover:to-indigo-100 transition-all duration-300 group">
-                                    <span class="text-blue-500 text-lg group-hover:scale-110 transition-transform duration-300">🎬</span>
-                                    <span class="text-sm font-semibold text-gray-700 group-hover:text-blue-800">{{ t('video.downloadVideo') }}</span>
+                            <div class="grid grid-cols-2 md:grid-cols-4 gap-2 pt-3 border-t border-gray-200/50">
+                                <button @click="downloadVideo" class="flex items-center justify-center space-x-1.5 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-md p-2 border border-blue-200/50 hover:shadow hover:from-blue-100 hover:to-indigo-100 transition-all duration-300 group">
+                                    <span class="text-blue-500 text-base group-hover:scale-110 transition-transform duration-300">🎬</span>
+                                    <span class="text-xs font-semibold text-gray-700 group-hover:text-blue-800">{{ t('video.downloadVideo') }}</span>
                                 </button>
 
-                                <button @click="downloadDanmaku" class="flex items-center justify-center space-x-2 bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg p-3 border border-purple-200/50 hover:shadow hover:from-purple-100 hover:to-pink-100 transition-all duration-300 group">
-                                    <span class="text-purple-500 text-lg group-hover:scale-110 transition-transform duration-300">💬</span>
-                                    <span class="text-sm font-semibold text-gray-700 group-hover:text-purple-800">{{ t('video.downloadDanmaku') }}</span>
+                                <button @click="downloadDanmaku" class="flex items-center justify-center space-x-1.5 bg-gradient-to-r from-purple-50 to-pink-50 rounded-md p-2 border border-purple-200/50 hover:shadow hover:from-purple-100 hover:to-pink-100 transition-all duration-300 group">
+                                    <span class="text-purple-500 text-base group-hover:scale-110 transition-transform duration-300">💬</span>
+                                    <span class="text-xs font-semibold text-gray-700 group-hover:text-purple-800">{{ t('video.downloadDanmaku') }}</span>
                                 </button>
 
-                                <button @click="downloadCover" class="flex items-center justify-center space-x-2 bg-gradient-to-r from-pink-50 to-rose-50 rounded-lg p-3 border border-pink-200/50 hover:shadow hover:from-pink-100 hover:to-rose-100 transition-all duration-300 group">
-                                    <span class="text-pink-500 text-lg group-hover:scale-110 transition-transform duration-300">🖼️</span>
-                                    <span class="text-sm font-semibold text-gray-700 group-hover:text-pink-800">{{ t('video.downloadCover') }}</span>
+                                <button @click="downloadCover" class="flex items-center justify-center space-x-1.5 bg-gradient-to-r from-pink-50 to-rose-50 rounded-md p-2 border border-pink-200/50 hover:shadow hover:from-pink-100 hover:to-rose-100 transition-all duration-300 group">
+                                    <span class="text-pink-500 text-base group-hover:scale-110 transition-transform duration-300">🖼️</span>
+                                    <span class="text-xs font-semibold text-gray-700 group-hover:text-pink-800">{{ t('video.downloadCover') }}</span>
                                 </button>
 
-                                <button @click="openDeleteModal" class="flex items-center justify-center space-x-2 bg-gradient-to-r from-red-50 to-rose-50 rounded-lg p-3 border border-red-200/50 hover:shadow hover:from-red-100 hover:to-rose-100 transition-all duration-300 group">
-                                    <span class="text-red-500 text-lg group-hover:scale-110 transition-transform duration-300">🗑️</span>
-                                    <span class="text-sm font-semibold text-gray-700 group-hover:text-red-800">{{ t('video.deleteVideo') }}</span>
+                                <button @click="openDeleteModal" class="flex items-center justify-center space-x-1.5 bg-gradient-to-r from-red-50 to-rose-50 rounded-md p-2 border border-red-200/50 hover:shadow hover:from-red-100 hover:to-rose-100 transition-all duration-300 group">
+                                    <span class="text-red-500 text-base group-hover:scale-110 transition-transform duration-300">🗑️</span>
+                                    <span class="text-xs font-semibold text-gray-700 group-hover:text-red-800">{{ t('video.deleteVideo') }}</span>
                                 </button>
                             </div>
 
                             <div class="grid grid-cols-3 gap-3 pt-1">
-                                <button @click="handleUpdateStats" class="flex items-center justify-center space-x-2 bg-gradient-to-r from-amber-50 to-yellow-50 rounded-lg p-3 border border-amber-200/50 hover:shadow hover:from-amber-100 hover:to-yellow-100 transition-all duration-300 group">
-                                    <span class="text-amber-500 text-lg group-hover:scale-110 transition-transform duration-300">📊</span>
-                                    <span class="text-sm font-semibold text-gray-700 group-hover:text-amber-800">{{ t('video.updateStat') }}</span>
+                                <button @click="handleUpdateStats" class="flex items-center justify-center space-x-1.5 bg-gradient-to-r from-amber-50 to-yellow-50 rounded-md p-2 border border-amber-200/50 hover:shadow hover:from-amber-100 hover:to-yellow-100 transition-all duration-300 group">
+                                    <span class="text-amber-500 text-base group-hover:scale-110 transition-transform duration-300">📊</span>
+                                    <span class="text-xs font-semibold text-gray-700 group-hover:text-amber-800">{{ t('video.updateStat') }}</span>
                                 </button>
                                 
-                                <button @click="handleUpdateDanmaku" class="flex items-center justify-center space-x-2 bg-gradient-to-r from-orange-50 to-amber-50 rounded-lg p-3 border border-orange-200/50 hover:shadow hover:from-orange-100 hover:to-amber-100 transition-all duration-300 group">
-                                    <span class="text-orange-500 text-lg group-hover:scale-110 transition-transform duration-300">🔄</span>
-                                    <span class="text-sm font-semibold text-gray-700 group-hover:text-orange-800">{{ t('video.updateDanmaku') }}</span>
+                                <button @click="handleUpdateDanmaku" class="flex items-center justify-center space-x-1.5 bg-gradient-to-r from-orange-50 to-amber-50 rounded-md p-2 border border-orange-200/50 hover:shadow hover:from-orange-100 hover:to-amber-100 transition-all duration-300 group">
+                                    <span class="text-orange-500 text-base group-hover:scale-110 transition-transform duration-300">🔄</span>
+                                    <span class="text-xs font-semibold text-gray-700 group-hover:text-orange-800">{{ t('video.updateDanmaku') }}</span>
                                 </button>
 
-                                <button @click="handleUpdateComments" class="flex items-center justify-center space-x-2 bg-gradient-to-r from-teal-50 to-emerald-50 rounded-lg p-3 border border-teal-200/50 hover:shadow hover:from-teal-100 hover:to-emerald-100 transition-all duration-300 group">
-                                    <span class="text-teal-500 text-lg group-hover:scale-110 transition-transform duration-300">📝</span>
-                                    <span class="text-sm font-semibold text-gray-700 group-hover:text-teal-800">{{ t('video.updateComment') }}</span>
+                                <button @click="handleUpdateComments" class="flex items-center justify-center space-x-1.5 bg-gradient-to-r from-teal-50 to-emerald-50 rounded-md p-2 border border-teal-200/50 hover:shadow hover:from-teal-100 hover:to-emerald-100 transition-all duration-300 group">
+                                    <span class="text-teal-500 text-base group-hover:scale-110 transition-transform duration-300">📝</span>
+                                    <span class="text-xs font-semibold text-gray-700 group-hover:text-teal-800">{{ t('video.updateComment') }}</span>
                                 </button>
                             </div>
                         </div>
@@ -195,9 +194,9 @@
                         </div>
                     </div>
 
-                    <!-- 同收藏夹播放清单（当前项高亮并自动滚动到可视区） -->
+                    <!-- 同收藏夹播放清单（B站卡片样式：封面+标题+UP主+播放量·弹幕，封面右下角时长角标） -->
                     <div v-if="playlist.length > 0"
-                        class="bg-white/90 backdrop-blur-sm rounded-xl shadow-lg border border-gray-200/50 p-3 flex flex-col flex-none max-h-[45%] min-h-0">
+                        class="bg-white/90 backdrop-blur-sm rounded-xl shadow-lg border border-gray-200/50 p-3 flex flex-col flex-none max-h-[55%] min-h-0">
                         <h3 class="text-lg font-semibold mb-2 text-gray-800 flex items-center flex-shrink-0">
                             <span class="w-2 h-2 bg-gradient-to-r from-amber-400 to-orange-500 rounded-full mr-2"></span>
                             {{ t('video.playlist') }}&nbsp;
@@ -205,19 +204,49 @@
                                 ({{ Math.max(playlistIndex + 1, 0) }}/{{ playlist.length }})
                             </span>
                         </h3>
-                        <div ref="playlistListRef" class="space-y-1 overflow-y-auto flex-1 min-h-0 pr-1 custom-scrollbar">
-                            <button v-for="(item, index) in playlist" :key="item.id"
+                        <div ref="playlistListRef" @scroll="onPlaylistScroll"
+                            class="space-y-2 overflow-y-auto flex-1 min-h-0 pr-1 custom-scrollbar">
+                            <button v-for="(item, index) in displayedPlaylist" :key="item.id"
                                 :data-active="item.id === videoInfo?.id ? 'true' : 'false'"
                                 @click="navigateToVideo(item.id)"
-                                class="w-full px-3 py-2 text-left rounded-lg transition-all duration-200"
+                                class="w-full flex gap-2.5 p-1.5 rounded-lg transition-all duration-200 text-left"
                                 :class="item.id === videoInfo?.id
-                                    ? 'bg-gradient-to-r from-amber-400 to-orange-500 text-white shadow'
-                                    : 'bg-gray-50 hover:bg-gray-100 text-gray-700 hover:text-gray-900'">
-                                <div class="flex items-center gap-2">
-                                    <span class="text-xs opacity-70 flex-shrink-0">{{ index + 1 }}</span>
-                                    <span class="font-medium truncate">{{ item.title }}</span>
+                                    ? 'bg-amber-50 ring-1 ring-amber-300 shadow-sm'
+                                    : 'hover:bg-gray-50'">
+                                <!-- 封面（右下角时长角标，照搬B站样式） -->
+                                <div class="relative w-[112px] flex-shrink-0">
+                                    <div class="w-full aspect-video rounded-md overflow-hidden bg-gray-100">
+                                        <img v-if="item.cover_image_url || item.cover" :src="item.cover_image_url || item.cover"
+                                            loading="lazy" class="w-full h-full object-cover" alt="">
+                                        <div v-else class="w-full h-full flex items-center justify-center text-gray-300 text-xs">无封面</div>
+                                    </div>
+                                    <span class="absolute bottom-1 right-1 px-1 rounded bg-black/70 text-white text-[10px] leading-4 font-medium">
+                                        {{ formatDuration(item.duration) }}
+                                    </span>
+                                </div>
+                                <!-- 标题 + UP主 + 播放量·弹幕 -->
+                                <div class="flex-1 min-w-0 flex flex-col justify-between py-0.5">
+                                    <h4 class="text-[13px] font-medium text-gray-800 leading-snug line-clamp-2"
+                                        :class="item.id === videoInfo?.id ? 'text-amber-700' : ''">
+                                        {{ item.title }}
+                                    </h4>
+                                    <div class="text-[11px] text-gray-500 space-y-0.5">
+                                        <div class="flex items-center gap-1 truncate">
+                                            <span class="text-gray-400">👤</span>
+                                            <span class="truncate">{{ item.upper_name ?? '-' }}</span>
+                                        </div>
+                                        <div class="flex items-center gap-2">
+                                            <span>{{ formatCount(item.view) }} {{ t('video.viewCount') }}</span>
+                                            <span>{{ t('video.danmakuCount') }} {{ formatCount(item.danmaku_count) }}</span>
+                                        </div>
+                                    </div>
                                 </div>
                             </button>
+                            <!-- 无限滚动：到底自动加载 -->
+                            <div v-if="displayedPlaylist.length < playlist.length"
+                                class="text-center text-xs text-gray-400 py-2">
+                                {{ t('video.playlistLoading') }}
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -557,7 +586,12 @@ const playPart = (partId: number) => {
 //   3. 播放清单：分P列表置顶固定，收藏夹清单在下方分组展示，当前项高亮并自动滚动到可视区；
 //   4. 用户手动暂停/停止后不自动续播（仅响应播放器 ended 事件）。
 const router = useRouter()
-const autoPlayNext = ref(false)          // 单一连播开关（作用域见胶囊标签）
+// 连播开关持久化到 localStorage：切换视频（组件可能被重建）后自动连播不再被错误关闭
+const AUTOPLAY_STORAGE_KEY = 'mybili_autoplay_next'
+const autoPlayNext = ref(localStorage.getItem(AUTOPLAY_STORAGE_KEY) === '1')
+watch(autoPlayNext, (value) => {
+    localStorage.setItem(AUTOPLAY_STORAGE_KEY, value ? '1' : '0')
+})
 const playlist = ref<Video[]>([])        // 同收藏夹播放清单（隐藏已失效）
 const playlistFavId = ref<string>('')    // 清单所属收藏夹 ID
 const playlistListRef = ref<HTMLElement | null>(null)
@@ -582,15 +616,28 @@ const autoPlayScopeLabel = computed(() => {
     return t('video.autoplayIdle')
 })
 
-/** 加载同收藏夹播放清单（仅收藏夹上下文；隐藏已失效视频） */
-const loadPlaylist = () => {
-    if (route.name !== 'favlist-video-id') return
-    const favId = route.params.id as string
-    playlistFavId.value = favId
-    getFavVideos(parseInt(favId)).then((list) => {
+/** 加载同收藏夹播放清单（隐藏已失效视频）。
+ *  收藏夹上下文用路由收藏夹 ID；其它上下文（进度页/直链/订阅打开）回退视频自身所属收藏夹，
+ *  保证"连播"在任何入口都生效（修复：进度页打开视频时连播不工作）。 */
+const fetchPlaylist = (favId: number) => {
+    getFavVideos(favId).then((list) => {
         playlist.value = (list ?? []).filter((v: any) => v?.invalid !== 1)
         scrollPlaylistToCurrent()
     })
+}
+
+const loadPlaylist = () => {
+    if (route.name === 'favlist-video-id') {
+        const favId = route.params.id as string
+        playlistFavId.value = favId
+        fetchPlaylist(parseInt(favId))
+        return
+    }
+    const fallbackFavId = videoInfo.value?.favorite?.[0]?.id
+    if (fallbackFavId) {
+        playlistFavId.value = String(fallbackFavId)
+        fetchPlaylist(fallbackFavId)
+    }
 }
 
 /** 播放清单下一项（跳过已失效，已过滤；末尾返回 null） */
@@ -641,6 +688,40 @@ const scrollPlaylistToCurrent = () => {
         const active = container.querySelector('[data-active="true"]') as HTMLElement | null
         active?.scrollIntoView({ block: 'nearest' })
     })
+}
+
+// ===== 播放清单：B站卡片样式 + 无限向下滚动自动加载 =====
+// 列表可能很长（大收藏夹数千条），DOM 增量渲染：先渲染 30 条，滚动到底部附近自动追加，
+// 避免一次性渲染全部节点导致的卡顿（数据本身已全量在内存，切片零开销）。
+const playlistDisplayCount = ref(30)
+
+const displayedPlaylist = computed(() => playlist.value.slice(0, playlistDisplayCount.value))
+
+const onPlaylistScroll = () => {
+    const container = playlistListRef.value
+    if (!container) return
+    const remaining = container.scrollHeight - container.scrollTop - container.clientHeight
+    if (remaining < 240 && playlistDisplayCount.value < playlist.value.length) {
+        playlistDisplayCount.value = Math.min(playlistDisplayCount.value + 30, playlist.value.length)
+    }
+}
+
+/** 播放量格式化（B站风格：13.5万 / 1.2亿） */
+const formatCount = (value: number | string | null | undefined): string => {
+    const n = Number(value ?? 0)
+    if (n >= 100000000) return (n / 100000000).toFixed(1).replace(/\.0$/, '') + '亿'
+    if (n >= 10000) return (n / 10000).toFixed(1).replace(/\.0$/, '') + '万'
+    return String(n)
+}
+
+/** 时长格式化（封面右下角角标：mm:ss 或 h:mm:ss） */
+const formatDuration = (seconds: number | string | null | undefined): string => {
+    const total = Math.max(0, Math.floor(Number(seconds ?? 0)))
+    const h = Math.floor(total / 3600)
+    const m = Math.floor((total % 3600) / 60)
+    const s = total % 60
+    const pad = (x: number) => String(x).padStart(2, '0')
+    return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${m}:${pad(s)}`
 }
 
 const openDeleteModal = () => {
@@ -722,6 +803,8 @@ onMounted(() => {
     getVideoInfo(parseInt(videoId.value as string)).then(async (data) => {
         if (data) {
             videoInfo.value = data
+            // 连播清单：非收藏夹上下文在此回退加载（进度页/直链等入口）
+            loadPlaylist()
             updateSidebarHeight()
             nextTick(() => {
                 updateSidebarHeight()
