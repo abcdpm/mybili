@@ -29,6 +29,9 @@ return [
     |
     */
 
+    // 评论库拆分标记文件（批F）：存在即代表拆分已激活（app:split-comments-db --execute 写入）
+    'comments_split_marker' => env('COMMENTS_DB_MARKER', storage_path('app/comments-db-split.json')),
+
     'connections' => [
 
         'sqlite' => [
@@ -43,6 +46,23 @@ return [
             // 写锁竞争时等待 5 秒再报 database is locked，大幅降低队列并发写入失败率
             'busy_timeout' => env('DB_BUSY_TIMEOUT', 5000),
             // WAL 模式下的推荐级别，兼顾安全与写入性能
+            'synchronous' => env('DB_SYNCHRONOUS', 'normal'),
+        ],
+
+        // 评论库独立 SQLite（批F·架构拆分，opt-in）：
+        // 默认未拆分时所有评论相关查询仍走主连接（comments_db() 助手按拆分标记路由）；
+        // 执行 app:split-comments-db --execute 完成迁移后，评论三表
+        // （comments/comment_users/emotes）由本连接承载，主库保留旧表（只读兼容、可回滚）。
+        'sqlite_comments' => [
+            'driver' => 'sqlite',
+            'url' => env('COMMENTS_DB_URL'),
+            'database' => env('COMMENTS_DB_DATABASE', database_path('comments.sqlite')),
+            'prefix' => '',
+            // 评论三表的外键指向主库 videos 等表，拆分后跨库外键无法成立，
+            // 因此独立库关闭 FK 强制（数据完整性由迁移校验与应用层保证）
+            'foreign_key_constraints' => false,
+            'journal_mode' => env('DB_JOURNAL_MODE', 'wal'),
+            'busy_timeout' => env('DB_BUSY_TIMEOUT', 5000),
             'synchronous' => env('DB_SYNCHRONOUS', 'normal'),
         ],
 

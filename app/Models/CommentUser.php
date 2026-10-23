@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Traits\UsesCommentsDatabase;
 use Illuminate\Database\Eloquent\Model;
 
 /**
@@ -9,6 +10,8 @@ use Illuminate\Database\Eloquent\Model;
  */
 class CommentUser extends Model
 {
+    use UsesCommentsDatabase;
+
     protected $table = 'comment_users';
 
     protected $primaryKey = 'mid';

@@ -2,14 +2,13 @@
 
 namespace App\Console\Commands;
 
-use App\Models\Video;
-use App\Models\Comment; // 引入 Comment 模型
-use Carbon\Carbon;
-use App\Jobs\DownloadCommentsJob;
-use Illuminate\Console\Command;
-use Illuminate\Support\Facades\DB;
 use App\Enums\SettingKey;
+use App\Jobs\DownloadCommentsJob; // 引入 Comment 模型
+use App\Models\Comment;
+use App\Models\Video;
 use App\Services\SettingsService;
+use Carbon\Carbon;
+use Illuminate\Console\Command;
 
 class DownloadAllComments extends Command
 {
@@ -33,6 +32,7 @@ class DownloadAllComments extends Command
                             {--auto-update : 开启智能模式，进行自动轮询，按时间衰减自适应刷新已有视频的最新评论}
                             {--percent=3 : 智能模式下，按有效视频总数的百分比执行 (如: 3 表示 3%)}
                             {--status : 查看当前评论下载进度统计 (不执行任务)}';
+
     protected $description = 'Dispatch jobs to download comments for all valid videos';
 
     public function handle(): void
@@ -40,13 +40,15 @@ class DownloadAllComments extends Command
         // 检查系统设置：是否允许评论下载
         $downloadCommentsEnabled = app(SettingsService::class)->get(SettingKey::DOWNLOAD_COMMENTS_ENABLED) ?? 'on';
         if ($downloadCommentsEnabled !== 'on') {
-            $this->info("[视频评论] 系统设置已关闭评论下载功能，跳过执行");
+            $this->info('[视频评论] 系统设置已关闭评论下载功能，跳过执行');
+
             return;
         }
 
         // 状态查看模式
         if ($this->option('status')) {
             $this->showStatus();
+
             return;
         }
 
@@ -55,11 +57,11 @@ class DownloadAllComments extends Command
         $incremental = $this->option('incremental'); // 获取增量值
         $limit = $this->option('limit'); // 获取自定义数量
         $maxVideosOpt = (int) $this->option('max-videos'); // 获取最大视频数量
-        $sleep = (int) $this->option('sleep'); //获取 sleep 参数
+        $sleep = (int) $this->option('sleep'); // 获取 sleep 参数
         $isAutoUpdate = $this->option('auto-update');
         $percent = (float) $this->option('percent');
 
-        $this->info("开始扫描视频并投递评论下载任务...");
+        $this->info('开始扫描视频并投递评论下载任务...');
         $this->info("设置请求间隔: {$sleep} 秒");
 
         $query = Video::where('invalid', 0);
@@ -71,21 +73,21 @@ class DownloadAllComments extends Command
         }
 
         // 模式判断：是否是轮询模式 (增量 或 智能)
-        $isPollingMode = ($incremental !== null || $isAutoUpdate) && !$videoId && !$force;
-        
+        $isPollingMode = ($incremental !== null || $isAutoUpdate) && ! $videoId && ! $force;
+
         if ($isPollingMode) {
             if ($isAutoUpdate) {
                 // -------------------------------------------------------------
                 // [智能模式] 基于百分比计算，自适应抓取数量
                 // -------------------------------------------------------------
                 $totalValidVideos = Video::where('invalid', 0)->count();
-                $calculatedMax = max(50, (int)($totalValidVideos * ($percent / 100)));
-                
+                $calculatedMax = max(50, (int) ($totalValidVideos * ($percent / 100)));
+
                 $maxVideos = $maxVideosOpt ?: $calculatedMax;
 
                 $this->info("模式: 智能轮询更新 (动态占比 {$percent}%)");
                 $this->info("策略: 选取最久未更新的 {$maxVideos} 个视频，自适应刷新最新评论");
-                if($incremental !== null) {
+                if ($incremental !== null) {
                     $this->info("增量: 在智能模式基础上，追加 {$incremental} 条评论");
                 }
             } else {
@@ -96,24 +98,25 @@ class DownloadAllComments extends Command
                 $this->info("模式: 传统衰减轮询 (追加 {$incremental} 条)");
                 $this->info("策略: 选取最久未更新的 {$maxVideos} 个视频");
             }
-            
+
             // 按 comments_updated_at 升序排
             $query->orderBy('comments_updated_at', 'asc')->limit($maxVideos);
-            
+
             $videos = $query->get();
             $total = $videos->count();
         } else {
-            if (!$force && !$videoId && !$isAutoUpdate && $incremental === null) {
-                $query->whereDoesntHave('comments'); 
-                $this->info("模式: 跳过已有评论的视频");
+            if (! $force && ! $videoId && ! $isAutoUpdate && $incremental === null) {
+                $query->whereDoesntHave('comments');
+                $this->info('模式: 跳过已有评论的视频');
             } elseif ($force) {
-                $this->info("模式: 强制覆盖/追加");
+                $this->info('模式: 强制覆盖/追加');
             }
             $total = $query->count();
         }
 
         if ($total == 0) {
-            $this->info("没有发现需要处理的视频。");
+            $this->info('没有发现需要处理的视频。');
+
             return;
         }
 
@@ -127,9 +130,9 @@ class DownloadAllComments extends Command
             //    worker"，彻底解决"每天跑不完、任务大量堆积"的问题；
             // 2) 评论数一次聚合预取，消除逐条 count 的 N+1。
             $totalJobs = count($videos);
-            $interval  = (int) ($this->option('interval') ?: max(1, intdiv(72000, max(1, $totalJobs))));
+            $interval = (int) ($this->option('interval') ?: max(1, intdiv(72000, max(1, $totalJobs))));
 
-            $localCounts = DB::table('comments')
+            $localCounts = comments_db()->table('comments')
                 ->selectRaw('video_id, COUNT(*) AS c')
                 ->whereIn('video_id', $videos->pluck('id'))
                 ->groupBy('video_id')
@@ -139,7 +142,7 @@ class DownloadAllComments extends Command
             foreach ($videos as $video) {
                 // 已有评论数 + 增量追加（$incremental 为空时交由 Action 自适应模型）
                 $localCount = (int) ($localCounts[$video->id] ?? 0);
-                $jobLimit   = $localCount + (int) $incremental;
+                $jobLimit = $localCount + (int) $incremental;
 
                 dispatch(
                     (new DownloadCommentsJob($video, $jobLimit, 0, 'comments-batch'))
@@ -156,14 +159,15 @@ class DownloadAllComments extends Command
 
             // 刷新更新时间，防止重复捞取
             Video::whereIn('id', $videos->pluck('id'))->update([
-                'comments_updated_at' => Carbon::now()
-            ]);        } else {
+                'comments_updated_at' => Carbon::now(),
+            ]);
+        } else {
             // 常规模式
             $query->chunkById(100, function ($videos) use ($bar, $limit, $sleep, $incremental) {
                 foreach ($videos as $video) {
                     $jobLimit = $limit;
                     if ($incremental !== null) {
-                        $jobLimit = $video->comments()->count() + (int)$incremental;
+                        $jobLimit = $video->comments()->count() + (int) $incremental;
                     }
                     dispatch(new DownloadCommentsJob($video, $jobLimit, $sleep, 'comments-batch'));
                     $bar->advance();
@@ -173,7 +177,7 @@ class DownloadAllComments extends Command
 
         $bar->finish();
         $this->newLine();
-        $this->info("所有任务已投递至队列，请在 Horizon 中查看进度。");
+        $this->info('所有任务已投递至队列，请在 Horizon 中查看进度。');
     }
 
     // 显示统计信息的方法
@@ -181,10 +185,13 @@ class DownloadAllComments extends Command
     {
         // 总视频数 (仅统计有效的)
         $totalVideos = Video::where('invalid', 0)->count();
-        
+
         // 已有评论的视频数
-        $videosWithComments = Video::where('invalid', 0)->whereHas('comments')->count();
-        
+        // 跨库兼容（批F）：不能用 whereHas('comments') —— 拆分后其 SQL 子查询在主库执行，
+        // 会命中主库遗留旧表（结果过期）。改为评论库取 distinct video_id 后主库 whereIn。
+        $videoIdsWithComments = comments_db()->table('comments')->distinct()->pluck('video_id');
+        $videosWithComments = Video::where('invalid', 0)->whereIn('id', $videoIdsWithComments)->count();
+
         // 总评论数
         $totalComments = Comment::count();
 
@@ -201,7 +208,7 @@ class DownloadAllComments extends Command
                 ['覆盖进度', "{$percent}%"],
             ]
         );
-        
-        $this->info("注意：此统计基于数据库当前状态。");
+
+        $this->info('注意：此统计基于数据库当前状态。');
     }
 }

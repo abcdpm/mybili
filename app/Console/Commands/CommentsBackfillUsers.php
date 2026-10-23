@@ -72,7 +72,7 @@ class CommentsBackfillUsers extends Command
             }
 
             $affected = DB::affectingStatement(
-                'INSERT OR IGNORE INTO comment_users (mid, uname, avatar, updated_at) VALUES ' . implode(',', $values),
+                'INSERT OR IGNORE INTO comment_users (mid, uname, avatar, updated_at) VALUES '.implode(',', $values),
                 $bindings
             );
             $total += $affected;
@@ -87,7 +87,7 @@ class CommentsBackfillUsers extends Command
         }
 
         $this->info(sprintf('回填完成: 扫描 %d 批，新增 %d 个用户，耗时 %.0f 秒', $batches, $total, microtime(true) - $start));
-        $this->info(sprintf('comment_users 总数: %d', DB::table('comment_users')->count()));
+        $this->info(sprintf('comment_users 总数: %d', comments_db()->table('comment_users')->count()));
 
         $this->line('提示: 如需回收评论表磁盘空间（清空行内冗余 uname/avatar），请运行 app:comments-reclaim-space。');
 

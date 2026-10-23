@@ -3,7 +3,6 @@
 namespace App\Console\Commands;
 
 use App\Models\Comment;
-use App\Models\Emote;
 use App\Services\Comment\EmoteResolver;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
@@ -59,7 +58,7 @@ class CommentsReclaimSpace extends Command
         // 2. 压缩旧版表情包完整映射为 key 列表
         $this->info('开始压缩旧版表情包映射 ...');
         $compacted = 0;
-        $skipped   = 0;
+        $skipped = 0;
 
         Comment::query()
             ->whereNotNull('emotes')
@@ -81,7 +80,7 @@ class CommentsReclaimSpace extends Command
                     $resolvable = count($resolver->expand($keys)) === count($keys);
 
                     if ($allLocalized && $resolvable) {
-                        DB::table('comments')->where('id', $comment->id)->update([
+                        comments_db()->table('comments')->where('id', $comment->id)->update([
                             'emotes' => json_encode(array_values($keys), JSON_UNESCAPED_UNICODE),
                         ]);
                         $compacted++;

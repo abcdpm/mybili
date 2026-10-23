@@ -3,12 +3,15 @@
 namespace App\Models;
 
 use App\Services\Comment\EmoteResolver;
+use App\Traits\UsesCommentsDatabase;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Comment extends Model
 {
+    use UsesCommentsDatabase;
+
     protected $guarded = [];
 
     protected $casts = [
@@ -52,15 +55,15 @@ class Comment extends Model
         if (empty($array['uname']) || empty($array['avatar'])) {
             $user = $this->relationLoaded('commentUser') ? $this->getRelation('commentUser') : $this->commentUser;
             if ($user) {
-                $array['uname']  = ($array['uname'] ?? '') !== '' ? $array['uname'] : $user->uname;
+                $array['uname'] = ($array['uname'] ?? '') !== '' ? $array['uname'] : $user->uname;
                 $array['avatar'] = ($array['avatar'] ?? '') !== '' ? $array['avatar'] : $user->avatar;
             }
         }
-        $array['uname']  = $array['uname'] ?? '';
+        $array['uname'] = $array['uname'] ?? '';
         $array['avatar'] = $array['avatar'] ?? '';
 
         // 2. 头像
-        if (!empty($array['avatar']) && str_starts_with($array['avatar'], '/storage/')) {
+        if (! empty($array['avatar']) && str_starts_with($array['avatar'], '/storage/')) {
             $array['avatar'] = asset($array['avatar']);
         }
 
@@ -104,6 +107,7 @@ class Comment extends Model
                 $items[$key] = asset($item);
             }
         }
+
         return $items;
     }
 }
