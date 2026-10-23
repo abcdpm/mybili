@@ -41,6 +41,15 @@
         正在扫描队列...
       </div>
       <div v-else-if="queueStats !== null" class="bg-gray-50 rounded-lg p-3 border border-gray-100">
+        <!-- 队列真实总量（LLEN）：这才是积压规模；下方任务构成为抽样展示 -->
+        <div class="flex items-center gap-3 mb-2 text-sm">
+          <span class="font-semibold text-gray-700">队列总量：</span>
+          <span class="bg-indigo-100 text-indigo-700 py-0.5 px-2.5 rounded-md text-sm font-bold">{{ queueTotal }}</span>
+          <span class="text-gray-400 text-xs">条待处理</span>
+          <span v-if="sampledCount > 0" class="text-gray-400 text-xs ml-auto">
+            任务构成（抽样 {{ sampledCount }} 条{{ queueTotal > sampledCount ? '，非全量统计' : '' }}）
+          </span>
+        </div>
         <div v-if="queueStats.length === 0" class="text-green-600 font-medium text-sm flex items-center">
           <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
           当前队列极其健康，无任何积压任务！🎉
@@ -226,6 +235,10 @@ let isUserScrolling = false
 
 // 【新增】队列统计的响应式状态
 const queueStats = ref<any[] | null>(null)
+// 队列真实总量（LLEN）与任务构成抽样数：构成统计仅基于前 500 条抽样，
+// 展示时必须与真实总量区分（避免"一直显示 500 条"的误解）
+const queueTotal = ref(0)
+const sampledCount = ref(0)
 const isQueryingQueue = ref(false)
 const activeQueue = ref('default') // 将初始值设为 'default'
 
@@ -264,7 +277,10 @@ const checkQueue = async (queue: string) => {
   isQueryingQueue.value = true
   try {
     const res: any = await getQueueStats(queue)
-    queueStats.value = res.data?.data || res.data || res
+    queueStats.value = res.data?.data || []
+    // 真实队列总量与抽样数（任务构成仅基于前 N 条抽样，不能当成全量）
+    queueTotal.value = res.data?.queue_total ?? 0
+    sampledCount.value = res.data?.sampled ?? 0
   } catch (error) {
     console.error('查询队列失败', error)
     queueStats.value = []
