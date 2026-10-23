@@ -31,6 +31,8 @@ enum SettingKey: string
     case COMMENT_DOWNLOAD_CONFIG = 'comment_download_config';
     // 转码配置（JSON：hwaccel/quality/preset）
     case TRANSCODE_CONFIG = 'transcode_config';
+    // 邮件推送配置（JSON：host/port/username/password/encryption/from_address/from_name/to）
+    case MAIL_CONFIG = 'mail_config';
 
     // Telegram Bot 设置
     case TELEGRAM_BOT_API_URL = 'telegram_bot_api_url';

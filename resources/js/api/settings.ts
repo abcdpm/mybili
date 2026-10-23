@@ -40,3 +40,14 @@ export const testTelegramConnection = (botToken: string, chatId: string, botUrl?
         }),
     }).then((res) => res.json());
 };
+
+/** 邮件推送测试发送（第22项）：使用已保存的 SMTP 配置发送测试邮件 */
+export const testMailConnection = () => {
+    return fetch('/api/settings/test-mail', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({}),
+    }).then((res) => res.json());
+};

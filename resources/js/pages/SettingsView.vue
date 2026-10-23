@@ -515,6 +515,71 @@
             </div>
 
 
+            <!-- 邮件推送配置（第22项） -->
+            <div v-show="tab === 'notify'" class="bg-white rounded-lg shadow-lg p-6 mb-6">
+                <h2 class="text-xl font-semibold mb-2 text-gray-800 border-b border-gray-200 pb-3">
+                    <span class="inline-flex items-center">✉️ {{ t('settings.mail.title') }}</span>
+                </h2>
+                <p class="text-sm text-gray-500 mb-6">{{ t('settings.mail.subtitle') }}</p>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">{{ t('settings.mail.host') }}</label>
+                        <input type="text" v-model="mailConfig.host" placeholder="smtp.example.com"
+                            class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-purple-400 focus:border-purple-400">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">{{ t('settings.mail.port') }}</label>
+                        <input type="number" min="1" max="65535" v-model.number="mailConfig.port"
+                            class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-purple-400 focus:border-purple-400">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">{{ t('settings.mail.username') }}</label>
+                        <input type="text" v-model="mailConfig.username"
+                            class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-purple-400 focus:border-purple-400">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">{{ t('settings.mail.password') }}</label>
+                        <input type="password" v-model="mailConfig.password" autocomplete="new-password"
+                            class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-purple-400 focus:border-purple-400">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">{{ t('settings.mail.encryption') }}</label>
+                        <select v-model="mailConfig.encryption"
+                            class="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-purple-400 focus:border-purple-400">
+                            <option value="ssl">SSL</option>
+                            <option value="tls">STARTTLS</option>
+                            <option value="">NONE</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">{{ t('settings.mail.fromAddress') }}</label>
+                        <input type="email" v-model="mailConfig.from_address" placeholder="noreply@example.com"
+                            class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-purple-400 focus:border-purple-400">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">{{ t('settings.mail.fromName') }}</label>
+                        <input type="text" v-model="mailConfig.from_name"
+                            class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-purple-400 focus:border-purple-400">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">{{ t('settings.mail.to') }}</label>
+                        <input type="text" v-model="mailConfig.to" placeholder="me@example.com"
+                            class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-purple-400 focus:border-purple-400">
+                    </div>
+                </div>
+
+                <div class="mt-6 flex items-center justify-between">
+                    <p class="text-xs text-gray-400">{{ t('settings.mail.retryHint') }}</p>
+                    <button @click="testMailConnection"
+                        :disabled="!mailConfig.host || !mailConfig.to"
+                        class="px-6 py-3 bg-purple-500 text-white rounded-lg hover:bg-purple-600 focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 transition duration-200 font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed">
+                        {{ t('settings.mail.testSend') }}
+                    </button>
+                </div>
+            </div>
+
+
             <!-- 定时任务配置（第14项） -->
             <div v-show="tab === 'scheduled'" class="bg-white rounded-lg shadow-lg p-6 mb-6">
                 <h2 class="text-xl font-semibold mb-2 text-gray-800 border-b border-gray-200 pb-3">
@@ -694,7 +759,7 @@
 
 <script lang="ts" setup>
 import { getFavList } from '@/api/fav';
-import { getSettings, saveSettings, getScheduledTasks, testTelegramConnection as testTelegramAPI } from '@/api/settings';
+import { getSettings, saveSettings, getScheduledTasks, testTelegramConnection as testTelegramAPI, testMailConnection as testMailAPI } from '@/api/settings';
 import { onMounted, ref, nextTick } from 'vue';
 import { useI18n } from 'vue-i18n';
 
@@ -816,6 +881,27 @@ const buildTabs = () => {
     ];
 };
 
+// ===== 邮件推送配置（第22项） =====
+const mailConfig = ref({
+    host: '',
+    port: 465,
+    username: '',
+    password: '',
+    encryption: 'ssl',
+    from_address: '',
+    from_name: 'mybili',
+    to: '',
+});
+
+const testMailConnection = async () => {
+    try {
+        const res = await testMailAPI();
+        showNotification(res?.message ?? '', res?.code !== 0);
+    } catch (e: any) {
+        showNotification(t('settings.mail.testFailed') + ' ' + (e?.message ?? ''), true);
+    }
+};
+
 const saveSettingHandler = () => {
     // Telegram 启用前置校验：启用状态下必须填写 Token 与 Chat ID，
     // 在前端提前拦截并给出明确提示，避免后端 422 报出难以理解的英文错误。
@@ -847,6 +933,8 @@ const saveSettingHandler = () => {
         scheduled_tasks: taskForm.value,
         comment_download_config: commentConfig.value,
         transcode_config: transcodeConfig.value,
+        // 邮件推送配置（第22项）
+        mail_config: mailConfig.value,
     };
 
     saveSettings(payload).then(()=>{
@@ -939,6 +1027,10 @@ onMounted(()=>{
         }
         if (data.transcode_config) {
             transcodeConfig.value = { ...transcodeConfig.value, ...data.transcode_config };
+        }
+        // 加载邮件推送配置（第22项）
+        if (data.mail_config) {
+            mailConfig.value = { ...mailConfig.value, ...data.mail_config };
         }
     })
 })

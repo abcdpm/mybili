@@ -73,6 +73,17 @@ class SettingsController extends Controller
                 'quality' => 26,
                 'preset' => 'veryfast',
             ],
+            // 邮件推送（SMTP）：默认关闭（host 为空即未配置）
+            SettingKey::MAIL_CONFIG->value => [
+                'host' => '',
+                'port' => 465,
+                'username' => '',
+                'password' => '',
+                'encryption' => 'ssl',
+                'from_address' => '',
+                'from_name' => 'mybili',
+                'to' => '',
+            ],
         ];
 
         foreach ($presets as $key => $value) {
@@ -97,6 +108,26 @@ class SettingsController extends Controller
             'frequencies' => array_keys(\App\Services\ScheduleConfigService::FREQUENCIES),
             'tasks' => app(\App\Services\ScheduleConfigService::class)->describe(),
         ]);
+    }
+
+    /**
+     * 邮件推送测试发送（第 22 项）。
+     *
+     * 使用当前已保存的 SMTP 配置发送一封测试邮件，成功/失败原因直接反馈到界面；
+     * 发送走同步通道（MailService::sendNow），不入队以便用户立即看到结果。
+     */
+    public function testMailConnection()
+    {
+        try {
+            app(\App\Services\MailService::class)->sendNow(
+                'mybili 邮件推送测试',
+                '这是一封测试邮件。收到此邮件表示 SMTP 配置正确，邮件推送功能已就绪。'.PHP_EOL.'发送时间：'.now()->toDateTimeString()
+            );
+
+            return response()->json(['code' => 0, 'message' => '测试邮件已发送，请检查收件箱']);
+        } catch (\Throwable $e) {
+            return response()->json(['code' => 1, 'message' => '发送失败：'.$e->getMessage()], 200);
+        }
     }
 
     public function saveSettings(Request $request)
@@ -165,6 +196,17 @@ class SettingsController extends Controller
             SettingKey::TRANSCODE_CONFIG->value.'.hwaccel' => 'nullable|string|in:auto,cpu,cuda,qsv',
             SettingKey::TRANSCODE_CONFIG->value.'.quality' => 'nullable|integer|min:0|max:51',
             SettingKey::TRANSCODE_CONFIG->value.'.preset' => 'nullable|string|in:ultrafast,veryfast,faster,fast,medium,slow,p1,p2,p3,p4,p5,p6,p7',
+
+            // 邮件推送配置（JSON，SMTP）
+            SettingKey::MAIL_CONFIG->value => 'nullable|array',
+            SettingKey::MAIL_CONFIG->value.'.host' => 'nullable|string|max:255',
+            SettingKey::MAIL_CONFIG->value.'.port' => 'nullable|integer|min:1|max:65535',
+            SettingKey::MAIL_CONFIG->value.'.username' => 'nullable|string|max:255',
+            SettingKey::MAIL_CONFIG->value.'.password' => 'nullable|string|max:255',
+            SettingKey::MAIL_CONFIG->value.'.encryption' => 'nullable|string|in:,ssl,tls,starttls',
+            SettingKey::MAIL_CONFIG->value.'.from_address' => 'nullable|email|max:255',
+            SettingKey::MAIL_CONFIG->value.'.from_name' => 'nullable|string|max:100',
+            SettingKey::MAIL_CONFIG->value.'.to' => 'nullable|string|max:500',
         ]);
 
         foreach ($data as $key => $value) {

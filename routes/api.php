@@ -26,6 +26,8 @@ Route::post('/settings', [SettingsController::class, 'saveSettings']);
 Route::post('/settings/test-telegram', [SettingsController::class, 'testTelegramConnection']);
 // 定时任务注册表元数据（任务名/中文说明/默认频率/当前配置），供定时任务配置页使用
 Route::get('/system/scheduled-tasks', [SettingsController::class, 'scheduledTasks']);
+// 邮件推送测试发送（第22项）
+Route::post('/settings/test-mail', [SettingsController::class, 'testMailConnection']);
 
 Route::apiResource('/subscription', SubscriptionController::class)->only(['index', 'store', 'update', 'destroy', 'show']);
 
