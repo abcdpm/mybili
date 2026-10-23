@@ -106,7 +106,6 @@ class VideoController extends Controller
 
     public function progress(Request $request)
     {
-        $list = $this->videoService->getVideosCache();
         $stat = $this->videoService->getVideosStat([]);
 
         // 【第7项优化】分块拉取：?offset=&limit= 增量返回（24K 条一次返回数 MB）。
@@ -115,10 +114,12 @@ class VideoController extends Controller
         if ($limitInput !== null && $limitInput !== '') {
             $limit = max(1, min(5000, (int) $limitInput));
             $offset = max(0, (int) $request->input('offset', 0));
-            $total = count($list);
+            // 【批F·P0】切片读取：只解码命中的缓存分块（~2-3 块），
+            // 24K 条场景内存从全量解码 ~50-100MB 降到 ~1MB
+            $total = $this->videoService->getVideosCacheTotal();
 
             return response()->json([
-                'data' => array_slice($list, $offset, $limit),
+                'data' => $this->videoService->getVideosCacheSlice($offset, $limit),
                 'stat' => $stat,
                 'offset' => $offset,
                 'limit' => $limit,
@@ -126,6 +127,9 @@ class VideoController extends Controller
                 'has_more' => ($offset + $limit) < $total,
             ]);
         }
+
+        // 兼容旧调用方：全量返回（v2 分块拼装，无巨型 JSON 字符串解码）
+        $list = $this->videoService->getVideosCache();
 
         return response()->json(['data' => $list, 'stat' => $stat], 200, []);
     }

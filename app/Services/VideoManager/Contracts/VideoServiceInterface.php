@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Services\VideoManager\Contracts;
 
 use App\Models\Video;
@@ -24,9 +25,16 @@ interface VideoServiceInterface
     public function deleteVideos(array $ids, array $options = []): array;
 
     public function getVideosCache(): array;
+
     public function updateVideosCache(?array $videos = null): void;
 
-    public function getFavVideosLightweight(int $favId): array;
-    public function getSubVideosLightweight(int $subId): array;
+    /** 批F·P0：按偏移读取缓存切片（只解码命中分块，内存恒定） */
+    public function getVideosCacheSlice(int $offset, int $limit): array;
 
+    /** 批F·P0：缓存总条数（分块模式精确值） */
+    public function getVideosCacheTotal(): int;
+
+    public function getFavVideosLightweight(int $favId): array;
+
+    public function getSubVideosLightweight(int $subId): array;
 }

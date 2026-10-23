@@ -24,6 +24,11 @@ class ProgressApiChunkTest extends TestCase
 
         $svc = Mockery::mock(VideoServiceInterface::class);
         $svc->shouldReceive('getVideosCache')->andReturn($items);
+        // 批F·P0：分块接口走切片/总量方法（与旧 getVideosCache 结果语义一致）
+        $svc->shouldReceive('getVideosCacheTotal')->andReturn(count($items));
+        $svc->shouldReceive('getVideosCacheSlice')->andReturnUsing(
+            fn (int $offset, int $limit) => array_slice($items, $offset, $limit)
+        );
         $svc->shouldReceive('getVideosStat')->andReturn([
             'count' => 10, 'downloaded' => 4, 'invalid' => 1, 'valid' => 9, 'frozen' => 0,
         ]);

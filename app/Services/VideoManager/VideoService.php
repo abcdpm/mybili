@@ -32,6 +32,16 @@ class VideoService implements VideoServiceInterface
 {
     public $ttl = 86400; // 1 day
 
+    // 视频列表缓存键（批F·P0）：旧版整体 JSON（只读兼容）与 v2 分块 List
+    private const VIDEOS_CACHE_KEY = 'video_list';
+
+    private const VIDEOS_CACHE_V2_KEY = 'video_list:v2';
+
+    private const VIDEOS_CACHE_V2_TOTAL_KEY = 'video_list:v2:total';
+
+    /** 分块大小：500 条/块（约 1MB/块，读取端只解码命中块） */
+    private const VIDEOS_CACHE_CHUNK = 500;
+
     public function count(): int
     {
         return Video::count();
@@ -488,6 +498,15 @@ class VideoService implements VideoServiceInterface
         return $rows->map(fn ($row) => $this->transformLightweightVideo($row))->toArray();
     }
 
+    /**
+     * 更新视频列表缓存（批F·P0 内存优化：Redis List 分块存储）。
+     *
+     * 旧版把 2.4 万条视频 json_encode 成一个巨型字符串（~40MB），
+     * 读取方 json_decode 整体字符串峰值 50-100MB；
+     * 现按 500 条/块拆分为 Redis List（video_list:v2），写入端逐块编码（峰值 ~1 块），
+     * 读取端可按需只解码命中的块（见 getVideosCacheSlice）。
+     * 旧键 video_list 不再写入，任其按原 TTL 自然过期（不主动删除）。
+     */
     public function updateVideosCache(?array $videos = null): void
     {
         if ($videos && is_array($videos) && count($videos) > 0) {
@@ -495,19 +514,99 @@ class VideoService implements VideoServiceInterface
         } else {
             $list = $this->getAllVideosLightweight();
         }
-        redis()->set('video_list', json_encode($list), ['EX' => $this->ttl]);
-        Log::info('Update videos cache success', ['count' => count($list)]);
+
+        $redis = redis();
+        $redis->del(self::VIDEOS_CACHE_V2_KEY, self::VIDEOS_CACHE_V2_TOTAL_KEY);
+
+        foreach (array_chunk($list, self::VIDEOS_CACHE_CHUNK) as $chunk) {
+            $redis->rPush(self::VIDEOS_CACHE_V2_KEY, json_encode($chunk));
+        }
+        $redis->set(self::VIDEOS_CACHE_V2_TOTAL_KEY, (string) count($list), ['EX' => $this->ttl]);
+        $redis->expire(self::VIDEOS_CACHE_V2_KEY, $this->ttl);
+
+        Log::info('Update videos cache success', ['count' => count($list), 'chunks' => (int) ceil(count($list) / self::VIDEOS_CACHE_CHUNK)]);
     }
 
+    /**
+     * 读取全量视频列表缓存（兼容旧签名）。
+     *
+     * v2：逐块解码拼装（峰值 = 结果数组 + 单块，不再叠加巨型 JSON 字符串）；
+     * 无 v2 时回退旧版整体键（兼容期），再无则重建。
+     */
     public function getVideosCache(): array
     {
-        $list = redis()->get('video_list');
-        if ($list) {
-            return json_decode($list, true);
+        $redis = redis();
+        $chunks = (int) $redis->lLen(self::VIDEOS_CACHE_V2_KEY);
+        if ($chunks > 0) {
+            $out = [];
+            for ($i = 0; $i < $chunks; $i++) {
+                $raw = $redis->lIndex(self::VIDEOS_CACHE_V2_KEY, $i);
+                if ($raw === false || $raw === null) {
+                    continue;
+                }
+                foreach ((array) json_decode($raw, true) as $row) {
+                    $out[] = $row;
+                }
+            }
+
+            return $out;
         }
+
+        // 兼容旧缓存（升级过渡期旧键尚未过期）
+        $list = $redis->get(self::VIDEOS_CACHE_KEY);
+        if ($list) {
+            return json_decode($list, true) ?: [];
+        }
+
         $list = $this->getAllVideosLightweight();
         $this->updateVideosCache($list);
 
         return $list;
+    }
+
+    /**
+     * 按偏移量读取视频列表切片（/api/progress 分块接口专用）。
+     *
+     * 只解码命中的分块（~2-3 块），不物化全量数组 —— 24K 条时内存恒定 ~1MB，
+     * 这是第 23 项（P0）的核心收益点。旧键/重建路径按兼容逻辑处理。
+     */
+    public function getVideosCacheSlice(int $offset, int $limit): array
+    {
+        $offset = max(0, $offset);
+        $limit = max(1, $limit);
+
+        $redis = redis();
+        $chunks = (int) $redis->lLen(self::VIDEOS_CACHE_V2_KEY);
+        if ($chunks > 0) {
+            $out = [];
+            $startChunk = intdiv($offset, self::VIDEOS_CACHE_CHUNK);
+            $endChunk = intdiv($offset + $limit - 1, self::VIDEOS_CACHE_CHUNK);
+            for ($i = $startChunk; $i <= min($endChunk, $chunks - 1); $i++) {
+                $rows = (array) json_decode((string) $redis->lIndex(self::VIDEOS_CACHE_V2_KEY, $i), true);
+                foreach ($rows as $j => $row) {
+                    $globalIndex = $i * self::VIDEOS_CACHE_CHUNK + $j;
+                    if ($globalIndex >= $offset && $globalIndex < $offset + $limit) {
+                        $out[] = $row;
+                    }
+                }
+            }
+
+            return $out;
+        }
+
+        return array_slice($this->getVideosCache(), $offset, $limit);
+    }
+
+    /**
+     * 视频列表缓存总条数（分块模式下为精确值，旧键模式退化为全量读取计数）。
+     */
+    public function getVideosCacheTotal(): int
+    {
+        $redis = redis();
+        if ((int) $redis->lLen(self::VIDEOS_CACHE_V2_KEY) > 0) {
+            return (int) $redis->get(self::VIDEOS_CACHE_V2_TOTAL_KEY);
+        }
+
+        return count($this->getVideosCache());
     }
 }
