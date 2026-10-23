@@ -16,8 +16,14 @@
                     <div class="bg-white/90 backdrop-blur-sm rounded-xl shadow-lg border border-gray-200/50 p-4 mb-4">
                         <div class="flex flex-col md:flex-row md:items-center gap-4">
                             <div class="flex-1 min-w-0">
-                                <!-- 移动端（第16项）：标题/元信息自适应字号 -->
-                                <h2 class="text-xl md:text-2xl font-bold text-gray-800 leading-tight break-words">{{ videoInfo.title }}</h2>
+                                <!-- 移动端（第16项）：标题/元信息自适应字号；标题即"在哔哩哔哩观看"入口（原按钮改为超链接） -->
+                                <h2 class="text-xl md:text-2xl font-bold leading-tight break-words">
+                                    <a :href="bilibiliUrl(videoInfo)" target="_blank" rel="noopener noreferrer"
+                                        class="text-gray-800 hover:text-pink-600 hover:underline decoration-2 underline-offset-4 transition-colors duration-200">
+                                        {{ videoInfo.title }}
+                                        <span class="inline-block text-base text-gray-400 hover:text-pink-500 align-middle ml-1">↗</span>
+                                    </a>
+                                </h2>
                                 <!-- 元信息行：播放量 / 弹幕数 / 视频发布时间 -->
                                 <div class="mt-2 flex flex-wrap items-center gap-x-3 sm:gap-x-4 gap-y-1 text-xs sm:text-sm text-gray-600">
                                     <span class="inline-flex items-center">
@@ -49,14 +55,6 @@
                                     <span class="text-gray-400">↗</span>
                                 </a>
                             </div>
-                        </div>
-                        <div class="mt-3 flex justify-end">
-                            <a class="hidden md:inline-flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-600 text-white text-sm rounded-lg hover:from-green-600 hover:to-emerald-700 transition-all duration-300 shadow hover:shadow-lg flex-shrink-0"
-                                :href="bilibiliUrl(videoInfo)" target="_blank" rel="noopener noreferrer">
-                                <span class="text-lg">📺</span>
-                                <span class="font-semibold">{{ t('video.watchOnBilibili') }}</span>
-                                <span class="text-white/80">↗</span>
-                            </a>
                         </div>
                     </div>
 
@@ -108,15 +106,6 @@
                                         </div>
                                     </div>
                                 </div>
-                            </div>
-
-                            <div class="flex justify-center pt-2 md:hidden">
-                                <a class="inline-flex items-center space-x-2 px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-lg hover:from-green-600 hover:to-emerald-700 transition-all duration-300 shadow hover:shadow-lg transform hover:-translate-y-0.5"
-                                    :href="bilibiliUrl(videoInfo)" target="_blank" rel="noopener noreferrer">
-                                    <span class="text-lg">📺</span>
-                                    <span class="font-semibold">{{ t('video.watchOnBilibili') }}</span>
-                                    <span class="text-white/80">↗</span>
-                                </a>
                             </div>
 
                             <div class="grid grid-cols-2 md:grid-cols-4 gap-3 pt-4 border-t border-gray-200/50">
