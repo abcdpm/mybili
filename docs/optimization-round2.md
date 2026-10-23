@@ -100,3 +100,33 @@
 | 系统信息准确性 | 数据库大小改 PRAGMA page_count×page_size（旧估算低估约 76 倍）；PHP 版本如实上报 Web 运行时（FrankenPHP 内嵌）与 CLI 双版本 |
 | Telegram 配置 | 补齐默认值预设、前端启用前置校验、422 错误友好化；移除泄漏 token 的调试日志 |
 
+---
+
+# 批F·架构收官（2026-10-23）运维与回滚预案
+
+## 1. 评论库拆分独立 SQLite（`app:split-comments-db`）
+
+**上线步骤（生产，零删除、可回滚）**：
+1. 低峰期执行 `php artisan app:split-comments-db`（只读报告）确认两库统计；
+2. `php artisan app:split-comments-db --execute`：复制（源库真实文件时走 ATTACH SQL 级批量复制，
+   零 PHP 物化、恒定内存）→ 增量补偿 → 双重校验（行数+内容聚合+20 行抽样）→ 校验通过才写标记切换；
+3. 校验不通过自动中止（主库保持权威），修复后低峰重跑即可；
+4. 建议同时暂停评论下载任务（定时任务配置页可临时停用 `comments_download`），
+   避免迁移窗口写入竞态；即使有竞态，增量补偿 + 二轮复核也会兜底。
+
+**回滚预案**：`php artisan app:split-comments-db --rollback`
+- 仅删除标记文件（`storage/app/comments-db-split.json`），读写立即切回主库旧表；
+- `comments.sqlite` 文件保留（不删除），可作对照或下次迁移起点；
+- 注意：拆分后新写入独立库的增量不自动回流主库（回滚前如有新数据请评估比对）。
+
+**兼容性**：未执行拆分的环境一切行为与旧版一致（连接路由按标记自动选择）；
+主库三表永远保留（只读遗留），满足"旧版本向上自动升级 + 不删数据"红线。
+
+## 2. getVideosCache Redis List 分块（P0 内存）
+
+- 新键 `video_list:v2`（List，500 条/块）+ `video_list:v2:total`；旧键 `video_list` 不再写入、
+  按原 TTL（1 天）自然过期，期间双读兼容（v2 优先）；
+- 读取端 `/api/progress?limit=` 只解码命中的 2-3 个分块，内存 ~1MB（旧版全量解码 50-100MB）；
+- 无需运维动作：下次缓存重建（视频数据变更触发）自动写入 v2；
+- 回滚：删除 v2 两键即回旧版读取路径（旧键届时如已过期则触发重建），同样零删除业务数据。
+
