@@ -358,7 +358,7 @@ class VideoService implements VideoServiceInterface
 
     public function getFavVideosLightweight(int $favId): array
     {
-        $cacheKey = "fav_videos:{$favId}";
+        $cacheKey = "fav_videos:v2:{$favId}";
         $cached = redis()->get($cacheKey);
         if ($cached) {
             return json_decode($cached, true);
@@ -397,6 +397,7 @@ class VideoService implements VideoServiceInterface
                     ->where('coverables.coverable_type', '=', Video::class);
             })
             ->leftJoin('covers', 'covers.id', '=', 'coverables.cover_id')
+            ->leftJoin('upper', 'upper.mid', '=', 'videos.upper_id')
             ->where('favorite_list_videos.favorite_list_id', $favId)
             ->whereNull('videos.deleted_at') // 【修复】：过滤软删除的数据
             ->select([
@@ -405,7 +406,10 @@ class VideoService implements VideoServiceInterface
                 'videos.video_downloaded_num', 'videos.audio_downloaded_num',
                 'videos.frozen', 'videos.invalid', 'videos.cover',
                 'videos.created_at', 'videos.duration', 'videos.view', // 【修复】：补充时长和播放量
+                'videos.upper_id', 'upper.name as upper_name', // 第21项：播放清单卡片展示 UP 主名
                 'covers.path as cover_path',
+                // 第21项：弹幕数（danmaku_files.count 聚合，video_id 有索引；随列表一次查询带出，避免前端 N+1）
+                DB::raw('(SELECT COALESCE(SUM(df.count), 0) FROM danmaku_files df WHERE df.video_id = videos.id) as danmaku_count'),
             ])
             ->orderByDesc('videos.fav_time')
             ->orderByDesc('videos.created_at')
@@ -423,6 +427,7 @@ class VideoService implements VideoServiceInterface
                     ->where('coverables.coverable_type', '=', Video::class);
             })
             ->leftJoin('covers', 'covers.id', '=', 'coverables.cover_id')
+            ->leftJoin('upper', 'upper.mid', '=', 'videos.upper_id')
             ->where('subscription_videos.subscription_id', $subId)
             ->whereNull('videos.deleted_at') // 【修复】：过滤软删除的数据
             ->select([
@@ -431,7 +436,10 @@ class VideoService implements VideoServiceInterface
                 'videos.video_downloaded_num', 'videos.audio_downloaded_num',
                 'videos.frozen', 'videos.invalid', 'videos.cover',
                 'videos.created_at', 'videos.duration', 'videos.view', // 【修复】：补充时长和播放量
+                'videos.upper_id', 'upper.name as upper_name', // 第21项：播放清单卡片展示 UP 主名
                 'covers.path as cover_path',
+                // 第21项：弹幕数（danmaku_files.count 聚合，video_id 有索引；随列表一次查询带出，避免前端 N+1）
+                DB::raw('(SELECT COALESCE(SUM(df.count), 0) FROM danmaku_files df WHERE df.video_id = videos.id) as danmaku_count'),
             ])
             ->orderByDesc('videos.pubtime')
             ->orderByDesc('videos.created_at')
