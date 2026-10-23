@@ -95,6 +95,22 @@ class SplitCommentsDb extends Command
             return 0;
         }
 
+        // 防呆联锁：主库旧表已被 app:archive-legacy-comments --drop 删除时，
+        // 直接回退会读到不存在的表（评论"全部消失"）。必须先从归档恢复。
+        $missing = [];
+        foreach (self::TABLES as $table) {
+            if (! $this->sourceConnection()->getSchemaBuilder()->hasTable($table)) {
+                $missing[] = $table;
+            }
+        }
+        if ($missing && ! $this->option('force')) {
+            $this->error('主库旧表已被归档删除（'.implode(', ', $missing).'），直接回退会读不到表，已阻止。');
+            $this->line('请先从归档恢复：php artisan app:archive-legacy-comments --restore --from=<归档文件>');
+            $this->line('确要坚持回退可加 --force（不推荐）');
+
+            return 1;
+        }
+
         unlink($marker);
         comments_db_split_flush();
 

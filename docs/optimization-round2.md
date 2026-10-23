@@ -130,6 +130,33 @@
 **兼容性**：未执行拆分的环境一切行为与旧版一致（连接路由按标记自动选择）；
 主库三表永远保留（只读遗留），满足"旧版本向上自动升级 + 不删数据"红线。
 
+### 1.1 主库瘦身·旧表归档（`app:archive-legacy-comments`，拆分稳定后可选执行）
+
+拆分后主库三表旧表为只读遗留备份（数 GB 死重量），可归档回收：
+
+```bash
+# 0. 只读报告：两侧行数 / 旧表体积 / 可回收空间估算
+php artisan app:archive-legacy-comments --status
+
+# 1. 仅归档（复制 + 三重校验，不删除任何东西）：
+php artisan app:archive-legacy-comments --execute
+#    归档文件默认落主库同目录（持久化卷）：/data/comments-legacy-archive-<时间戳>.sqlite
+
+# 2. 确认无误后，显式删除并回收（必须与 --execute 同用，且仅在校验通过后执行）：
+php artisan app:archive-legacy-comments --execute --drop --archive=/data/comments-legacy-archive-xxx.sqlite
+#    = DROP 主库旧表 + WAL checkpoint + VACUUM 回收磁盘（大库几分钟，低峰执行）
+
+# 3. 恢复预案（误删/联锁修复）：
+php artisan app:archive-legacy-comments --restore --from=/data/comments-legacy-archive-xxx.sqlite
+```
+
+安全设计：
+- 硬闸门：拆分必须已激活，且独立库与主库旧表行数一致，否则拒绝；
+- `--drop` 显式、且在三重校验（行数+内容聚合+抽样）通过后才删除；
+- **防呆联锁**：旧表删除后 `app:split-comments-db --rollback` 会被阻止（避免"回退到不存在的表"），
+  需先 `--restore` 恢复旧表再回退；
+- 归档文件是完整可读的 SQLite（可长期离线保存/备份），主库瘦身不丢任何数据。
+
 ## 2. getVideosCache Redis List 分块（P0 内存）
 
 - 新键 `video_list:v2`（List，500 条/块）+ `video_list:v2:total`；旧键 `video_list` 不再写入、
