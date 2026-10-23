@@ -44,7 +44,7 @@ class PragmaConnector extends SQLiteConnector
                 // 降级保护：PRAGMA 失败（如内存库、只读文件）不应阻断连接
                 try {
                     if (function_exists('logger')) {
-                        logger()->warning('[SQLite] PRAGMA 执行失败: ' . $pragma . ' - ' . $e->getMessage());
+                        logger()->warning('[SQLite] PRAGMA 执行失败: '.$pragma.' - '.$e->getMessage());
                     }
                 } catch (\Throwable $ignored) {
                     // 日志设施未就绪时静默忽略
@@ -69,39 +69,46 @@ class PragmaConnector extends SQLiteConnector
         if ($busyTimeout < 0) {
             $busyTimeout = 5000;
         }
-        $pragmas[] = 'PRAGMA busy_timeout = ' . $busyTimeout;
+        $pragmas[] = 'PRAGMA busy_timeout = '.$busyTimeout;
 
         // journal_mode：WAL 为推荐值（持久化到库文件，一次设置全局生效）
         $journalMode = strtolower((string) ($config['journal_mode'] ?? 'wal'));
         if (in_array($journalMode, self::JOURNAL_MODES, true)) {
-            $pragmas[] = 'PRAGMA journal_mode = ' . $journalMode;
+            $pragmas[] = 'PRAGMA journal_mode = '.$journalMode;
         }
 
         // synchronous：WAL 下 normal 即安全又快
         $synchronous = strtolower((string) ($config['synchronous'] ?? 'normal'));
         if (in_array($synchronous, self::SYNCHRONOUS_MODES, true)) {
-            $pragmas[] = 'PRAGMA synchronous = ' . $synchronous;
+            $pragmas[] = 'PRAGMA synchronous = '.$synchronous;
         }
 
         // foreign_keys：与 Laravel 的 foreign_key_constraints 配置保持一致
         $foreignKeys = filter_var($config['foreign_key_constraints'] ?? $config['foreign_keys'] ?? true, FILTER_VALIDATE_BOOLEAN);
-        $pragmas[] = 'PRAGMA foreign_keys = ' . ($foreignKeys ? 'ON' : 'OFF');
+        $pragmas[] = 'PRAGMA foreign_keys = '.($foreignKeys ? 'ON' : 'OFF');
 
         // ==== 以下为性能调优（沿用历史默认值，均可通过连接配置覆盖）====
         // wal_autocheckpoint：WAL 自动 checkpoint 阈值（页数）
-        $pragmas[] = 'PRAGMA wal_autocheckpoint = ' . (int) ($config['wal_autocheckpoint'] ?? 2000);
+        $pragmas[] = 'PRAGMA wal_autocheckpoint = '.(int) ($config['wal_autocheckpoint'] ?? 2000);
 
         // journal_size_limit：WAL 文件大小上限（字节），checkpoint 后自动截断
-        $pragmas[] = 'PRAGMA journal_size_limit = ' . (int) ($config['journal_size_limit'] ?? 67108864);
+        $pragmas[] = 'PRAGMA journal_size_limit = '.(int) ($config['journal_size_limit'] ?? 67108864);
 
-        // cache_size：页缓存（负数为 KB，-20000 即约 20MB）
-        $pragmas[] = 'PRAGMA cache_size = ' . (int) ($config['cache_size'] ?? -20000);
+        // cache_size：页缓存（负数为 KB，-8000 即约 8MB/连接）。
+        // 【内存治理】旧默认 -20000（20MB/连接）偏大：评论库拆分后每进程持有
+        // 主库+评论库两个连接，上限叠加；8MB 对 videos（2.4 万行）与按视频取
+        // 评论的索引范围读都足够，全体 worker 可省数百 MB。
+        $pragmas[] = 'PRAGMA cache_size = '.(int) ($config['cache_size'] ?? -8000);
 
-        // temp_store：临时表放内存
-        $pragmas[] = 'PRAGMA temp_store = ' . (int) ($config['temp_store'] ?? 2);
+        // temp_store：临时表放文件（1）而非内存（2）。
+        // 【内存治理】大排序（如 ORDER BY RANDOM() 全表抽样、千万行聚合）在
+        // temp_store=MEMORY 时临时表吃进内存，峰值可达 GB 级；文件模式内存有界。
+        $pragmas[] = 'PRAGMA temp_store = '.(int) ($config['temp_store'] ?? 1);
 
-        // mmap_size：内存映射大小（字节）
-        $pragmas[] = 'PRAGMA mmap_size = ' . (int) ($config['mmap_size'] ?? 268435456);
+        // mmap_size：内存映射大小（字节）。
+        // 【内存治理】旧默认 256MB 偏大：被触碰的映射页计入 RSS/Docker 内存，
+        // 两个连接叠加后虚胖；32MB 覆盖热点页即可。
+        $pragmas[] = 'PRAGMA mmap_size = '.(int) ($config['mmap_size'] ?? 33554432);
 
         return $pragmas;
     }

@@ -165,3 +165,27 @@ php artisan app:archive-legacy-comments --restore --from=/data/comments-legacy-a
 - 无需运维动作：下次缓存重建（视频数据变更触发）自动写入 v2；
 - 回滚：删除 v2 两键即回旧版读取路径（旧键届时如已过期则触发重建），同样零删除业务数据。
 
+---
+
+## 3. 内存治理（2026-10-24，容器 1.63GiB 基线）
+
+**实测内存分布（非活跃）**：10 个 horizon:work（60-151MB，合计 ~696MB）+ frankenphp 257MB
++ horizon 主进程 62MB + schedule:work 62MB ≈ 1.1GB 进程 RSS，加 WAL shm/页缓存 ≈ 1.6GiB。
+
+**增长根因**：① 评论库拆分后每进程持有主库+评论库两个 SQLite 连接，而
+PragmaConnector 页缓存默认 20MB/连接（评论 worker 实测 134MB vs 同伴 60-78MB）；
+② mmap_size 默认 256MB/连接的触碰页计入 Docker 内存；③ FrankenPHP v1.13.2（PHP 8.5）
+本体较 v1.2.5 略大。
+
+**治理措施（配置层、可回退）**：
+| 项 | 旧 | 新 | 效果 |
+|---|---|---|---|
+| cache_size | -20000（20MB/连接） | -8000（8MB/连接） | 每 worker 双连接上限 40MB→16MB |
+| sqlite_comments.cache_size | 同上 | -4000（4MB） | 评论索引范围读足够 |
+| mmap_size | 256MB/连接 | 32MB/连接 | 触碰页不再虚胖 |
+| temp_store | 2（内存） | 1（文件） | ORDER BY RANDOM 等大排序不再吃 GB 峰值 |
+| supervisor-default.maxProcesses | 10 | 6 | auto 弹性上限收紧（需要可回调） |
+
+预期：稳态回落 ~300-500MB；如需进一步压缩可下调 horizon 各 supervisor
+processes 或 octane workers（吞吐换内存）。
+

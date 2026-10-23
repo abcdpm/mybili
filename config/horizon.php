@@ -195,7 +195,9 @@ return [
             'queue' => ['fast', 'default'],
             'balance' => 'auto',
             'autoScalingStrategy' => 'time',
-            'maxProcesses' => 10,
+            // 【内存治理】10 → 6：每 worker 常驻 60-80MB，个人媒体库场景
+            // 队列吞吐远未饱和；需要更高并发可回调至 8-10
+            'maxProcesses' => 6,
             'maxTime' => 0,
             'maxJobs' => 0,
             'memory' => 128,

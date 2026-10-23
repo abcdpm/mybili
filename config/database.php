@@ -73,6 +73,9 @@ return [
             'journal_mode' => env('DB_JOURNAL_MODE', 'wal'),
             'busy_timeout' => env('DB_BUSY_TIMEOUT', 5000),
             'synchronous' => env('DB_SYNCHRONOUS', 'normal'),
+            // 【内存治理】评论库连接页缓存 4MB 足够（按视频取评论是索引范围读，
+            // 3.5GB 全库不需要整库驻留）；每进程两连接的缓存上限控制在 8+4MB
+            'cache_size' => -4000,
         ],
 
         'mysql' => [
