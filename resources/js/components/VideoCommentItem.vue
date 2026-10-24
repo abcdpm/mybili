@@ -243,6 +243,14 @@ const parseContent = (content: string, emotes: any) => {
         return `<a href="${url}" target="_blank" class="text-blue-500 hover:underline" rel="noopener noreferrer">${url}</a>`;
     });
 
+    // 【新需求】BV 号自动识别为超链接（如 BV1cbnK6gEoU → https://www.bilibili.com/video/BV1cbnK6gEoU）。
+    // 仅处理 <a>…</a> 之外的纯文本段，避免改写已生成链接的 href 造成嵌套 <a>；
+    // 正文已做 HTML 转义，注入风险可控。
+    parsed = parsed.split(/(<a\b[^>]*>[\s\S]*?<\/a>)/g).map((seg) =>
+        seg.startsWith('<a ') ? seg : seg.replace(/(BV[0-9A-Za-z]{10})/g,
+            (bv: string) => `<a href="https://www.bilibili.com/video/${bv}" target="_blank" class="text-blue-500 hover:underline" rel="noopener noreferrer">${bv}</a>`)
+    ).join('');
+
     // 提取表情包链接，兼容对象与字符串
     parsed = parsed.replace(/\[(.*?)\]/g, (match, name) => {
         if (emotes && emotes['['+name+']']) {
