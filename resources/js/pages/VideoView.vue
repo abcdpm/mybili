@@ -711,17 +711,14 @@ const hasMorePlaylistItems = computed(() =>
 )
 
 /**
- * 清单"超前 + 全覆盖"填充（对齐修复 v3）：
- * 目标高度 = max(左列实际高度, 视口底部 + 超前量) —— 右列内容既与评论区等高，
- * 又在滚动方向上超前视口底部约半屏（约 5-7 条），下滑过程无需等到评论区
- * 底部即持续加载。每次仅补齐差额（+2 条余量），数量受控。
- *
- * v3 修复要点：
- *  1. 单条高度改为实测（清单内首条 offsetHeight+间距）——旧算法用
- *     "右列总高/条数"估算，把分P卡固定高度摊进每条 → 严重高估、每次补得太少；
- *  2. 超前量加大到 max(320px, 视口高 60%)；
- *  3. 400ms 保底轮询兜住一切漏事件场景（构建部署差异/滚动容器差异等）。
+ * 清单超前加载（v4·按用户规则简化）：
+ *  核心规则 —— 列表底边始终保持在视口底部下方 5 条视频处：
+ *    · 初始加载即自然达到"超前 60%"（1 屏 + 5 条 ≈ 1.6 屏内容）；
+ *    · 鼠标滚轮下滑过程持续满足（滑一点补一点），全程无需等评论区到底；
+ *  保底规则 —— 右列整体高度不低于左列（评论区），杜绝"左边有内容右边空"。
+ *  单条高度实测（清单首条 offsetHeight+间距）；增量=差额+1 条余量，数量受控。
  */
+const LEAD_ITEMS = 5
 const itemHeightPx = (): number => {
     const el = playlistListRef.value?.querySelector('button') as HTMLElement | null
     return el ? el.offsetHeight + 8 /* space-y-2 间距 */ : 96
@@ -729,16 +726,24 @@ const itemHeightPx = (): number => {
 
 const fillPlaylist = () => {
     if (!hasMorePlaylistItems.value) return
+    const list = playlistListRef.value
     const right = rightColRef.value
-    if (!right) return
-    const lead = Math.max(320, window.innerHeight * 0.6)
+    if (!list || !right) return
+    const itemH = itemHeightPx()
+
+    // 规则1：列表底边 ≥ 视口底部 + 5 条（初始≈超前 60%，滚动中持续超前 5 条）
+    const wantBottom = window.innerHeight + LEAD_ITEMS * itemH
+    let add = Math.ceil((wantBottom - list.getBoundingClientRect().bottom) / itemH)
+
+    // 规则2（保底）：右列覆盖左列（评论区）高度
     const leftH = leftColRef.value?.scrollHeight ?? 0
-    const rightTopAbs = right.getBoundingClientRect().top + window.scrollY
-    const viewportTarget = window.scrollY + window.innerHeight + lead - rightTopAbs
-    const targetH = Math.max(leftH, viewportTarget)
-    const rightH = right.scrollHeight
-    if (rightH >= targetH) return
-    playlistDisplayCount.value += Math.ceil((targetH - rightH) / itemHeightPx()) + 2
+    if (leftH > right.scrollHeight) {
+        add = Math.max(add, Math.ceil((leftH - right.scrollHeight) / itemH))
+    }
+
+    if (add > 0) {
+        playlistDisplayCount.value += add + 1
+    }
 }
 
 /** 滚动/尺寸变化时保持右列超前填充 */
