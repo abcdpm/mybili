@@ -709,50 +709,55 @@ const hasMorePlaylistItems = computed(() =>
 )
 
 /**
- * 两侧对齐填充：清单渲染高度跟随左列（播放器+简介+评论）实际高度 —— 修复
- * "评论区有内容但清单没视频 / 清单还有视频但评论区到底了"的错位：
- * 右列比左列矮时自动补条目（只留 1 条余量），评论区懒加载长高时同步补齐。
- * 单条高度按当前均值动态估算（卡片高度随标题行数浮动）。
+ * 清单"超前 + 全覆盖"填充（对齐修复 v2）：
+ * 目标高度 = max(左列实际高度, 视口底部 + 超前量) —— 右列内容既与评论区等高，
+ * 又在滚动方向上超前视口底部约 3-4 条，彻底杜绝"评论区有内容但清单没视频"。
+ * 每次仅补齐差额（+2 条余量），避免一次渲染过多。
  */
-const fillPlaylistToMatchLeft = () => {
+const LEAD_PX = 320
+const fillPlaylist = () => {
     if (!hasMorePlaylistItems.value) return
-    const left = leftColRef.value
     const right = rightColRef.value
-    if (!left || !right) return
-    const leftH = left.scrollHeight
+    if (!right) return
+    const leftH = leftColRef.value?.scrollHeight ?? 0
+    const rightTopAbs = right.getBoundingClientRect().top + window.scrollY
+    const viewportTarget = window.scrollY + window.innerHeight + LEAD_PX - rightTopAbs
+    const targetH = Math.max(leftH, viewportTarget)
     const rightH = right.scrollHeight
-    if (rightH >= leftH) return
+    if (rightH >= targetH) return
     const itemH = Math.max(60, rightH / Math.max(displayedPlaylist.value.length, 1))
-    playlistDisplayCount.value += Math.ceil((leftH - rightH) / itemH) + 1
+    playlistDisplayCount.value += Math.ceil((targetH - rightH) / itemH) + 2
 }
 
-/** 页面滚动到底部附近时自动追加（保留"随滚动自动加载"能力） */
-const maybeLoadMorePlaylist = () => {
-    fillPlaylistToMatchLeft()
-    if (!hasMorePlaylistItems.value) return
-    const remaining = document.documentElement.scrollHeight - window.scrollY - window.innerHeight
-    if (remaining < 480) {
-        playlistDisplayCount.value += 20
-    }
-}
+/** 滚动/尺寸变化时保持右列超前填充 */
+const maybeLoadMorePlaylist = () => fillPlaylist()
 
 /** 观察左列（评论懒加载）/右列高度变化，实时补齐清单保持两侧对齐 */
 const setupAlignObserver = () => {
     alignObserver?.disconnect()
     if (typeof ResizeObserver === 'undefined') return
-    alignObserver = new ResizeObserver(() => fillPlaylistToMatchLeft())
+    alignObserver = new ResizeObserver(() => fillPlaylist())
     if (leftColRef.value) alignObserver.observe(leftColRef.value)
     if (rightColRef.value) alignObserver.observe(rightColRef.value)
 }
 
-/** 切集后重置清单窗口（起点=当前视频前 2 条），并按左列高度铺满对齐 */
+/** 切集后重置清单窗口（起点=当前视频前 2 条）并立即按目标高度铺满 */
 const resetPlaylistWindow = () => {
     playlistDisplayCount.value = 6
     nextTick(() => {
-        fillPlaylistToMatchLeft()
         setupAlignObserver()
+        fillPlaylist()
     })
 }
+
+// 视频/清单异步数据（先后顺序任意）就绪后重建观察并铺满 ——
+// 修复"清单先于模板渲染完成导致观察器挂在空 ref 上"的死角（此前会一直显示不足）
+watch([videoInfo, playlist], () => {
+    nextTick(() => {
+        setupAlignObserver()
+        fillPlaylist()
+    })
+})
 
 /** 播放量格式化（B站风格：13.5万 / 1.2亿） */
 const formatCount = (value: number | string | null | undefined): string => {
@@ -870,8 +875,9 @@ onMounted(() => {
     // 第21项：加载同收藏夹播放清单（仅收藏夹上下文）
     loadPlaylist()
     window.addEventListener('scroll', handleScroll);
-    // 清单平铺随页面滚动自动加载
+    // 清单平铺随页面滚动自动加载（超前填充）
     window.addEventListener('scroll', maybeLoadMorePlaylist);
+    window.addEventListener('resize', maybeLoadMorePlaylist);
 })
 
 // 第21项：收藏夹连播跳转时路由参数变化但组件被复用 —— 重新加载视频与首分P
@@ -896,6 +902,7 @@ onUnmounted(() => {
     }
     window.removeEventListener('scroll', handleScroll);
     window.removeEventListener('scroll', maybeLoadMorePlaylist);
+    window.removeEventListener('resize', maybeLoadMorePlaylist);
     alignObserver?.disconnect();
     alignObserver = null;
 })
