@@ -421,7 +421,9 @@ class VideoService implements VideoServiceInterface
                 // 第21项：弹幕数（danmaku_files.count 聚合，video_id 有索引；随列表一次查询带出，避免前端 N+1）
                 DB::raw('(SELECT COALESCE(SUM(df.count), 0) FROM danmaku_files df WHERE df.video_id = videos.id) as danmaku_count'),
             ])
-            ->orderByDesc('videos.fav_time')
+            // 【进度页排序修复】与 getAllVideosLightweight 同款归一排序（收藏时间降序），
+            // 修复 fav_time 为 unix 整数字符串时文本排序错乱的问题
+            ->orderByRaw("COALESCE(strftime('%s', videos.fav_time), CAST(videos.fav_time AS INTEGER), strftime('%s', videos.created_at)) DESC")
             ->orderByDesc('videos.created_at')
             ->get();
 
@@ -492,7 +494,11 @@ class VideoService implements VideoServiceInterface
                 'videos.created_at', 'videos.duration', 'videos.view',
                 'covers.path as cover_path',
             ])
-            ->orderByRaw('COALESCE(videos.fav_time, videos.created_at) DESC')
+            // 【进度页排序修复】fav_time 存储形态混杂（unix 整数字符串 / datetime 字符串 / 空），
+            // 直接 ORDER BY 会按文本排序（"999999999" > "1750000000"）导致顺序错乱。
+            // 统一归一到 epoch：datetime 字符串走 strftime，unix 整数走 CAST，空回退 created_at；
+            // 最终按收藏时间降序（最新收藏在最上面）。
+            ->orderByRaw("COALESCE(strftime('%s', videos.fav_time), CAST(videos.fav_time AS INTEGER), strftime('%s', videos.created_at)) DESC")
             ->get();
 
         return $rows->map(fn ($row) => $this->transformLightweightVideo($row))->toArray();

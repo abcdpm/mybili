@@ -277,10 +277,11 @@ const checkQueue = async (queue: string) => {
   isQueryingQueue.value = true
   try {
     const res: any = await getQueueStats(queue)
-    queueStats.value = res.data?.data || []
-    // 真实队列总量与抽样数（任务构成仅基于前 N 条抽样，不能当成全量）
-    queueTotal.value = res.data?.queue_total ?? 0
-    sampledCount.value = res.data?.sampled ?? 0
+    // api 已返回 json 本体 {data: [...], queue_total, sampled}（兼容外层包装）：
+    // 旧实现取 res.data?.data / res.data?.queue_total 导致总量恒为 0、构成为空
+    queueStats.value = Array.isArray(res?.data) ? res.data : (res?.data?.data ?? [])
+    queueTotal.value = res?.queue_total ?? res?.data?.queue_total ?? 0
+    sampledCount.value = res?.sampled ?? res?.data?.sampled ?? 0
   } catch (error) {
     console.error('查询队列失败', error)
     queueStats.value = []
