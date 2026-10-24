@@ -202,7 +202,7 @@
                             <span class="w-2 h-2 bg-gradient-to-r from-amber-400 to-orange-500 rounded-full mr-2"></span>
                             {{ t('video.playlist') }}
                         </h3>
-                        <div class="space-y-2">
+                        <div ref="playlistListRef" class="space-y-2">
                             <button v-for="item in displayedPlaylist" :key="item.id"
                                 :data-active="item.id === videoInfo?.id ? 'true' : 'false'"
                                 @click="navigateToVideo(item.id)"
@@ -599,7 +599,9 @@ const playlistFavId = ref<string>('')    // 清单所属收藏夹 ID
 const titleHeaderRef = ref<HTMLElement | null>(null)
 const leftColRef = ref<HTMLElement | null>(null)
 const rightColRef = ref<HTMLElement | null>(null)
+const playlistListRef = ref<HTMLElement | null>(null)
 let alignObserver: ResizeObserver | null = null
+let fillTimer: number | null = null
 
 /** 进入页面/切集后：滚动使带超链接的视频标题与浏览器窗口顶部齐平。
  *  必须在视频数据渲染完成后调用（标题卡 v-if="videoInfo != null"）。
@@ -709,24 +711,34 @@ const hasMorePlaylistItems = computed(() =>
 )
 
 /**
- * 清单"超前 + 全覆盖"填充（对齐修复 v2）：
+ * 清单"超前 + 全覆盖"填充（对齐修复 v3）：
  * 目标高度 = max(左列实际高度, 视口底部 + 超前量) —— 右列内容既与评论区等高，
- * 又在滚动方向上超前视口底部约 3-4 条，彻底杜绝"评论区有内容但清单没视频"。
- * 每次仅补齐差额（+2 条余量），避免一次渲染过多。
+ * 又在滚动方向上超前视口底部约半屏（约 5-7 条），下滑过程无需等到评论区
+ * 底部即持续加载。每次仅补齐差额（+2 条余量），数量受控。
+ *
+ * v3 修复要点：
+ *  1. 单条高度改为实测（清单内首条 offsetHeight+间距）——旧算法用
+ *     "右列总高/条数"估算，把分P卡固定高度摊进每条 → 严重高估、每次补得太少；
+ *  2. 超前量加大到 max(320px, 视口高 60%)；
+ *  3. 400ms 保底轮询兜住一切漏事件场景（构建部署差异/滚动容器差异等）。
  */
-const LEAD_PX = 320
+const itemHeightPx = (): number => {
+    const el = playlistListRef.value?.querySelector('button') as HTMLElement | null
+    return el ? el.offsetHeight + 8 /* space-y-2 间距 */ : 96
+}
+
 const fillPlaylist = () => {
     if (!hasMorePlaylistItems.value) return
     const right = rightColRef.value
     if (!right) return
+    const lead = Math.max(320, window.innerHeight * 0.6)
     const leftH = leftColRef.value?.scrollHeight ?? 0
     const rightTopAbs = right.getBoundingClientRect().top + window.scrollY
-    const viewportTarget = window.scrollY + window.innerHeight + LEAD_PX - rightTopAbs
+    const viewportTarget = window.scrollY + window.innerHeight + lead - rightTopAbs
     const targetH = Math.max(leftH, viewportTarget)
     const rightH = right.scrollHeight
     if (rightH >= targetH) return
-    const itemH = Math.max(60, rightH / Math.max(displayedPlaylist.value.length, 1))
-    playlistDisplayCount.value += Math.ceil((targetH - rightH) / itemH) + 2
+    playlistDisplayCount.value += Math.ceil((targetH - rightH) / itemHeightPx()) + 2
 }
 
 /** 滚动/尺寸变化时保持右列超前填充 */
@@ -741,6 +753,22 @@ const setupAlignObserver = () => {
     if (rightColRef.value) alignObserver.observe(rightColRef.value)
 }
 
+/** 保底轮询：清单未渲染完时每 400ms 检查一次覆盖情况（漏事件兜底，开销可忽略） */
+const startFillPolling = () => {
+    stopFillPolling()
+    fillTimer = window.setInterval(() => {
+        if (hasMorePlaylistItems.value) {
+            fillPlaylist()
+        }
+    }, 400)
+}
+const stopFillPolling = () => {
+    if (fillTimer !== null) {
+        window.clearInterval(fillTimer)
+        fillTimer = null
+    }
+}
+
 /** 切集后重置清单窗口（起点=当前视频前 2 条）并立即按目标高度铺满 */
 const resetPlaylistWindow = () => {
     playlistDisplayCount.value = 6
@@ -750,12 +778,13 @@ const resetPlaylistWindow = () => {
     })
 }
 
-// 视频/清单异步数据（先后顺序任意）就绪后重建观察并铺满 ——
-// 修复"清单先于模板渲染完成导致观察器挂在空 ref 上"的死角（此前会一直显示不足）
+// 视频/清单异步数据（先后顺序任意）就绪后重建观察、铺满并开启保底轮询 ——
+// 修复"清单先于模板渲染完成导致观察器挂在空 ref 上"的死角
 watch([videoInfo, playlist], () => {
     nextTick(() => {
         setupAlignObserver()
         fillPlaylist()
+        startFillPolling()
     })
 })
 
@@ -905,6 +934,7 @@ onUnmounted(() => {
     window.removeEventListener('resize', maybeLoadMorePlaylist);
     alignObserver?.disconnect();
     alignObserver = null;
+    stopFillPolling();
 })
 </script>
 
