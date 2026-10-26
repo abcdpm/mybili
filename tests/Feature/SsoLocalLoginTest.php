@@ -66,6 +66,29 @@ class SsoLocalLoginTest extends TestCase
         $this->get('/auth/local')->assertStatus(404);
     }
 
+    public function test_short_urls_at_root_render_local_login(): void
+    {
+        // 短链兼容：/ 与 /?local=true 都能激活隐藏登录页（nginx 剥前缀后即
+        // https://paccu.cn/mybili/?local=true 与 https://paccu.cn/mybili?local=true）
+        $password = app(LocalLoginService::class)->ensurePassword();
+        $this->assertNotSame('', $password);
+
+        $this->get('/?local=true')->assertStatus(200);
+    }
+
+    public function test_short_url_param_does_not_bypass_gate_elsewhere(): void
+    {
+        // 安全边界：?local=true 仅在根路径放行；API 与其它路径携带同参数不得绕过 SSO
+        $this->getJson('/api/videos?local=true')
+            ->assertStatus(401)
+            ->assertJsonPath('sso_redirect', '/auth/sso/redirect');
+
+        $this->get('/fav/123?local=true')->assertRedirect('/auth/sso/redirect');
+
+        // 根路径不带参数仍走 SSO
+        $this->get('/')->assertRedirect('/auth/sso/redirect');
+    }
+
     public function test_activation_param_renders_login_and_generates_password(): void
     {
         $this->assertFileDoesNotExist($this->passwordFile);

@@ -13,6 +13,17 @@ Route::get('/auth/sso/logout', [SsoController::class, 'logout']);
 Route::get('/auth/local', [\App\Http\Controllers\LocalLoginController::class, 'show']);
 Route::post('/auth/local', [\App\Http\Controllers\LocalLoginController::class, 'login']);
 
+// 短链兼容（隐藏应急入口）：/ 或 /?local=true —— 带 local=true 时渲染本地登录页，
+// 其余情况照常渲染 SPA。安全性：门禁仅对"根路径 + local=true"这一种组合放行，
+// API/任意路径携带同参数不会绕过 SSO（见 EnsureSsoAuthenticated）
+Route::get('/', function (\Illuminate\Http\Request $request) {
+    if ($request->query('local') === 'true') {
+        return app(\App\Http\Controllers\LocalLoginController::class)->show($request);
+    }
+
+    return view('welcome');
+});
+
 // 1. 保留原本的 GET 规则
 Route::get('/{any}', function () {
     return view('welcome');

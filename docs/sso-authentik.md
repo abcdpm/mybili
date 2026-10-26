@@ -48,6 +48,13 @@ SSO 挂了时用它救急，**主站无任何入口/提示**，必须直接访�
 https://paccu.cn/mybili/auth/local?local=true      ← 无 ?local=true 一律 404
 ```
 
+短链兼容（等价入口）：
+```
+https://paccu.cn/mybili/?local=true
+https://paccu.cn/mybili?local=true
+```
+安全边界：`?local=true` 仅在**站点根路径**生效；API/任意其它路径携带同参数不会绕过 SSO。
+
 - **密码自动生成并保存**在本地持久化空间（默认与主库同目录，即
   `/data/sso-local-password.txt`），首次进入登录页时生成、之后稳定复用；
   文件权限 0600、不在 Web 根下

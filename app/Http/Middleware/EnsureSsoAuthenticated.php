@@ -30,6 +30,10 @@ class EnsureSsoAuthenticated
         if (str_starts_with($path, 'auth/')) {
             return $next($request);
         }
+        // 短链兼容：仅"根路径 + ?local=true"放行到隐藏登录页渲染（不构成其它路径的绕过）
+        if (($path === '/' || $path === '') && $request->query('local') === 'true') {
+            return $next($request);
+        }
 
         if (SsoTicket::verify($request->cookie(SsoTicket::COOKIE))) {
             return $next($request);
