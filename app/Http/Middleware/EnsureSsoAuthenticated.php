@@ -26,7 +26,8 @@ class EnsureSsoAuthenticated
         }
 
         $path = $request->path();
-        if (str_starts_with($path, 'auth/sso')) {
+        // auth/* 全放行：SSO 流程端点 + 降级本地登录（应急通道）
+        if (str_starts_with($path, 'auth/')) {
             return $next($request);
         }
 

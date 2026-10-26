@@ -4,10 +4,14 @@ use App\Http\Controllers\SsoController;
 use Illuminate\Support\Facades\Route;
 
 // ===== SSO 单点登录（authentik OIDC）——仅 SSO_ENABLED=true 时由中间件启用 =====
-// 顺序在 SPA catch-all 之前；三个端点被中间件白名单放行
+// 顺序在 SPA catch-all 之前；auth/* 路径被中间件白名单放行
 Route::get('/auth/sso/redirect', [SsoController::class, 'redirect']);
 Route::get('/auth/sso/callback', [SsoController::class, 'callback'])->name('sso.callback');
 Route::get('/auth/sso/logout', [SsoController::class, 'logout']);
+
+// SSO 降级本地登录（隐藏应急通道）：须带 ?local=true 激活，无参数 404，主站零提示
+Route::get('/auth/local', [\App\Http\Controllers\LocalLoginController::class, 'show']);
+Route::post('/auth/local', [\App\Http\Controllers\LocalLoginController::class, 'login']);
 
 // 1. 保留原本的 GET 规则
 Route::get('/{any}', function () {

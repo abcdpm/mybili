@@ -40,3 +40,21 @@ location /mybili/ {
 - 未登录访问 API → 401 JSON `{sso_redirect: "/auth/sso/redirect"}`
 - 登出：`/auth/sso/logout`（清本地票据并跳 authentik end_session）
 - 端点：`/auth/sso/redirect`、`/auth/sso/callback`、`/auth/sso/logout`（中间件白名单）
+
+## 5. SSO 故障降级：隐藏本地登录（应急通道）
+SSO 挂了时用它救急，**主站无任何入口/提示**，必须直接访问带激活参数的地址：
+
+```
+https://paccu.cn/mybili/auth/local?local=true      ← 无 ?local=true 一律 404
+```
+
+- **密码自动生成并保存**在本地持久化空间（默认与主库同目录，即
+  `/data/sso-local-password.txt`），首次进入登录页时生成、之后稳定复用；
+  文件权限 0600、不在 Web 根下
+- 查看/轮换密码：
+  ```bash
+  docker exec mybili php artisan app:sso-local-password            # 查看（无则生成）
+  docker exec mybili php artisan app:sso-local-password --rotate   # 轮换
+  ```
+- 登录成功签发**与 SSO 相同的票据 cookie**（门禁/业务对两种来源零感知）；
+  防爆破：同 IP 每分钟最多 5 次尝试；建议救急后即 --rotate 轮换
