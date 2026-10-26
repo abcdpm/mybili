@@ -12,10 +12,14 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware) {
+        // 子路径前缀（SSO_BASE_PATH/SSO_REDIRECT_URI 推导）必须最先应用：
+        // 后续中间件/路由/视图生成的资源 URL 才能带上前缀（base 为空时零影响）
         $middleware->api([
             \App\Http\Middleware\ForceJsonResponse::class,
+            \App\Http\Middleware\ApplyBasePathMiddleware::class,
         ]);
         $middleware->web([
+            \App\Http\Middleware\ApplyBasePathMiddleware::class,
             \App\Http\Middleware\CheckDatabaseIsOkMiddleware::class,
             \App\Http\Middleware\CheckCanUpgradedFromRedisMiddleware::class,
         ]);

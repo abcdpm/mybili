@@ -38,8 +38,12 @@ trait LocalImagePrioritizerTrait
         // 如果数据库里已经下载并关联了本地图
         if ($this->relationLoaded('coverImage') && $this->coverImage->isNotEmpty()) {
             $localCover = $this->coverImage->first();
-            // 生成带 http:// 的完整绝对地址，骗过前端的自动拼接
-            $localUrl = asset(Storage::url($localCover->path));
+            // 直接用 Storage::url 输出：
+            //  - 根部署：APP_URL 绝对地址（与旧版 asset() 透传行为一致）
+            //  - 子路径部署：/mybili/storage/... 根相对前缀地址（ApplyBasePathMiddleware
+            //    已把 public 盘 url 配置为带前缀路径）。不能再套 asset()，否则会二次
+            //    加前缀（asset 会把根相对地址再拼一次 asset root）
+            $localUrl = Storage::url($localCover->path);
 
             // 自动嗅探模型中可能代表图片的字段，进行“狸猫换太子”
             $imageFields = ['cover', 'face', 'avatar', 'pic'];
