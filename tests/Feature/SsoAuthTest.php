@@ -215,4 +215,35 @@ class SsoAuthTest extends TestCase
             '发现失败应回退派生端点'
         );
     }
+
+    /**
+     * 线上真实发现文档固化回归（2026-10-26 paccu.cn 实测）。
+     *
+     * authentik 新版授权/token/userinfo 端点不带应用 slug、登出端点用连字符
+     * end-session —— 手拼后缀必然 404，必须以发现文档为准。
+     */
+    public function test_real_authentik_discovery_endpoints_are_used_verbatim(): void
+    {
+        $this->enableSso();
+        Http::fake([
+            '*/.well-known/*' => Http::response([
+                'issuer' => 'https://paccu.cn/authentik/application/o/mybili/',
+                'authorization_endpoint' => 'https://paccu.cn/authentik/application/o/authorize/',
+                'token_endpoint' => 'https://paccu.cn/authentik/application/o/token/',
+                'userinfo_endpoint' => 'https://paccu.cn/authentik/application/o/userinfo/',
+                'end_session_endpoint' => 'https://paccu.cn/authentik/application/o/mybili/end-session/',
+            ], 200),
+        ]);
+
+        // 授权跳转必须命中无 slug 的真实 authorize 端点
+        $this->get('/auth/sso/redirect')
+            ->assertRedirectContains('https://paccu.cn/authentik/application/o/authorize/?');
+
+        // 登出必须命中连字符 end-session 端点（不是派生的 end_session）
+        $resp = $this->get('/auth/sso/logout');
+        $this->assertStringStartsWith(
+            'https://paccu.cn/authentik/application/o/mybili/end-session/?',
+            (string) $resp->headers->get('Location')
+        );
+    }
 }
