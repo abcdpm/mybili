@@ -175,4 +175,44 @@ class SsoAuthTest extends TestCase
             unset($_ENV['SSO_REDIRECT_URI'], $_SERVER['SSO_REDIRECT_URI']);
         }
     }
+
+    /** 端点解析：OIDC 发现协议公布的授权地址优先于按 issuer 派生的地址 */
+    public function test_authorize_url_prefers_oidc_discovery_endpoint(): void
+    {
+        $this->enableSso();
+        Http::fake([
+            '*/.well-known/*' => Http::response([
+                'issuer' => 'https://paccu.cn/authentik/application/o/mybili/',
+                // 发现文档里的实际端点（slug 不同也能自动适配）
+                'authorization_endpoint' => 'https://paccu.cn/authentik/application/o/custom-slug/authorize/',
+                'token_endpoint' => 'https://paccu.cn/authentik/application/o/custom-slug/token/',
+                'userinfo_endpoint' => 'https://paccu.cn/authentik/application/o/custom-slug/userinfo/',
+                'end_session_endpoint' => 'https://paccu.cn/authentik/application/o/custom-slug/end_session/',
+            ], 200),
+        ]);
+
+        $resp = $this->get('/auth/sso/redirect');
+        $loc = (string) $resp->headers->get('Location');
+        $this->assertStringStartsWith(
+            'https://paccu.cn/authentik/application/o/custom-slug/authorize/?',
+            $loc,
+            '应使用发现文档公布的授权端点'
+        );
+    }
+
+    /** 发现失败时回退按 issuer 派生端点（行为可预期，不因网络问题瘫痪） */
+    public function test_endpoint_falls_back_to_derived_when_discovery_fails(): void
+    {
+        $this->enableSso();
+        Http::fake([
+            '*/.well-known/*' => Http::response('not found', 404),
+        ]);
+
+        $resp = $this->get('/auth/sso/redirect');
+        $this->assertStringStartsWith(
+            'https://paccu.cn/authentik/application/o/mybili/authorize/?',
+            (string) $resp->headers->get('Location'),
+            '发现失败应回退派生端点'
+        );
+    }
 }

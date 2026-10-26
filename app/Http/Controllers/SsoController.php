@@ -21,10 +21,53 @@ use Illuminate\Support\Str;
  */
 class SsoController extends Controller
 {
-    /** 生成 authentik 各端点地址（按 issuer 派生，authentik OpenID 约定） */
-    private function endpoint(string $suffix): string
+    /**
+     * 解析 authentik 各端点地址（OIDC 发现优先，失败回退按 issuer 派生）。
+     *
+     * 发现协议（issuer/.well-known/openid-configuration）公布的端点是什么就用什么，
+     * 自动适配应用 slug、子路径部署与 authentik 版本差异；
+     * 发现失败（网络/issuer 配错）时回退旧派生逻辑，行为可预期。
+     *
+     * @return array<string, string>
+     */
+    private function endpoints(): array
     {
-        return (string) config('sso.issuer').$suffix;
+        return cache()->remember('sso.oidc.endpoints', 3600, function () {
+            $issuer = (string) config('sso.issuer');
+            $fallback = [
+                'authorization_endpoint' => $issuer.'authorize/',
+                'token_endpoint' => $issuer.'token/',
+                'userinfo_endpoint' => $issuer.'userinfo/',
+                'end_session_endpoint' => $issuer.'end_session/',
+            ];
+
+            try {
+                $doc = Http::timeout(5)->get($issuer.'.well-known/openid-configuration');
+                $json = $doc->successful() ? $doc->json() : null;
+                if (is_array($json) && ! empty($json['authorization_endpoint'])) {
+                    return array_merge($fallback, array_intersect_key($json, $fallback));
+                }
+                \Illuminate\Support\Facades\Log::warning('[SSO] OIDC 发现失败，回退派生端点', ['issuer' => $issuer]);
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::warning('[SSO] OIDC 发现异常，回退派生端点', ['error' => $e->getMessage()]);
+            }
+
+            return $fallback;
+        });
+    }
+
+    /** 取指定端点：authorize / token / userinfo / end_session */
+    private function endpoint(string $name): string
+    {
+        $map = [
+            'authorize' => 'authorization_endpoint',
+            'token' => 'token_endpoint',
+            'userinfo' => 'userinfo_endpoint',
+            'end_session' => 'end_session_endpoint',
+        ];
+        $key = $map[$name] ?? $name;
+
+        return (string) ($this->endpoints()[$key] ?? '');
     }
 
     /**
@@ -41,7 +84,7 @@ class SsoController extends Controller
         $nonce = Str::random(32);
         $request->session()->put(['sso_state' => $state, 'sso_nonce' => $nonce]);
 
-        $authorizeUrl = $this->endpoint('authorize/').'?'.http_build_query([
+        $authorizeUrl = $this->endpoint('authorize').'?'.http_build_query([
             'client_id' => $clientId,
             'redirect_uri' => $this->redirectUri(),
             'response_type' => 'code',
@@ -64,7 +107,7 @@ class SsoController extends Controller
             abort(400, 'SSO 回调校验失败（state/code 无效）');
         }
 
-        $tokenResponse = Http::asForm()->post($this->endpoint('token/'), [
+        $tokenResponse = Http::asForm()->post($this->endpoint('token'), [
             'grant_type' => 'authorization_code',
             'code' => $code,
             'redirect_uri' => $this->redirectUri(),
@@ -76,7 +119,7 @@ class SsoController extends Controller
         }
 
         $userResponse = Http::withToken($tokenResponse->json('access_token'))
-            ->get($this->endpoint('userinfo/'));
+            ->get($this->endpoint('userinfo'));
         $user = $userResponse->json();
         if ($userResponse->failed() || empty($user['sub'])) {
             abort(502, 'SSO 获取用户信息失败');
@@ -106,7 +149,7 @@ class SsoController extends Controller
     public function logout(Request $request)
     {
         $postLogout = (string) config('sso.post_logout_redirect_uri', '');
-        $endSession = $this->endpoint('end_session/').'?'.http_build_query(array_filter([
+        $endSession = $this->endpoint('end_session').'?'.http_build_query(array_filter([
             'client_id' => (string) config('sso.client_id'),
             'post_logout_redirect_uri' => $postLogout !== '' ? $postLogout : null,
         ]));

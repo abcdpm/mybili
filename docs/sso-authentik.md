@@ -64,6 +64,23 @@ nginx 侧**不要**用 proxy_redirect 给 Location 补前缀（会误伤跳转 a
 
 安全边界：`?local=true` 仅在**站点根路径**生效；API/任意其它路径携带同参数不会绕过 SSO。
 
+## 7. 端点解析与排错
+端点地址优先走 **OIDC 发现协议**（`issuer/.well-known/openid-configuration`）——
+authentik 公布的 authorization/token/userinfo/end_session 是什么就用什么（自动适配
+应用 slug / 子路径部署 / 版本差异，结果缓存 1 小时）；发现失败时回退按 issuer
+派生后缀。
+
+跳 authentik 报 404 的排查顺序（2026-10-26 实测）：
+```bash
+# 1. 发现文档是否可用（返回 JSON 即端点正常，看 authorization_endpoint 字段）
+curl -s https://paccu.cn/authentik/application/o/mybili/.well-known/openid-configuration
+```
+- 404 → 依次检查：
+  1. **nginx 对 /authentik 是否剥前缀**：`proxy_pass http://authentik:9000/;`（末尾 `/`）
+     必须带，否则 authentik 收到 `/authentik/application/o/...` → 无此路由 → 404；
+  2. **Provider 类型必须是 OpenID Connect(OAuth2)**，Forward-auth 类型没有 `/application/o/` 端点；
+  3. **应用 slug 是否为 `mybili`**（`/application/o/<slug>/` 中是应用 slug）。
+
 - **密码自动生成并保存**在本地持久化空间（默认与主库同目录，即
   `/data/sso-local-password.txt`），首次进入登录页时生成、之后稳定复用；
   文件权限 0600、不在 Web 根下
