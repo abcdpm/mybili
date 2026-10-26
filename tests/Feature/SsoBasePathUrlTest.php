@@ -61,6 +61,15 @@ class SsoBasePathUrlTest extends TestCase
         );
     }
 
+    /** 模拟子路径 SSO 部署：开关打开 + 前缀配置齐备 */
+    private function enableSubpathSso(): void
+    {
+        config([
+            'sso.enabled' => true,
+            'sso.base_path' => '/mybili',
+        ]);
+    }
+
     /** 根部署（默认，未配 SSO 子路径）：所有 URL 生成保持旧版行为 */
     public function test_root_deploy_has_zero_impact(): void
     {
@@ -81,10 +90,64 @@ class SsoBasePathUrlTest extends TestCase
             ->assertSee('window.__MYBILI_BASE__ = ""', false);
     }
 
+    /**
+     * 本次线上二次白屏回归（2026-10-26）：SSO 已关闭，但 compose 环境残留
+     * SSO_REDIRECT_URI → config 仍推导出 base_path=/mybili。
+     * 此时用户内网直连根路径 http://192.168.0.145:5151/，
+     * 资源 URL 不得带前缀（否则请求 /mybili/build/... 404 → 白屏）。
+     */
+    public function test_disabled_sso_ignores_stale_base_path(): void
+    {
+        // SSO 关闭（enabled=false）但 base_path 因残留 REDIRECT_URI 推导为 /mybili
+        config([
+            'sso.enabled' => false,
+            'sso.base_path' => '/mybili',
+        ]);
+
+        $this->runBasePathMiddleware();
+
+        // SsoUrl::base() 作为唯一闸门必须返回空
+        $this->assertSame('', \App\Services\SsoUrl::base());
+
+        // asset() 不带前缀（内网直连可正常加载 /build/assets/...）
+        $this->assertStringNotContainsString(
+            '/mybili/',
+            asset('build/assets/app.css'),
+            'SSO 关闭时资源 URL 不得携带残留的子路径前缀'
+        );
+
+        // Storage::url() 同样不带前缀
+        $this->assertStringNotContainsString(
+            '/mybili/',
+            Storage::url('images/cover.webp'),
+            'SSO 关闭时 Storage URL 不得携带残留的子路径前缀'
+        );
+
+        // welcome 注入空前缀 → 前端拦截器/router/图片全部原样透传
+        $this->get('/')
+            ->assertStatus(200)
+            ->assertSee('window.__MYBILI_BASE__ = ""', false);
+    }
+
+    /** SSO 关闭 + 残留 base_path：本地登录表单/回跳也不得带前缀（同一闸门） */
+    public function test_disabled_sso_ignores_stale_base_path_on_local_login(): void
+    {
+        config([
+            'sso.enabled' => false,
+            'sso.base_path' => '/mybili',
+            'sso.local_password_file' => sys_get_temp_dir().'/sso-lp-'.uniqid().'.txt',
+        ]);
+
+        $this->get('/auth/local?local=true')
+            ->assertStatus(200)
+            ->assertSee('action="/auth/local"', false)
+            ->assertDontSee('action="/mybili/auth/local"', false);
+    }
+
     /** 子路径部署：asset() 输出带前缀（@vite 走同一 asset() 解析 → 修复白屏） */
     public function test_subpath_prefixes_asset_urls(): void
     {
-        config(['sso.base_path' => '/mybili']);
+        $this->enableSubpathSso();
         $this->runBasePathMiddleware();
 
         $this->assertSame('/mybili/build/assets/app.css', asset('build/assets/app.css'));
@@ -94,7 +157,7 @@ class SsoBasePathUrlTest extends TestCase
     /** 子路径部署：Storage::url()（封面/视频/表情等）输出带前缀的根相对地址 */
     public function test_subpath_prefixes_storage_urls(): void
     {
-        config(['sso.base_path' => '/mybili']);
+        $this->enableSubpathSso();
         $this->runBasePathMiddleware();
 
         $this->assertSame(
@@ -107,7 +170,7 @@ class SsoBasePathUrlTest extends TestCase
     /** 显式配置 ASSET_URL（CDN 等）时不得覆盖 */
     public function test_explicit_asset_url_is_not_overridden(): void
     {
-        config(['sso.base_path' => '/mybili']);
+        $this->enableSubpathSso();
         // 模拟用户已通过 ASSET_URL env 显式配置（cdn 场景）：中间件不得改动 asset 生成
         config(['app.asset_url' => 'https://cdn.example.com']);
         \Illuminate\Support\Facades\URL::useAssetOrigin('https://cdn.example.com');
@@ -126,9 +189,12 @@ class SsoBasePathUrlTest extends TestCase
     /** welcome 注入子路径前缀全局变量（前端 withBase/拦截器的数据源） */
     public function test_welcome_injects_base_path_global(): void
     {
-        config(['sso.base_path' => '/mybili']);
+        $this->enableSubpathSso();
 
-        $this->get('/')
+        // SSO 已开启 → 携带有效票据过门禁后再断言页面内容
+        $ticket = \App\Services\SsoTicket::make(['sub' => 'u1', 'name' => 'N'], 1);
+        $this->withUnencryptedCookie(\App\Services\SsoTicket::COOKIE, $ticket)
+            ->get('/')
             ->assertStatus(200)
             ->assertSee('window.__MYBILI_BASE__ = "/mybili"', false)
             // favicon（asset() 输出）同步带前缀
@@ -138,7 +204,7 @@ class SsoBasePathUrlTest extends TestCase
     /** 模型层：封面与分P输出给前端的浏览器地址带前缀（播放器/列表直用） */
     public function test_model_accessors_emit_prefixed_browser_urls(): void
     {
-        config(['sso.base_path' => '/mybili']);
+        $this->enableSubpathSso();
         $this->runBasePathMiddleware();
 
         $cover = new Cover();
@@ -153,7 +219,7 @@ class SsoBasePathUrlTest extends TestCase
     /** 中间件幂等：重复执行不产生双前缀（Octane 常驻 worker 多请求安全） */
     public function test_middleware_is_idempotent(): void
     {
-        config(['sso.base_path' => '/mybili']);
+        $this->enableSubpathSso();
         $this->runBasePathMiddleware();
         $this->runBasePathMiddleware();
 
