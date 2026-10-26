@@ -60,6 +60,25 @@ https://paccu.cn/mybili?local=true
 否则 nginx 剥前缀部署下 `Location: /auth/sso/redirect` 会被浏览器解析到域名根
 而 404（2026-10-26 实测踩坑记录）。
 
+### 6.1 资源与 API URL 前缀（白屏根因修复，2026-10-26 线上实测）
+除跳转外，**浏览器侧加载的资源/API 地址**同样必须带前缀，否则
+`@vite` 产出的 `/build/assets/app-xxx.css` 会解析到域名根 → CSS/JS 全 404 →
+白屏。现已全链路自动适配（全部由 base_path 驱动，**根部署/未开 SSO 时零变化**）：
+
+- 服务端 `ApplyBasePathMiddleware`（web+api 组首个）：
+  - `asset()` / `@vite` → `/mybili/build/assets/xxx.css`（显式配置 ASSET_URL 时不覆盖，CDN 场景安全）；
+  - `Storage::url()`（封面/视频/音频/表情，local+public 双盘）→ `/mybili/storage/...`
+    根相对地址，浏览器按当前域解析，不再依赖 APP_URL 内外网一致性；
+- 前端（welcome 注入 `window.__MYBILI_BASE__`，`lib/url.ts` 统一处理）：
+  - 全局 fetch/axios 幂等拦截 → `/api/...` 自动带前缀（含分页 next_page_url 归一化）；
+  - Vue Router history base、图片组件、`image()` helper、静态资源同步带前缀。
+
+安全边界：只处理站内根相对地址，外部 URL（`https://`、`//host`、`data:`）原样透传；
+前缀来自服务端配置（非用户输入），注入经 `@json` 转义。
+
+回归测试：`tests/Feature/SsoBasePathUrlTest.php`（根部署零影响 / 子路径前缀 /
+ASSET_URL 不覆盖 / 模型层输出 / 幂等）。
+
 nginx 侧**不要**用 proxy_redirect 给 Location 补前缀（会误伤跳转 authentik 的绝对地址）。
 
 安全边界：`?local=true` 仅在**站点根路径**生效；API/任意其它路径携带同参数不会绕过 SSO。
