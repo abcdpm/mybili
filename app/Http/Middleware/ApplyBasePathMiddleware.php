@@ -19,6 +19,8 @@ use Symfony\Component\HttpFoundation\Response;
  *
  * 设计红线（兼容旧版本向上自动升级）：
  *  - base_path 为空（未开 SSO / 根路径部署）→ 直接放行，零行为变化；
+ *    注意 SsoUrl::base() 在 SSO 关闭时强制返回 ''（compose 残留
+ *    SSO_REDIRECT_URI 不得影响内网根路径直连，2026-10-26 二次白屏回归）；
  *  - 显式配置过 ASSET_URL（CDN 等）→ 不覆盖（asset_url 优先）；
  *  - 仅改内存 config 与 UrlGenerator 状态，不触碰磁盘/数据库；
  *  - 幂等，可在 web + api 双组每请求安全执行（Octane 常驻 worker 无残留问题：
