@@ -1,5 +1,16 @@
+import { withBase } from './url';
+
+/**
+ * 图片地址归一化（子路径感知）：
+ *  - 已带 /storage/ 等根绝对路径（本地图 URL）→ 只补子路径前缀；
+ *  - 其余（历史相对文件名）→ 按 images/ 目录拼接后补前缀。
+ * 根部署（BASE 为空）时 withBase 原样透传，行为与旧版完全一致。
+ */
 export const image = (path: string) => {
-    return `/storage/images/${path}`
+    if (path.startsWith('/')) {
+        return withBase(path);
+    }
+    return withBase(`/storage/images/${path}`);
 }
 
 export const formatTimestamp = (timestamp: number, format: string) => {

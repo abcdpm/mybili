@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router';
+import { BASE } from '@/lib/url';
 import Home from '@/pages/Home.vue';
 import About from '@/pages/About.vue';
 import FavlistView from './pages/FavlistView.vue';
@@ -30,7 +31,9 @@ const routes = [
 ];
 
 const router = createRouter({
-  history: createWebHistory(),
+  // 子路径部署（/mybili）时 history base 必须带上前缀，否则刷新子路由 404；
+  // 根部署时 BASE 为空 → undefined，行为与旧版完全一致
+  history: createWebHistory(BASE || undefined),
   routes,
 });
 

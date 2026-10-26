@@ -5,7 +5,7 @@
         <div class="flex items-center justify-between p-4">
           <!-- Logo -->
           <router-link to="/" class="flex items-center">
-            <img src="/assets/images/logo-white.svg" alt="logo" class="w-8 h-8">
+            <img :src="withBase('/assets/images/logo-white.svg')" alt="logo" class="w-8 h-8">
             <span class="ml-2 text-white font-bold text-xl">Mybili</span>
           </router-link>
 
@@ -125,6 +125,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import ToastContainer from './components/ToastContainer.vue';
+import { withBase } from './lib/url';
 
 const { t, locale } = useI18n();
 const isDrawerOpen = ref(false);

@@ -12,6 +12,7 @@
 </template>
 <script lang="ts" setup>
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
+import { withBase } from '@/lib/url';
 
 const defaultSrc = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
 
@@ -35,7 +36,8 @@ const resolvedMode = computed(() => {
     return props.directLoad ? 'direct' : 'observer';
 });
 
-const resolvedSrc = computed(() => props.originalSrc ?? props.src ?? '');
+// withBase：子路径部署（/mybili）补前缀；绝对地址/data URI 原样透传（根部署零变化）
+const resolvedSrc = computed(() => withBase(props.originalSrc ?? props.src ?? ''));
 const resolvedRootMargin = computed(() => resolvedMode.value === 'observer-preload' ? '800px 0px' : '0px');
 const resolvedThreshold = computed(() => resolvedMode.value === 'observer-preload' ? 0 : 0.1);
 
