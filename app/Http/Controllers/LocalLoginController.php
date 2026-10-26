@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Services\LocalLoginService;
 use App\Services\SsoTicket;
+use App\Services\SsoUrl;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
 
@@ -32,6 +33,7 @@ class LocalLoginController extends Controller
 
         return view('auth.local-login', [
             'error' => $request->query('error') !== null,
+            'action' => SsoUrl::to('/auth/local'),
         ]);
     }
 
@@ -43,14 +45,14 @@ class LocalLoginController extends Controller
         // 防爆破：同 IP 每分钟 5 次（公网环境）
         $key = 'sso-local:'.$request->ip();
         if (RateLimiter::tooManyAttempts($key, 5)) {
-            return redirect('/auth/local?local=true&error=1')
+            return redirect(SsoUrl::to('/auth/local?local=true&error=1'))
                 ->withHeaders(['Retry-After' => (string) RateLimiter::availableIn($key)]);
         }
         RateLimiter::hit($key, 60);
 
         $password = (string) $request->input('password', '');
         if ($password === '' || ! $this->localLogin->verify($password)) {
-            return redirect('/auth/local?local=true&error=1');
+            return redirect(SsoUrl::to('/auth/local?local=true&error=1'));
         }
 
         RateLimiter::clear($key);
@@ -61,7 +63,7 @@ class LocalLoginController extends Controller
             (int) config('sso.ticket_ttl_hours', 24)
         );
 
-        return redirect()->intended('/')
+        return redirect()->intended(SsoUrl::to('/'))
             ->cookie(SsoTicket::COOKIE, $ticket, (int) config('sso.ticket_ttl_hours', 24) * 60,
                 '/', null, true, false, false, 'Lax');
     }

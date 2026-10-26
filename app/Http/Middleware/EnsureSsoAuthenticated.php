@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use App\Services\SsoTicket;
+use App\Services\SsoUrl;
 use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -39,11 +40,19 @@ class EnsureSsoAuthenticated
             return $next($request);
         }
 
-        $redirect = '/auth/sso/redirect';
+        // 子路径感知：登录入口与回跳目标都必须带 base 前缀（如 /mybili），
+        // 否则 nginx 剥前缀部署下 Location 丢失前缀 → 404
+        $redirect = SsoUrl::to('/auth/sso/redirect');
         if ($request->expectsJson() || str_starts_with($path, 'api/')) {
             return response()->json(['message' => 'Unauthenticated.', 'sso_redirect' => $redirect], 401);
         }
 
-        return redirect()->guest($redirect);
+        // 手工记录 intended（redirect()->guest 存的是剥前缀后的 fullUrl，子路径部署会丢前缀）
+        $request->session()->put(
+            'url.intended',
+            $request->getSchemeAndHttpHost().SsoUrl::to('/'.ltrim($request->getRequestUri(), '/'))
+        );
+
+        return redirect($redirect);
     }
 }

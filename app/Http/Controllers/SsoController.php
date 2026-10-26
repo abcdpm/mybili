@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Services\SsoTicket;
+use App\Services\SsoUrl;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
@@ -85,7 +86,7 @@ class SsoController extends Controller
 
         $ticket = SsoTicket::make($user, (int) config('sso.ticket_ttl_hours', 24));
 
-        return redirect()->intended('/')
+        return redirect()->intended(SsoUrl::to('/'))
             ->cookie(
                 SsoTicket::COOKIE,
                 $ticket,

@@ -53,6 +53,15 @@ https://paccu.cn/mybili/auth/local?local=true      ← 无 ?local=true 一律 40
 https://paccu.cn/mybili/?local=true
 https://paccu.cn/mybili?local=true
 ```
+## 6. 子路径部署（/mybili）注意事项
+站内所有跳转地址由服务端**从 SSO_REDIRECT_URI 自动推导子路径前缀**（也可用
+`SSO_BASE_PATH=/mybili` 显式指定）：登录入口、表单 action、错误回跳、登录成功
+的 intended 回跳、API 的 sso_redirect 全部携带 `/mybili` 前缀 ——
+否则 nginx 剥前缀部署下 `Location: /auth/sso/redirect` 会被浏览器解析到域名根
+而 404（2026-10-26 实测踩坑记录）。
+
+nginx 侧**不要**用 proxy_redirect 给 Location 补前缀（会误伤跳转 authentik 的绝对地址）。
+
 安全边界：`?local=true` 仅在**站点根路径**生效；API/任意其它路径携带同参数不会绕过 SSO。
 
 - **密码自动生成并保存**在本地持久化空间（默认与主库同目录，即

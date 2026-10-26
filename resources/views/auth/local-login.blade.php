@@ -60,7 +60,7 @@
         <h1>Mybili</h1>
         <p class="sub">应急本地登录</p>
 
-        <form method="POST" action="/auth/local">
+        <form method="POST" action="{{ $action ?? '/auth/local' }}">
             @csrf
             <label for="password">访问密码</label>
             <input id="password" name="password" type="password" autocomplete="current-password" required autofocus>

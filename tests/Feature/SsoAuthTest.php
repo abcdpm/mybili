@@ -147,4 +147,32 @@ class SsoAuthTest extends TestCase
         $this->assertNotNull($cookie);
         $this->assertTrue($cookie->getExpiresTime() < time(), '登出应过期票据 cookie');
     }
+
+    /** 子路径部署（nginx 剥前缀）：所有站内跳转必须带 /mybili 前缀 */
+    public function test_subpath_prefix_applied_to_redirects(): void
+    {
+        $this->enableSso();
+        config(['sso.base_path' => '/mybili']);
+
+        // 页面跳转目标带前缀（否则浏览器跳到域名根 → 404）
+        $this->get('/')->assertRedirect('/mybili/auth/sso/redirect');
+
+        // API 的 sso_redirect 同样带前缀
+        $this->getJson('/api/videos')
+            ->assertStatus(401)
+            ->assertJsonPath('sso_redirect', '/mybili/auth/sso/redirect');
+    }
+
+    /** base_path 未显式配置时应从 SSO_REDIRECT_URI 自动推导出子路径 */
+    public function test_base_path_derived_from_redirect_uri(): void
+    {
+        $_ENV['SSO_REDIRECT_URI'] = 'https://paccu.cn/mybili/auth/sso/callback';
+        $_SERVER['SSO_REDIRECT_URI'] = $_ENV['SSO_REDIRECT_URI'];
+        try {
+            $cfg = require config_path('sso.php');
+            $this->assertSame('/mybili', $cfg['base_path']);
+        } finally {
+            unset($_ENV['SSO_REDIRECT_URI'], $_SERVER['SSO_REDIRECT_URI']);
+        }
+    }
 }

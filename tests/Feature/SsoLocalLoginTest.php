@@ -159,4 +159,34 @@ class SsoLocalLoginTest extends TestCase
         $resp = $this->post('/auth/local', ['password' => $password]);
         $resp->assertStatus(302);
     }
+
+    /** 子路径部署：登录表单 action 与错误回跳都带 /mybili 前缀 */
+    public function test_subpath_prefix_in_form_action_and_error_redirect(): void
+    {
+        config(['sso.base_path' => '/mybili']);
+
+        $this->get('/auth/local?local=true')
+            ->assertStatus(200)
+            ->assertSee('action="/mybili/auth/local"', false);
+
+        $this->post('/auth/local', ['password' => 'wrong'])
+            ->assertRedirect('/mybili/auth/local?local=true&error=1');
+    }
+
+    /** 子路径部署：登录成功回到 intended（带前缀），而不是裸根路径 */
+    public function test_intended_redirect_keeps_subpath_prefix(): void
+    {
+        config(['sso.base_path' => '/mybili']);
+
+        // 未登录访问子路径页面 → 记录 intended（带前缀）
+        $this->get('/fav/123')->assertRedirect('/mybili/auth/sso/redirect');
+
+        $password = app(LocalLoginService::class)->ensurePassword();
+        $resp = $this->post('/auth/local', ['password' => $password]);
+        $this->assertSame(
+            'http://localhost/mybili/fav/123',
+            (string) $resp->headers->get('Location'),
+            '登录成功应回到带前缀的原目标页'
+        );
+    }
 }
